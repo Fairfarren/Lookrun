@@ -111,6 +111,25 @@ tasks:
     expect(result.ok).toBe(false);
   });
 
+  test('aiWaitFor 支持 timeout 辅助键', () => {
+    const result = parseScript('target: https://a.com\ntasks:\n  - name: a\n    flow:\n      - aiWaitFor: 页面加载完成\n        timeout: 10000\n', {});
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.script.tasks[0].flow[0].aux?.timeout).toBe(10000);
+  });
+
+  test('非 aiWaitFor 步骤写 timeout 报错', () => {
+    const result = parseScript('target: https://a.com\ntasks:\n  - name: a\n    flow:\n      - aiTap: 按钮\n        timeout: 1000\n', {});
+    expect(result.ok).toBe(false);
+  });
+
+  test('步骤支持 name 辅助键命名', () => {
+    const result = parseScript('target: https://a.com\ntasks:\n  - name: a\n    flow:\n      - aiTap: 按钮\n        name: 点登录\n', {});
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.script.tasks[0].flow[0].aux?.name).toBe('点登录');
+  });
+
   test('sleep 不是正数报错', () => {
     const result = parseScript('target: https://a.com\ntasks:\n  - name: a\n    flow:\n      - sleep: -1\n', {});
     expect(result.ok).toBe(false);

@@ -18,6 +18,11 @@ export const SUPPORTED_ACTIONS = [
 export interface FlowStep {
   action: string;
   params: unknown;
+  // 步骤辅助配置：name 可为任意步骤命名，timeout 仅 aiWaitFor 可用
+  aux?: {
+    name?: string;
+    timeout?: number;
+  };
 }
 
 export interface FlowTask {
@@ -52,14 +57,24 @@ function validateStep(index: number, step: unknown, errors: string[]) {
     return;
   }
   const keys = Object.keys(step);
-  if (keys.length !== 1) {
-    errors.push(`${prefix}：一个步骤只能写一个动作，当前写了 ${keys.length} 个（${keys.join('、')}）`);
+  const actionKeys = keys.filter((key) => key !== 'name' && key !== 'timeout');
+  if (actionKeys.length !== 1) {
+    errors.push(`${prefix}：一个步骤只能写一个动作，当前写了 ${actionKeys.length} 个（${actionKeys.join('、')}）`);
     return;
   }
-  const action = keys[0];
+  const action = actionKeys[0];
   if (!(SUPPORTED_ACTIONS as readonly string[]).includes(action)) {
     errors.push(`${prefix}：不支持的动作 "${action}"，支持：${SUPPORTED_ACTIONS.join('、')}`);
     return;
+  }
+  if ('timeout' in step && action !== 'aiWaitFor') {
+    errors.push(`${prefix}：timeout 只能用于 aiWaitFor 步骤`);
+  }
+  if ('timeout' in step && (typeof step.timeout !== 'number' || (step.timeout as number) <= 0)) {
+    errors.push(`${prefix}：timeout 必须是正数毫秒`);
+  }
+  if ('name' in step && typeof step.name !== 'string') {
+    errors.push(`${prefix}：name 必须是字符串`);
   }
   const params = step[action];
   if (action === 'aiInput') {
@@ -156,8 +171,16 @@ export function parseScript(yamlText: string, variables: Record<string, string>)
     task.flow.forEach((step: unknown, stepIndex: number) => {
       validateStep(stepIndex, step, errors);
       if (isRecord(step)) {
-        const action = Object.keys(step)[0];
-        flow.push({ action, params: step[action] });
+        const actionKeys = Object.keys(step).filter((key) => key !== 'name' && key !== 'timeout');
+        const action = actionKeys[0];
+        flow.push({
+          action,
+          params: step[action],
+          aux: {
+            name: typeof step.name === 'string' ? step.name : undefined,
+            timeout: typeof step.timeout === 'number' ? step.timeout : undefined,
+          },
+        });
       }
     });
     script.tasks.push({ name: String(task.name ?? ''), flow });

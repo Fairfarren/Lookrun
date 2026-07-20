@@ -1,16 +1,23 @@
 import type { Hono } from 'hono';
+import { serveStatic } from 'hono/bun';
 import { detectChrome } from './chrome';
-import { DB_PATH } from './config';
+import { DB_PATH, SCREENSHOT_DIR } from './config';
 import {
+  countRuns,
   createDb,
   deleteTask,
+  getRun,
   getTask,
   insertTask,
+  listRuns,
+  listRunSteps,
   listTasks,
   listVariables,
+  markStaleRunsStopped,
   replaceVariables,
   updateTask,
 } from './db';
+import { Runner, RunnerBusyError, ScriptInvalidError } from './runner';
 import { checkModelVision, getModelById, loadModels } from './models';
 import pkg from '../../package.json';
 import { getSetting, setSetting } from './db';
@@ -21,6 +28,8 @@ const SELECTED_MODEL_KEY = 'selectedModelId';
 
 export function registerRoutes(app: Hono) {
   const db = createDb(DB_PATH);
+  markStaleRunsStopped(db);
+  const runner = new Runner(db);
 
   // ---------- 任务 ----------
   app.get('/api/tasks', (c) => c.json(listTasks(db)));
@@ -108,6 +117,61 @@ export function registerRoutes(app: Hono) {
     replaceVariables(db, body.variables);
     return c.json({ ok: true });
   });
+
+  // ---------- 运行 ----------
+  app.post('/api/runs', async (c) => {
+    const body = await c.req.json<{ taskId?: number; modelId?: string }>();
+    if (!body.taskId || !body.modelId) {
+      return c.json({ error: '缺少 taskId 或 modelId' }, 400);
+    }
+    const task = getTask(db, body.taskId);
+    if (!task) {
+      return c.json({ error: '任务不存在' }, 404);
+    }
+    try {
+      const { runId } = runner.start({ taskId: task.id, taskName: task.name, yaml: task.yaml, modelId: body.modelId });
+      return c.json({ runId });
+    } catch (error) {
+      if (error instanceof RunnerBusyError) {
+        return c.json({ error: error.message }, 409);
+      }
+      if (error instanceof ScriptInvalidError) {
+        return c.json({ error: '脚本校验失败', errors: error.errors }, 400);
+      }
+      throw error;
+    }
+  });
+
+  app.get('/api/runs/current', (c) => {
+    const state = runner.current();
+    return c.json({ status: state ? 'running' : 'idle', run: state });
+  });
+
+  app.post('/api/runs/current/stop', async (c) => {
+    await runner.stop();
+    return c.json({ ok: true });
+  });
+
+  app.get('/api/runs', (c) => {
+    const limit = Math.min(Number(c.req.query('limit')) || 20, 100);
+    const offset = Number(c.req.query('offset')) || 0;
+    return c.json({ list: listRuns(db, { limit, offset }), total: countRuns(db) });
+  });
+
+  app.get('/api/runs/:id', (c) => {
+    const id = Number(c.req.param('id'));
+    const run = getRun(db, id);
+    if (!run) {
+      return c.json({ error: '运行记录不存在' }, 404);
+    }
+    return c.json({ run, steps: listRunSteps(db, id) });
+  });
+
+  // 步骤截图
+  app.get(
+    '/api/screenshots/*',
+    serveStatic({ root: SCREENSHOT_DIR, rewriteRequestPath: (path) => path.replace(/^\/api\/screenshots/, '') }),
+  );
 
   // ---------- 系统信息 ----------
   app.get('/api/system', (c) => {

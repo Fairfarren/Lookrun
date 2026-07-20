@@ -170,6 +170,13 @@ export function countRuns(db: Database) {
   return row.count;
 }
 
+// 程序重启后，上次遗留的 running 运行标记为 stopped
+export function markStaleRunsStopped(db: Database) {
+  db.prepare("UPDATE runs SET status = 'stopped', error = '程序重启，运行中断', finished_at = ? WHERE status = 'running'").run(
+    now(),
+  );
+}
+
 // ---------- 运行步骤 ----------
 
 interface StepRow {

@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-export const SERVER_PORT = 3877;
+export const SERVER_PORT = Number(process.env.SERVER_PORT) || 3877;
 
 // 数据目录：打包后为可执行文件同级的 data/，开发时为项目根的 data/
 // 判断依据：开发时 process.execPath 是 bun 本身，打包后是产物可执行文件
