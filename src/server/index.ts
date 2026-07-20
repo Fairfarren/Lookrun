@@ -2,6 +2,7 @@ import { createBunWebSocket } from 'hono/bun';
 import { Hono } from 'hono';
 import type { WSContext } from 'hono/ws';
 import { SERVER_PORT } from './config';
+import { registerRoutes } from './routes';
 
 const app = new Hono();
 const { upgradeWebSocket, websocket } = createBunWebSocket();
@@ -21,6 +22,8 @@ export function broadcast(payload: unknown) {
 }
 
 app.get('/api/health', (c) => c.json({ ok: true }));
+
+registerRoutes(app);
 
 app.get(
   '/ws',
