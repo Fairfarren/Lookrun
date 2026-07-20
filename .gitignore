@@ -1,0 +1,7 @@
+node_modules/
+dist/
+dist-web/
+data/
+*.local
+.DS_Store
+.work-loop/
