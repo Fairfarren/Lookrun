@@ -6,27 +6,27 @@
 
 **目标**: 验证 Bun 运行时下 puppeteer-core 能驱动系统 Chrome，CDP screencast 能拿到帧；确认 @midscene/web 的模型配置方式
 **成功标准**: 脚本能在 Bun 下启动 Chrome、打开页面、收到 screencast 帧、截图成功
-**状态**: 进行中
+**状态**: 已完成
 
 ## 阶段 1: 项目脚手架
 
 **目标**: package.json + TypeScript + Hono 后端骨架 + React/Vite 前端骨架，dev/build 脚本可用
 **成功标准**: `bun run dev` 同时起前后端，页面能访问到后端健康检查
 **测试用例**: 健康检查接口返回 ok
-**状态**: 未开始
+**状态**: 已完成
 
 ## 阶段 2: 核心后端模块（TDD）
 
 **目标**: SQLite 层、Chrome 探测、YAML 解析校验、变量替换、运行保留策略、模型配置与视觉自检
 **成功标准**: 纯逻辑模块全部有 bun test 单测且通过
 **测试用例**: YAML 合法/非法解析、{{变量}}替换、保留策略清理、Chrome 路径探测逻辑、自检响应解析
-**状态**: 未开始
+**状态**: 已完成
 
 ## 阶段 3: 执行引擎
 
 **目标**: 单任务串行 Runner：启动 Chrome → Midscene Agent → 逐步执行 YAML flow → 逐步落日志（截图/URL/AI 结果/Token）→ CDP screencast 经 WebSocket 推前端；失败即停；可手动停止；支持 MOCK_AI 演示模式
 **成功标准**: 完整跑通一个示例任务，日志完整入库，前端能收到实时帧和步骤事件
-**状态**: 未开始
+**状态**: 已完成
 
 ## 阶段 4: 前端页面
 
