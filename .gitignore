@@ -5,3 +5,4 @@ data/
 *.local
 .DS_Store
 .work-loop/
+midscene_run/
