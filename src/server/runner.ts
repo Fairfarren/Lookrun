@@ -97,7 +97,7 @@ export class Runner {
     this.stopRequested = false;
     broadcast({ type: 'run', run: getRun(this.db, runId) });
 
-    void this.execute(runId, parseResult.script, model.model, toMidsceneModelConfig(model), chrome.path);
+    void this.execute(runId, parseResult.script, toMidsceneModelConfig(model), chrome.path);
     return { runId };
   }
 
@@ -113,7 +113,6 @@ export class Runner {
   private async execute(
     runId: number,
     script: ParsedScript,
-    modelName: string,
     modelConfig: Record<string, string>,
     chromePath: string,
   ) {
@@ -172,7 +171,7 @@ export class Runner {
         const outputBefore = totalOutput;
         const stepStart = Date.now();
         try {
-          const dispatched = await dispatchStep(agent, step, index, page);
+          const dispatched = await dispatchStep(agent, step, index);
           const shotAfter = await takeScreenshot(page, stepDir, `${index}-after.jpg`);
           const aiResult = dispatched ?? (agent ? extractLastAiResult(agent.dumpDataString()) : null);
           this.recordStep(runId, index, taskName, step, page.url(), {
@@ -302,7 +301,7 @@ function errorMessage(error: unknown) {
 }
 
 // 执行单步。返回 AI 结果摘要；返回 null 时由调用方从 Midscene dump 提取
-async function dispatchStep(agent: AgentInstance | null, step: FlowStep, stepIndex: number, page: Page): Promise<unknown> {
+async function dispatchStep(agent: AgentInstance | null, step: FlowStep, stepIndex: number): Promise<unknown> {
   if (MOCK_AI) {
     if (stepIndex === MOCK_FAIL_AT) {
       throw new Error('MOCK 模拟的步骤失败');
@@ -344,7 +343,7 @@ async function dispatchStep(agent: AgentInstance | null, step: FlowStep, stepInd
       await agent!.aiWaitFor(prompt, { timeoutMs: step.aux?.timeout ?? AI_WAIT_FOR_DEFAULT_TIMEOUT_MS });
       return null;
     case 'aiQuery':
-      return { data: await agent!.aiQuery(prompt as never) };
+      return { data: await agent!.aiQuery(prompt) };
     case 'aiKeyboardPress': {
       const key = typeof step.params === 'object' && step.params !== null ? String((step.params as { key: string }).key) : prompt;
       await agent!.aiKeyboardPress(key);

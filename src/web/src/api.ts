@@ -1,4 +1,4 @@
-import type { ModelConfig, RunRecord, RunStepRecord, SystemInfo, TaskRecord } from '../../shared/types';
+import type { RunRecord, RunStepRecord, SystemInfo, TaskRecord } from '../../shared/types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -69,5 +69,3 @@ export const api = {
 export function screenshotUrl(relativePath: string) {
   return `/api/screenshots/${relativePath}`;
 }
-
-export type { ModelConfig };

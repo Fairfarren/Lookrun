@@ -31,10 +31,6 @@ export default function RunPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  useWebSocket((message_) => {
-    handleMessage(message_);
-  });
-
   const handleMessage = (msg: WsMessage) => {
     if (msg.type === 'frame') {
       setFrame(msg.data);
@@ -79,6 +75,8 @@ export default function RunPage() {
       }
     }
   };
+
+  useWebSocket(handleMessage);
 
   // 步骤增加时滚动到底部
   useEffect(() => {
