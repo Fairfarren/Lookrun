@@ -4,6 +4,8 @@ import type { ModelConfig } from '../shared/types';
 import { DATA_DIR } from './config';
 // 构建时内置的模型列表；运行时可用 data/models.json 覆盖
 import embeddedModelsJson from '../../resources/models.json';
+// 视觉自检测试图，bun build --compile 时随二进制内嵌
+import visionCheckPngPath from '../../resources/vision-check.png' with { type: 'file' };
 
 // 自检测试图的尺寸，生成 resources/vision-check.png 时使用的视口
 export const VISION_CHECK_WIDTH = 640;
@@ -109,8 +111,7 @@ const VISION_CHECK_PROMPT =
   '这是一张网页截图，画面中央有一个写着「确定按钮」的蓝色按钮。请定位这个按钮，只回复 JSON，格式：{"bbox": [x1, y1, x2, y2]}，坐标为像素值。';
 
 async function loadVisionCheckImage() {
-  const pngPath = path.join(import.meta.dir, '../../resources/vision-check.png');
-  const buffer = await Bun.file(pngPath).arrayBuffer();
+  const buffer = await Bun.file(visionCheckPngPath).arrayBuffer();
   return Buffer.from(buffer).toString('base64');
 }
 

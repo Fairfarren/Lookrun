@@ -1,7 +1,9 @@
+import path from 'node:path';
 import { createBunWebSocket } from 'hono/bun';
 import { Hono } from 'hono';
 import { SERVER_PORT } from './config';
 import { registerRoutes } from './routes';
+import { registerStatic } from './static';
 import { addWsClient, removeWsClient } from './ws';
 
 const app = new Hono();
@@ -11,6 +13,7 @@ app.get('/api/health', (c) => c.json({ ok: true }));
 
 registerRoutes(app);
 
+// /ws 必须注册在静态资源的通配路由之前，否则会被 * 抢先匹配
 app.get(
   '/ws',
   upgradeWebSocket(() => ({
@@ -23,8 +26,22 @@ app.get(
   })),
 );
 
-export default {
-  port: SERVER_PORT,
-  fetch: app.fetch,
-  websocket,
-};
+registerStatic(app);
+
+// 打包形态（可执行文件）下启动后自动打开浏览器
+function isPackaged() {
+  return !path.basename(process.execPath).toLowerCase().startsWith('bun');
+}
+
+function openBrowser(url: string) {
+  const command =
+    process.platform === 'darwin' ? ['open', url] : process.platform === 'win32' ? ['cmd', '/c', 'start', url] : ['xdg-open', url];
+  Bun.spawn({ cmd: command, stdout: 'ignore', stderr: 'ignore' });
+}
+
+Bun.serve({ port: SERVER_PORT, fetch: app.fetch, websocket });
+console.log(`AI 自动化测试服务已启动：http://localhost:${SERVER_PORT}`);
+
+if (isPackaged()) {
+  openBrowser(`http://localhost:${SERVER_PORT}`);
+}
