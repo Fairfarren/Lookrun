@@ -46,8 +46,16 @@ describe('parseVisionCheckResponse', () => {
   });
 
   test('markdown 代码块包裹的 JSON 可以解析', () => {
-    const result = parseVisionCheckResponse('```json\n{"bbox": [10, 20, 100, 60]}\n```');
+    const result = parseVisionCheckResponse('```json\n{"bbox": [200, 120, 440, 240]}\n```');
     expect(result.ok).toBe(true);
+  });
+
+  test('定位偏离按钮中心则失败', () => {
+    // 格式合法但没盖住画面中心按钮（kimi 偶发的右偏返回）
+    const result = parseVisionCheckResponse('{"bbox": [420, 190, 580, 270]}');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toContain('未覆盖画面中心');
   });
 
   test('bbox 不是 4 个数字则失败', () => {
@@ -55,8 +63,21 @@ describe('parseVisionCheckResponse', () => {
     expect(parseVisionCheckResponse('{"bbox": ["a", 2, 3, 4]}').ok).toBe(false);
   });
 
-  test('bbox 超出截图范围（640x360）则失败', () => {
+  test('bbox 超出 1000 且不在图片范围则失败', () => {
     expect(parseVisionCheckResponse('{"bbox": [0, 0, 5000, 5000]}').ok).toBe(false);
+  });
+
+  test('0-1000 归一化坐标被接受并换算回像素（gemma4 的真实返回）', () => {
+    // gemma4 对 640x360 测试图的真实返回，换算后约 [233, 143, 407, 213]
+    const result = parseVisionCheckResponse('{"bbox": [364, 396, 636, 592]}');
+    if (!result.ok) throw new Error('归一化坐标应该解析成功');
+    expect(result.coordinateSystem).toBe('normalized');
+    expect(result.bbox).toEqual([233, 143, 407, 213]);
+  });
+
+  test('归一化坐标的负值或超 1000 则失败', () => {
+    expect(parseVisionCheckResponse('{"bbox": [-5, 100, 200, 300]}').ok).toBe(false);
+    expect(parseVisionCheckResponse('{"bbox": [100, 200, 1200, 300]}').ok).toBe(false);
   });
 
   test('bbox 面积为零则失败', () => {

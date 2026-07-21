@@ -76,9 +76,26 @@ export function toMidsceneModelConfig(model: ModelConfig) {
 
 // ---------- 视觉自检 ----------
 
-export type VisionCheckResult = { ok: true; bbox: number[] } | { ok: false; reason: string };
+export type VisionCheckResult =
+  | { ok: true; bbox: number[]; coordinateSystem: 'absolute' | 'normalized' }
+  | { ok: false; reason: string };
 
-// 从模型回复里提取 bbox JSON 并校验是否在测试图范围内
+const NORMALIZED_COORD_MAX = 1000;
+
+function isPlausibleBBox(bbox: number[]) {
+  const [x1, y1, x2, y2] = bbox;
+  return x1 >= 0 && y1 >= 0 && x2 <= VISION_CHECK_WIDTH && y2 <= VISION_CHECK_HEIGHT && x2 > x1 && y2 > y1;
+}
+
+// 测试图的按钮在画面正中央，定位正确的 bbox 必然包含图片中心点
+function containsCenter(bbox: number[]) {
+  const [x1, y1, x2, y2] = bbox;
+  return x1 <= VISION_CHECK_WIDTH / 2 && x2 >= VISION_CHECK_WIDTH / 2 && y1 <= VISION_CHECK_HEIGHT / 2 && y2 >= VISION_CHECK_HEIGHT / 2;
+}
+
+// 从模型回复里提取 bbox JSON 并校验。
+// 两种坐标系都接受：绝对像素（在图片范围内）或 qwen 系 0-1000 归一化坐标
+// （gemma/minimax/kimi 走 Ollama 时都是归一化格式，参考 test-game/step2-v2 的生产验证）
 export function parseVisionCheckResponse(content: string): VisionCheckResult {
   const jsonMatch = content.match(/\{[^{}]*"bbox"[^{}]*\}/);
   if (!jsonMatch) {
@@ -98,13 +115,30 @@ export function parseVisionCheckResponse(content: string): VisionCheckResult {
     return { ok: false, reason: 'bbox 必须是 4 个数字的数组' };
   }
   const [x1, y1, x2, y2] = bbox;
-  if (x1 < 0 || y1 < 0 || x2 > VISION_CHECK_WIDTH || y2 > VISION_CHECK_HEIGHT) {
-    return { ok: false, reason: `bbox 超出图片范围（${VISION_CHECK_WIDTH}x${VISION_CHECK_HEIGHT}）` };
-  }
   if (x2 <= x1 || y2 <= y1) {
     return { ok: false, reason: 'bbox 面积为零' };
   }
-  return { ok: true, bbox };
+
+  // 绝对像素：直接落在图片范围内
+  if (isPlausibleBBox(bbox)) {
+    if (!containsCenter(bbox)) {
+      return { ok: false, reason: `定位偏差过大：bbox [${bbox.join(', ')}] 未覆盖画面中心的按钮` };
+    }
+    return { ok: true, bbox, coordinateSystem: 'absolute' };
+  }
+  // 0-1000 归一化：全部值在 [0,1000]，换算回图片尺寸后是合法框
+  if (bbox.every((n) => n >= 0 && n <= NORMALIZED_COORD_MAX)) {
+    const rescaled = [
+      (x1 * VISION_CHECK_WIDTH) / NORMALIZED_COORD_MAX,
+      (y1 * VISION_CHECK_HEIGHT) / NORMALIZED_COORD_MAX,
+      (x2 * VISION_CHECK_WIDTH) / NORMALIZED_COORD_MAX,
+      (y2 * VISION_CHECK_HEIGHT) / NORMALIZED_COORD_MAX,
+    ];
+    if (isPlausibleBBox(rescaled) && containsCenter(rescaled)) {
+      return { ok: true, bbox: rescaled.map(Math.round), coordinateSystem: 'normalized' };
+    }
+  }
+  return { ok: false, reason: `bbox 既不是合法像素坐标也不是 0-1000 归一化坐标：[${bbox.join(', ')}]` };
 }
 
 const VISION_CHECK_PROMPT =
@@ -133,7 +167,8 @@ export async function checkModelVision(
       body: JSON.stringify({
         model: model.model,
         temperature: 0,
-        max_tokens: 300,
+        // 推理型模型（如 kimi）会先消耗思考预算，给小了会返回空内容
+        max_tokens: 1500,
         messages: [
           {
             role: 'user',
@@ -155,7 +190,8 @@ export async function checkModelVision(
     const content = data.choices?.[0]?.message?.content ?? '';
     const result = parseVisionCheckResponse(content);
     if (result.ok) {
-      return { ok: true, message: `视觉能力正常，定位坐标 [${result.bbox.join(', ')}]` };
+      const systemLabel = result.coordinateSystem === 'normalized' ? '0-1000 归一化坐标' : '绝对像素坐标';
+      return { ok: true, message: `视觉能力正常（${systemLabel}），定位坐标 [${result.bbox.join(', ')}]` };
     }
     return { ok: false, message: `模型无法用于 UI 自动化：${result.reason}` };
   } catch (error) {
