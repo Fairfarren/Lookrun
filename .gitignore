@@ -6,3 +6,4 @@ data/
 .DS_Store
 .work-loop/
 midscene_run/
+resources/models.json
