@@ -19,7 +19,13 @@ import {
 } from "./db";
 import { Runner, ScriptInvalidError } from "./runner";
 import { cancelQueueItem, listQueue, moveQueueItem } from "./queue";
-import { createQueue, deleteQueue, getQueue, listQueues, updateQueue } from "./queue-defs";
+import {
+	createQueue,
+	deleteQueue,
+	getQueue,
+	listQueues,
+	updateQueue,
+} from "./queue-defs";
 import { broadcast } from "./ws";
 import { cleanupAllRuns, storageStats } from "./storage";
 import { checkModelVision, getModelById, loadModels } from "./models";
@@ -204,7 +210,10 @@ export function registerRoutes(app: Hono) {
 		if (!getQueue(db, id)) {
 			return c.json({ error: "队列不存在" }, 404);
 		}
-		const body = await c.req.json<{ name?: string; items?: { taskId: number; modelId: string }[] }>();
+		const body = await c.req.json<{
+			name?: string;
+			items?: { taskId: number; modelId: string }[];
+		}>();
 		if (!body.name?.trim()) {
 			return c.json({ error: "队列名不能为空" }, 400);
 		}
@@ -254,9 +263,13 @@ export function registerRoutes(app: Hono) {
 				}
 			} catch (error) {
 				if (error instanceof ScriptInvalidError) {
-					errors.push(`任务「${task.name}」校验失败：${error.errors.join("；")}`);
+					errors.push(
+						`任务「${task.name}」校验失败：${error.errors.join("；")}`,
+					);
 				} else {
-					errors.push(`任务「${task.name}」启动失败：${error instanceof Error ? error.message : String(error)}`);
+					errors.push(
+						`任务「${task.name}」启动失败：${error instanceof Error ? error.message : String(error)}`,
+					);
 				}
 			}
 		}

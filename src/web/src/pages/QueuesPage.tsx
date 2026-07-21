@@ -1,5 +1,19 @@
-import { DeleteOutlined, EditOutlined, PlayCircleOutlined, PlusOutlined } from "@ant-design/icons";
-import { App as AntApp, Button, Card, Empty, Flex, Space, Spin, Typography } from "antd";
+import {
+	DeleteOutlined,
+	EditOutlined,
+	PlayCircleOutlined,
+	PlusOutlined,
+} from "@ant-design/icons";
+import {
+	App as AntApp,
+	Button,
+	Card,
+	Empty,
+	Flex,
+	Space,
+	Spin,
+	Typography,
+} from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, type QueueDef } from "../api";
@@ -13,7 +27,11 @@ export default function QueuesPage() {
 
 	const load = () => {
 		setLoading(true);
-		api.listQueues().then((r) => setQueues(r.items)).catch((e: Error) => message.error(e.message)).finally(() => setLoading(false));
+		api
+			.listQueues()
+			.then((r) => setQueues(r.items))
+			.catch((e: Error) => message.error(e.message))
+			.finally(() => setLoading(false));
 	};
 
 	useEffect(load, []);
@@ -23,9 +41,13 @@ export default function QueuesPage() {
 		try {
 			const result = await api.startQueue(queue.id);
 			if (result.errors.length > 0) {
-				message.warning(`已启动 ${result.started + result.queued} 个任务，${result.errors.length} 个被跳过：${result.errors.join("；")}`);
+				message.warning(
+					`已启动 ${result.started + result.queued} 个任务，${result.errors.length} 个被跳过：${result.errors.join("；")}`,
+				);
 			} else {
-				message.success(`已启动队列「${queue.name}」：${result.started} 个立即执行，${result.queued} 个排队`);
+				message.success(
+					`已启动队列「${queue.name}」：${result.started} 个立即执行，${result.queued} 个排队`,
+				);
 			}
 			navigate("/run");
 		} catch (error) {
@@ -54,7 +76,11 @@ export default function QueuesPage() {
 		<Card
 			title="队列列表"
 			extra={
-				<Button type="primary" icon={<PlusOutlined />} onClick={() => navigate("/queues/new")}>
+				<Button
+					type="primary"
+					icon={<PlusOutlined />}
+					onClick={() => navigate("/queues/new")}
+				>
 					新建队列
 				</Button>
 			}
@@ -66,19 +92,42 @@ export default function QueuesPage() {
 			) : (
 				<Flex vertical>
 					{queues.map((queue) => (
-						<Flex key={queue.id} justify="space-between" align="center" style={{ padding: "12px 0", borderBottom: "1px solid #f0f0f0" }}>
+						<Flex
+							key={queue.id}
+							justify="space-between"
+							align="center"
+							style={{ padding: "12px 0", borderBottom: "1px solid #f0f0f0" }}
+						>
 							<Space orientation="vertical" size={2}>
 								<Typography.Text strong>{queue.name}</Typography.Text>
-								<Typography.Text type="secondary">更新于 {new Date(queue.updatedAt).toLocaleString("zh-CN", { hour12: false })}</Typography.Text>
+								<Typography.Text type="secondary">
+									更新于{" "}
+									{new Date(queue.updatedAt).toLocaleString("zh-CN", {
+										hour12: false,
+									})}
+								</Typography.Text>
 							</Space>
 							<Space>
-								<Button type="primary" ghost icon={<PlayCircleOutlined />} loading={starting === queue.id} onClick={() => startQueue(queue)}>
+								<Button
+									type="primary"
+									ghost
+									icon={<PlayCircleOutlined />}
+									loading={starting === queue.id}
+									onClick={() => startQueue(queue)}
+								>
 									开始
 								</Button>
-								<Button icon={<EditOutlined />} onClick={() => navigate(`/queues/${queue.id}`)}>
+								<Button
+									icon={<EditOutlined />}
+									onClick={() => navigate(`/queues/${queue.id}`)}
+								>
 									编辑
 								</Button>
-								<Button danger icon={<DeleteOutlined />} onClick={() => confirmDelete(queue)} />
+								<Button
+									danger
+									icon={<DeleteOutlined />}
+									onClick={() => confirmDelete(queue)}
+								/>
 							</Space>
 						</Flex>
 					))}

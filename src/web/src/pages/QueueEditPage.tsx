@@ -1,5 +1,18 @@
-import { ArrowDownOutlined, ArrowUpOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
-import { App as AntApp, Button, Card, Input, Select, Space, Typography } from "antd";
+import {
+	ArrowDownOutlined,
+	ArrowUpOutlined,
+	DeleteOutlined,
+	PlusOutlined,
+} from "@ant-design/icons";
+import {
+	App as AntApp,
+	Button,
+	Card,
+	Input,
+	Select,
+	Space,
+	Typography,
+} from "antd";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { TaskRecord } from "../../../shared/types";
@@ -31,13 +44,27 @@ export default function QueueEditPage() {
 	const [saving, setSaving] = useState(false);
 
 	useEffect(() => {
-		api.listTasks().then(setTasks).catch(() => {});
-		api.listModels().then((r) => setModels(r.models)).catch(() => {});
+		api
+			.listTasks()
+			.then(setTasks)
+			.catch(() => {});
+		api
+			.listModels()
+			.then((r) => setModels(r.models))
+			.catch(() => {});
 		if (!isNew) {
-			api.getQueue(Number(id)).then((q: QueueDefWithItems) => {
-				setName(q.name);
-				setItems(q.items.map((item) => ({ taskId: item.taskId, modelId: item.modelId })));
-			}).catch((e: Error) => message.error(e.message));
+			api
+				.getQueue(Number(id))
+				.then((q: QueueDefWithItems) => {
+					setName(q.name);
+					setItems(
+						q.items.map((item) => ({
+							taskId: item.taskId,
+							modelId: item.modelId,
+						})),
+					);
+				})
+				.catch((e: Error) => message.error(e.message));
 		} else {
 			setItems([{ taskId: undefined, modelId: undefined }]);
 		}
@@ -57,7 +84,10 @@ export default function QueueEditPage() {
 		try {
 			const payload = {
 				name: name.trim(),
-				items: validItems.map((item) => ({ taskId: item.taskId!, modelId: item.modelId! })),
+				items: validItems.map((item) => ({
+					taskId: item.taskId!,
+					modelId: item.modelId!,
+				})),
 			};
 			if (isNew) {
 				await api.createQueue(payload.name);
@@ -78,7 +108,9 @@ export default function QueueEditPage() {
 	};
 
 	const updateItem = (index: number, patch: Partial<EditItem>) => {
-		setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+		setItems((prev) =>
+			prev.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+		);
 	};
 
 	return (
@@ -96,7 +128,12 @@ export default function QueueEditPage() {
 			<Space direction="vertical" size="middle" style={{ width: "100%" }}>
 				<div>
 					<Typography.Text strong>队列名</Typography.Text>
-					<Input style={{ marginTop: 8 }} placeholder="例如：每日冒烟测试" value={name} onChange={(e) => setName(e.target.value)} />
+					<Input
+						style={{ marginTop: 8 }}
+						placeholder="例如：每日冒烟测试"
+						value={name}
+						onChange={(e) => setName(e.target.value)}
+					/>
 				</div>
 				<div>
 					<Typography.Text strong>任务列表（按顺序串行执行）</Typography.Text>
@@ -118,12 +155,34 @@ export default function QueueEditPage() {
 							onChange={(v) => updateItem(index, { modelId: v })}
 							options={models.map((m) => ({ label: m.name, value: m.id }))}
 						/>
-						<Button size="small" icon={<ArrowUpOutlined />} disabled={index === 0} onClick={() => setItems(moveItem(items, index, -1))} />
-						<Button size="small" icon={<ArrowDownOutlined />} disabled={index === items.length - 1} onClick={() => setItems(moveItem(items, index, 1))} />
-						<Button size="small" danger icon={<DeleteOutlined />} disabled={items.length === 1} onClick={() => setItems(items.filter((_, i) => i !== index))} />
+						<Button
+							size="small"
+							icon={<ArrowUpOutlined />}
+							disabled={index === 0}
+							onClick={() => setItems(moveItem(items, index, -1))}
+						/>
+						<Button
+							size="small"
+							icon={<ArrowDownOutlined />}
+							disabled={index === items.length - 1}
+							onClick={() => setItems(moveItem(items, index, 1))}
+						/>
+						<Button
+							size="small"
+							danger
+							icon={<DeleteOutlined />}
+							disabled={items.length === 1}
+							onClick={() => setItems(items.filter((_, i) => i !== index))}
+						/>
 					</Space>
 				))}
-				<Button type="dashed" icon={<PlusOutlined />} onClick={() => setItems([...items, { taskId: undefined, modelId: undefined }])}>
+				<Button
+					type="dashed"
+					icon={<PlusOutlined />}
+					onClick={() =>
+						setItems([...items, { taskId: undefined, modelId: undefined }])
+					}
+				>
 					添加任务
 				</Button>
 			</Space>

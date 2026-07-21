@@ -130,7 +130,7 @@ export const api = {
 	updateQueue: (
 		id: number,
 		input: { name: string; items: { taskId: number; modelId: string }[] },
-		) =>
+	) =>
 		request<QueueDefWithItems>(`/api/queues/${id}`, {
 			method: "PUT",
 			body: JSON.stringify(input),
@@ -138,7 +138,10 @@ export const api = {
 	deleteQueue: (id: number) =>
 		request<{ ok: boolean }>(`/api/queues/${id}`, { method: "DELETE" }),
 	startQueue: (id: number) =>
-		request<{ started: number; queued: number; errors: string[] }>(`/api/queues/${id}/start`, { method: "POST" }),
+		request<{ started: number; queued: number; errors: string[] }>(
+			`/api/queues/${id}/start`,
+			{ method: "POST" },
+		),
 
 	// 模型
 	listModels: () =>
