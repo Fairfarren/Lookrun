@@ -24,6 +24,8 @@ import { parseScript, type FlowStep, type ParsedScript } from "./yamlflow";
 
 // Midscene 自己的 HTML 报告也落到数据目录下，方便需要时翻看
 process.env.MIDSCENE_RUN_DIR ??= REPORT_DIR;
+// 模型的思考过程、断言结论、定位失败原因统一用中文输出（注入到 Midscene 的提示词里）
+process.env.MIDSCENE_PREFERRED_LANGUAGE ??= 'Chinese';
 
 const DEFAULT_VIEWPORT = { width: 390, height: 844 };
 // 手机视口参数：让被测站点按移动端布局渲染，截图比例接近真机
