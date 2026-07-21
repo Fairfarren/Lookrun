@@ -1,4 +1,10 @@
-import { StopOutlined } from "@ant-design/icons";
+import {
+	ArrowDownOutlined,
+	ArrowUpOutlined,
+	DeleteOutlined,
+	PlusOutlined,
+	StopOutlined,
+} from "@ant-design/icons";
 import {
 	App as AntApp,
 	Button,
@@ -7,14 +13,15 @@ import {
 	Empty,
 	Flex,
 	Row,
+	Select,
 	Space,
 	Spin,
 	Tag,
 	Typography,
 } from "antd";
 import { useEffect, useRef, useState } from "react";
-import type { RunStepRecord } from "../../../shared/types";
-import { api, type CurrentRunState } from "../api";
+import type { RunStepRecord, TaskRecord } from "../../../shared/types";
+import { api, type CurrentRunState, type ModelBrief, type QueueItem } from "../api";
 import { RunStatusTag, formatDuration } from "../components";
 import { useWebSocket, type WsMessage } from "../hooks";
 
@@ -38,17 +45,37 @@ export default function RunPage() {
 	const [loading, setLoading] = useState(true);
 	const stepListRef = useRef<HTMLDivElement>(null);
 
+	// 任务队列
+	const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
+	const [tasks, setTasks] = useState<TaskRecord[]>([]);
+	const [models, setModels] = useState<ModelBrief[]>([]);
+	const [addTaskId, setAddTaskId] = useState<number>();
+	const [addModelId, setAddModelId] = useState<string>();
+
 	useEffect(() => {
 		api
 			.currentRun()
 			.then(setCurrent)
 			.catch((error: Error) => message.error(error.message))
 			.finally(() => setLoading(false));
+		api.listQueue().then((r) => setQueueItems(r.items)).catch(() => {});
+		api.listTasks().then(setTasks).catch(() => {});
+		api
+			.listModels()
+			.then((r) => {
+				setModels(r.models);
+				setAddModelId(r.selected ?? r.models[0]?.id);
+			})
+			.catch(() => {});
 	}, []);
 
 	const handleMessage = (msg: WsMessage) => {
 		if (msg.type === "frame") {
 			setFrame(msg.data);
+			return;
+		}
+		if (msg.type === "queue") {
+			setQueueItems(msg.items);
 			return;
 		}
 		if (msg.type === "step-start") {
@@ -109,7 +136,6 @@ export default function RunPage() {
 
 	useWebSocket(handleMessage);
 
-	// 步骤增加时滚动到底部
 	useEffect(() => {
 		stepListRef.current?.scrollTo({
 			top: stepListRef.current.scrollHeight,
@@ -126,14 +152,48 @@ export default function RunPage() {
 		}
 	};
 
+	const addToQueue = async () => {
+		if (!addTaskId || !addModelId) {
+			message.warning("请选择任务和模型");
+			return;
+		}
+		try {
+			const result = await api.startRun({ taskId: addTaskId, modelId: addModelId });
+			if (result.queued) {
+				message.success("已加入队列");
+			} else {
+				message.success("已开始运行");
+			}
+		} catch (error) {
+			message.error(error instanceof Error ? error.message : String(error));
+		}
+	};
+
+	const moveItem = async (id: number, direction: "up" | "down") => {
+		try {
+			const result = await api.moveQueueItem(id, direction);
+			setQueueItems(result.items);
+		} catch (error) {
+			message.error(error instanceof Error ? error.message : String(error));
+		}
+	};
+
+	const cancelItem = async (id: number) => {
+		try {
+			const result = await api.cancelQueueItem(id);
+			setQueueItems(result.items);
+		} catch (error) {
+			message.error(error instanceof Error ? error.message : String(error));
+		}
+	};
+
 	if (loading) {
 		return <Spin style={{ display: "block", margin: "80px auto" }} />;
 	}
 
 	const running = current.status === "running";
-
-	// 一屏高度：减去顶部导航、边距、卡片标题和底部结果行，保证画面区不溢出视口
 	const frameAreaHeight = "calc(100vh - 250px)";
+	const pendingItems = queueItems.filter((item) => item.status === "pending");
 
 	return (
 		<Row gutter={16}>
@@ -187,80 +247,165 @@ export default function RunPage() {
 				</Card>
 			</Col>
 			<Col span={14}>
-				<Card
-					title={
-						<Space>
-							步骤日志
-							{current.run && (
+				<Space orientation="vertical" size={16} style={{ width: "100%" }}>
+					<Card
+						title={`任务队列${pendingItems.length > 0 ? `（${pendingItems.length} 个待执行）` : ""}`}
+						size="small"
+					>
+						<div style={{ maxHeight: 180, overflowY: "auto" }}>
+							{pendingItems.length === 0 && (
+								<Typography.Text type="secondary">队列为空</Typography.Text>
+							)}
+							<Flex vertical>
+								{pendingItems.map((item, index) => (
+									<div
+										key={item.id}
+										style={{
+											padding: "6px 0",
+											borderBottom: "1px solid #f0f0f0",
+											display: "flex",
+											alignItems: "center",
+											justifyContent: "space-between",
+										}}
+									>
+										<Space>
+											<Tag>{`#${index + 1}`}</Tag>
+											<Typography.Text strong>{item.taskName}</Typography.Text>
+											<Typography.Text type="secondary" style={{ fontSize: 12 }}>
+												{item.model}
+											</Typography.Text>
+										</Space>
+										<Space size={4}>
+											<Button
+												size="small"
+												type="text"
+												icon={<ArrowUpOutlined />}
+												disabled={index === 0}
+												onClick={() => moveItem(item.id, "up")}
+											/>
+											<Button
+												size="small"
+												type="text"
+												icon={<ArrowDownOutlined />}
+												disabled={index === pendingItems.length - 1}
+												onClick={() => moveItem(item.id, "down")}
+											/>
+											<Button
+												size="small"
+												type="text"
+												danger
+												icon={<DeleteOutlined />}
+												onClick={() => cancelItem(item.id)}
+											/>
+										</Space>
+									</div>
+								))}
+							</Flex>
+						</div>
+						<div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 8, marginTop: 8 }}>
+							<Space style={{ width: "100%" }}>
+								<Select
+									style={{ flex: 1, minWidth: 160 }}
+									placeholder="选择任务"
+									value={addTaskId}
+									onChange={setAddTaskId}
+									options={tasks.map((task) => ({
+										label: task.name,
+										value: task.id,
+									}))}
+								/>
+								<Select
+									style={{ minWidth: 160 }}
+									placeholder="选择模型"
+									value={addModelId}
+									onChange={setAddModelId}
+									options={models.map((model) => ({
+										label: model.name,
+										value: model.id,
+									}))}
+								/>
+								<Button type="primary" icon={<PlusOutlined />} onClick={addToQueue}>
+									添加
+								</Button>
+							</Space>
+						</div>
+					</Card>
+
+					<Card
+						title={
+							<Space>
+								步骤日志
+								{current.run && (
+									<Typography.Text type="secondary">
+										{current.run.taskName}（{current.run.currentStepIndex + 1}/
+										{current.run.totalSteps || "?"}）
+									</Typography.Text>
+								)}
+							</Space>
+						}
+					>
+						<div
+							ref={stepListRef}
+							style={{ maxHeight: "calc(100vh - 510px)", overflowY: "auto" }}
+						>
+							{steps.length === 0 && (
 								<Typography.Text type="secondary">
-									{current.run.taskName}（{current.run.currentStepIndex + 1}/
-									{current.run.totalSteps || "?"}）
+									{running ? "准备中..." : "暂无步骤"}
 								</Typography.Text>
 							)}
-						</Space>
-					}
-				>
-					<div
-						ref={stepListRef}
-						style={{ maxHeight: frameAreaHeight, overflowY: "auto" }}
-					>
-						{steps.length === 0 && (
-							<Typography.Text type="secondary">
-								{running ? "准备中..." : "暂无步骤"}
-							</Typography.Text>
-						)}
-						<Flex vertical>
-							{steps.map((item) => (
-								<div
-									key={item.stepIndex}
-									style={{
-										padding: "10px 0",
-										borderBottom: "1px solid #f0f0f0",
-									}}
-								>
-									<Space
-										orientation="vertical"
-										size={2}
-										style={{ width: "100%" }}
+							<Flex vertical>
+								{steps.map((item) => (
+									<div
+										key={item.stepIndex}
+										style={{
+											padding: "10px 0",
+											borderBottom: "1px solid #f0f0f0",
+										}}
 									>
-										<Space wrap>
-											<Tag>{`#${item.stepIndex + 1}`}</Tag>
-											<Typography.Text strong>{item.stepName}</Typography.Text>
-											<Tag color="blue">{item.action}</Tag>
-											{item.status === "running" && (
-												<Tag color="processing">执行中</Tag>
+										<Space
+											orientation="vertical"
+											size={2}
+											style={{ width: "100%" }}
+										>
+											<Space wrap>
+												<Tag>{`#${item.stepIndex + 1}`}</Tag>
+												<Typography.Text strong>{item.stepName}</Typography.Text>
+												<Tag color="blue">{item.action}</Tag>
+												{item.status === "running" && (
+													<Tag color="processing">执行中</Tag>
+												)}
+												{item.status === "success" && (
+													<Tag color="success">成功</Tag>
+												)}
+												{item.status === "failed" && (
+													<Tag color="error">失败</Tag>
+												)}
+												{item.record && (
+													<Typography.Text type="secondary">
+														{formatDuration(item.record.durationMs)}
+													</Typography.Text>
+												)}
+											</Space>
+											{item.record?.error && (
+												<Typography.Text type="danger">
+													{item.record.error}
+												</Typography.Text>
 											)}
-											{item.status === "success" && (
-												<Tag color="success">成功</Tag>
-											)}
-											{item.status === "failed" && (
-												<Tag color="error">失败</Tag>
-											)}
-											{item.record && (
-												<Typography.Text type="secondary">
-													{formatDuration(item.record.durationMs)}
+											{item.record?.url && (
+												<Typography.Text
+													type="secondary"
+													style={{ fontSize: 12 }}
+												>
+													{item.record.url}
 												</Typography.Text>
 											)}
 										</Space>
-										{item.record?.error && (
-											<Typography.Text type="danger">
-												{item.record.error}
-											</Typography.Text>
-										)}
-										{item.record?.url && (
-											<Typography.Text
-												type="secondary"
-												style={{ fontSize: 12 }}
-											>
-												{item.record.url}
-											</Typography.Text>
-										)}
-									</Space>
-								</div>
-							))}
-						</Flex>
-					</div>
-				</Card>
+									</div>
+								))}
+							</Flex>
+						</div>
+					</Card>
+				</Space>
 			</Col>
 		</Row>
 	);

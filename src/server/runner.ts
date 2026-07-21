@@ -4,19 +4,27 @@ import path from "node:path";
 import puppeteer from "puppeteer-core";
 import type { Browser, Page } from "puppeteer-core";
 import type { Database } from "bun:sqlite";
-import type { RunRecord, RunStepRecord } from "../shared/types";
+import type { ModelConfig, RunRecord, RunStepRecord } from "../shared/types";
 import { extractLastAiResult } from "./ai-result";
 import { detectChrome } from "./chrome";
 import { REPORT_DIR, RUN_KEEP_COUNT, SCREENSHOT_DIR } from "./config";
 import {
 	finishRun,
 	getRun,
+	getTask,
 	insertRun,
 	insertStep,
 	listRunSteps,
 	listVariables,
 } from "./db";
 import { getModelById, loadModels, toMidsceneModelConfig } from "./models";
+import {
+	enqueue,
+	listQueue,
+	nextPending,
+	requeueInterrupted,
+	setQueueStatus,
+} from "./queue";
 import { cleanupOldRuns } from "./retention";
 import { startScreencast } from "./screencast";
 import { broadcast } from "./ws";
@@ -25,7 +33,7 @@ import { parseScript, type FlowStep, type ParsedScript } from "./yamlflow";
 // Midscene 自己的 HTML 报告也落到数据目录下，方便需要时翻看
 process.env.MIDSCENE_RUN_DIR ??= REPORT_DIR;
 // 模型的思考过程、断言结论、定位失败原因统一用中文输出（注入到 Midscene 的提示词里）
-process.env.MIDSCENE_PREFERRED_LANGUAGE ??= 'Chinese';
+process.env.MIDSCENE_PREFERRED_LANGUAGE ??= "Chinese";
 
 const DEFAULT_VIEWPORT = { width: 390, height: 844 };
 // 手机视口参数：让被测站点按移动端布局渲染，截图比例接近真机
@@ -40,12 +48,6 @@ const MOCK_FAIL_AT =
 	process.env.MOCK_FAIL_AT === undefined
 		? -1
 		: Number(process.env.MOCK_FAIL_AT);
-
-export class RunnerBusyError extends Error {
-	constructor() {
-		super("已有任务正在运行，同一时间只能执行一个任务");
-	}
-}
 
 export class ScriptInvalidError extends Error {
 	constructor(public errors: string[]) {
@@ -81,16 +83,14 @@ export class Runner {
 		return this.state;
 	}
 
-	// 启动一次运行：校验脚本与模型后立即返回 runId，执行在后台进行
+	// 启动一次运行：先校验脚本与模型（失败立即报错）；
+	// 空闲时立即执行，忙时自动加入队列排队，前一个跑完自动接下一个
 	start(input: {
 		taskId: number | null;
 		taskName: string;
 		yaml: string;
 		modelId: string;
 	}) {
-		if (this.state) {
-			throw new RunnerBusyError();
-		}
 		const parseResult = parseScript(input.yaml, listVariables(this.db));
 		if (!parseResult.ok) {
 			throw new ScriptInvalidError(parseResult.errors);
@@ -115,29 +115,101 @@ export class Runner {
 			]);
 		}
 
+		// 忙时自动入队排队
+		if (this.state) {
+			const queueItem = enqueue(this.db, {
+				taskId: input.taskId ?? 0,
+				taskName: input.taskName,
+				modelId: model.id,
+				model: model.model,
+			});
+			broadcast({ type: "queue", items: listQueue(this.db) });
+			return { queued: true as const, queueItem };
+		}
+
+		const runId = this.runNow({
+			taskId: input.taskId,
+			taskName: input.taskName,
+			script: parseResult.script,
+			model,
+			chromePath: chrome.path,
+		});
+		return { queued: false as const, runId };
+	}
+
+	// 队列调度：空闲时取出下一个 pending 条目启动；条目失效（任务被删/模型没了/脚本坏了）则跳过
+	private scheduleNext() {
+		if (this.state) {
+			return;
+		}
+		const next = nextPending(this.db);
+		if (!next) {
+			return;
+		}
+		const task = getTask(this.db, next.taskId);
+		const model = getModelById(loadModels(), next.modelId);
+		const chrome = detectChrome();
+		const parseResult = task
+			? parseScript(task.yaml, listVariables(this.db))
+			: null;
+		if (!task || !model || !chrome.path || !parseResult?.ok) {
+			setQueueStatus(this.db, next.id, "cancelled");
+			broadcast({ type: "queue", items: listQueue(this.db) });
+			this.scheduleNext();
+			return;
+		}
+		this.runNow({
+			taskId: next.taskId,
+			taskName: next.taskName,
+			script: parseResult.script,
+			model,
+			chromePath: chrome.path,
+			queueItemId: next.id,
+		});
+	}
+
+	// 程序启动时恢复调度：上次中断的条目标记回 pending 后接着排
+	resumeQueue() {
+		requeueInterrupted(this.db);
+		this.scheduleNext();
+	}
+
+	private runNow(input: {
+		taskId: number | null;
+		taskName: string;
+		script: ParsedScript;
+		model: ModelConfig;
+		chromePath: string;
+		queueItemId?: number;
+	}) {
 		const { id: runId } = insertRun(this.db, {
 			taskId: input.taskId,
 			taskName: input.taskName,
-			model: model.model,
+			model: input.model.model,
 		});
+		if (input.queueItemId) {
+			setQueueStatus(this.db, input.queueItemId, "running", runId);
+		}
 		this.state = {
 			runId,
 			taskName: input.taskName,
-			model: model.model,
+			model: input.model.model,
 			startedAt: new Date().toISOString(),
 			currentStepIndex: -1,
 			totalSteps: 0,
 		};
 		this.stopRequested = false;
 		broadcast({ type: "run", run: getRun(this.db, runId) });
+		broadcast({ type: "queue", items: listQueue(this.db) });
 
 		void this.execute(
 			runId,
-			parseResult.script,
-			toMidsceneModelConfig(model),
-			chrome.path,
+			input.script,
+			toMidsceneModelConfig(input.model),
+			input.chromePath,
+			input.queueItemId,
 		);
-		return { runId };
+		return runId;
 	}
 
 	async stop() {
@@ -154,6 +226,7 @@ export class Runner {
 		script: ParsedScript,
 		modelConfig: Record<string, string>,
 		chromePath: string,
+		queueItemId?: number,
 	) {
 		const startedAt = Date.now();
 		let stopScreencast: (() => Promise<void>) | null = null;
@@ -313,7 +386,13 @@ export class Runner {
 			await this.browser?.close().catch(() => {});
 			this.browser = null;
 			this.state = null;
+			if (queueItemId) {
+				setQueueStatus(this.db, queueItemId, "done");
+			}
 			cleanupOldRuns(this.db, SCREENSHOT_DIR, RUN_KEEP_COUNT);
+			broadcast({ type: "queue", items: listQueue(this.db) });
+			// 当前运行收尾完毕，自动调度队列里的下一个
+			this.scheduleNext();
 		}
 	}
 

@@ -85,7 +85,8 @@ export default function SettingsPage() {
 	const confirmCleanup = () => {
 		modal.confirm({
 			title: "清空全部历史记录？",
-			content: "将删除所有运行记录、步骤日志和截图，任务与变量不受影响。此操作不可恢复。",
+			content:
+				"将删除所有运行记录、步骤日志和截图，任务与变量不受影响。此操作不可恢复。",
 			okText: "全部清空",
 			okButtonProps: { danger: true },
 			cancelText: "取消",
@@ -296,7 +297,8 @@ export default function SettingsPage() {
 								{formatBytes(storage.totalBytes)}
 							</Typography.Text>
 							<Typography.Text type="secondary">
-								{" "}（{storage.runCount} 次运行）
+								{" "}
+								（{storage.runCount} 次运行）
 							</Typography.Text>
 						</Descriptions.Item>
 					</Descriptions>

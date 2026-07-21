@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react';
 import type { RunRecord, RunStepRecord } from '../../shared/types';
+import type { QueueItem } from './api';
 
 export type WsMessage =
   | { type: 'frame'; data: string }
   | { type: 'run'; run: RunRecord }
   | { type: 'step'; step: RunStepRecord }
-  | { type: 'step-start'; runId: number; stepIndex: number; stepName: string; action: string; totalSteps: number };
+  | { type: 'step-start'; runId: number; stepIndex: number; stepName: string; action: string; totalSteps: number }
+  | { type: 'queue'; items: QueueItem[] };
 
 const RECONNECT_DELAY_MS = 2000;
 

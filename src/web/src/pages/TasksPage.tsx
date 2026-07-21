@@ -44,9 +44,14 @@ export default function TasksPage() {
     }
     setStarting(true);
     try {
-      await api.startRun({ taskId: runTask.id, modelId });
+      const result = await api.startRun({ taskId: runTask.id, modelId });
       setRunTask(null);
-      navigate('/run');
+      if (result.queued) {
+        // 当前有任务在跑，自动入队
+        message.success('已加入队列排队，可到「实时运行」页查看');
+      } else {
+        navigate('/run');
+      }
     } catch (error) {
       message.error(error instanceof Error ? error.message : String(error));
     } finally {
