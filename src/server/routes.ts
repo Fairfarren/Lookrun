@@ -1,7 +1,7 @@
 import type { Hono } from 'hono';
 import { serveStatic } from 'hono/bun';
 import { detectChrome } from './chrome';
-import { DB_PATH, SCREENSHOT_DIR } from './config';
+import { DB_PATH, REPORT_DIR, SCREENSHOT_DIR } from './config';
 import {
   countRuns,
   createDb,
@@ -18,6 +18,7 @@ import {
   updateTask,
 } from './db';
 import { Runner, RunnerBusyError, ScriptInvalidError } from './runner';
+import { cleanupAllRuns, storageStats } from './storage';
 import { checkModelVision, getModelById, loadModels } from './models';
 import pkg from '../../package.json';
 import { getSetting, setSetting } from './db';
@@ -183,5 +184,16 @@ export function registerRoutes(app: Hono) {
       version: pkg.version,
     };
     return c.json(info);
+  });
+
+  // 存储占用统计
+  app.get('/api/system/storage', (c) => {
+    return c.json(storageStats(db, { dbPath: DB_PATH, screenshotDir: SCREENSHOT_DIR, reportDir: REPORT_DIR }));
+  });
+
+  // 清空全部历史运行（任务与变量不受影响）
+  app.post('/api/system/storage/cleanup', (c) => {
+    const result = cleanupAllRuns(db, SCREENSHOT_DIR, REPORT_DIR);
+    return c.json(result);
   });
 }

@@ -20,15 +20,25 @@ import {
 } from "antd";
 import { useEffect, useState } from "react";
 import type { SystemInfo } from "../../../shared/types";
-import { api, type ModelBrief } from "../api";
+import { api, type ModelBrief, type StorageStats } from "../api";
 
 interface VariableRow {
 	key: string;
 	value: string;
 }
 
+function formatBytes(bytes: number) {
+	if (bytes >= 1024 * 1024) {
+		return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+	}
+	if (bytes >= 1024) {
+		return `${(bytes / 1024).toFixed(0)} KB`;
+	}
+	return `${bytes} B`;
+}
+
 export default function SettingsPage() {
-	const { message } = AntApp.useApp();
+	const { message, modal } = AntApp.useApp();
 	const [models, setModels] = useState<ModelBrief[]>([]);
 	const [selectedModel, setSelectedModel] = useState<string>();
 	const [checkResult, setCheckResult] = useState<{
@@ -39,6 +49,15 @@ export default function SettingsPage() {
 	const [variables, setVariables] = useState<VariableRow[]>([]);
 	const [system, setSystem] = useState<SystemInfo | null>(null);
 	const [savingVariables, setSavingVariables] = useState(false);
+	const [storage, setStorage] = useState<StorageStats | null>(null);
+	const [cleaning, setCleaning] = useState(false);
+
+	const loadStorage = () => {
+		api
+			.storageStats()
+			.then(setStorage)
+			.catch(() => {});
+	};
 
 	useEffect(() => {
 		api
@@ -60,7 +79,32 @@ export default function SettingsPage() {
 			.systemInfo()
 			.then(setSystem)
 			.catch(() => {});
+		loadStorage();
 	}, []);
+
+	const confirmCleanup = () => {
+		modal.confirm({
+			title: "清空全部历史记录？",
+			content: "将删除所有运行记录、步骤日志和截图，任务与变量不受影响。此操作不可恢复。",
+			okText: "全部清空",
+			okButtonProps: { danger: true },
+			cancelText: "取消",
+			onOk: async () => {
+				setCleaning(true);
+				try {
+					const result = await api.cleanupStorage();
+					message.success(
+						`已清空 ${result.deletedRuns} 次运行，释放 ${formatBytes(result.freedBytes)}`,
+					);
+					loadStorage();
+				} catch (error) {
+					message.error(error instanceof Error ? error.message : String(error));
+				} finally {
+					setCleaning(false);
+				}
+			},
+		});
+	};
 
 	const selectModel = async (id: string) => {
 		setSelectedModel(id);
@@ -226,6 +270,42 @@ export default function SettingsPage() {
 						</Space>
 					))}
 				</Space>
+			</Card>
+
+			<Card
+				title="存储占用"
+				extra={
+					<Button danger loading={cleaning} onClick={confirmCleanup}>
+						清空历史记录
+					</Button>
+				}
+			>
+				{storage ? (
+					<Descriptions column={2}>
+						<Descriptions.Item label="步骤截图">
+							{formatBytes(storage.screenshotsBytes)}
+						</Descriptions.Item>
+						<Descriptions.Item label="Midscene 报告">
+							{formatBytes(storage.reportsBytes)}
+						</Descriptions.Item>
+						<Descriptions.Item label="数据库">
+							{formatBytes(storage.databaseBytes)}
+						</Descriptions.Item>
+						<Descriptions.Item label="总计">
+							<Typography.Text strong>
+								{formatBytes(storage.totalBytes)}
+							</Typography.Text>
+							<Typography.Text type="secondary">
+								{" "}（{storage.runCount} 次运行）
+							</Typography.Text>
+						</Descriptions.Item>
+					</Descriptions>
+				) : (
+					<Spin size="small" />
+				)}
+				<Typography.Text type="secondary">
+					系统会自动保留最近 100 次运行并清理更早的；也可以手动清空全部历史。
+				</Typography.Text>
 			</Card>
 
 			<Card title="系统状态">

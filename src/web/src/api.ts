@@ -64,7 +64,17 @@ export const api = {
 
   // 系统信息
   systemInfo: () => request<SystemInfo>('/api/system'),
+  storageStats: () => request<StorageStats>('/api/system/storage'),
+  cleanupStorage: () => request<{ deletedRuns: number; freedBytes: number }>('/api/system/storage/cleanup', { method: 'POST' }),
 };
+
+export interface StorageStats {
+  screenshotsBytes: number;
+  reportsBytes: number;
+  databaseBytes: number;
+  totalBytes: number;
+  runCount: number;
+}
 
 export function screenshotUrl(relativePath: string) {
   return `/api/screenshots/${relativePath}`;
