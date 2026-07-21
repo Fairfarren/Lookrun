@@ -30,9 +30,15 @@
     "build:web": "vite build",
     "build:assets": "bun scripts/gen-assets.ts",
     "build:exe": "bun run build:web && bun run build:assets && bun scripts/build-exe.ts",
+    "build:exe:win": "bun run build:web && bun run build:assets && bun scripts/build-exe.ts --target=bun-windows-x64",
+    "build:exe:mac": "bun run build:web && bun run build:assets && bun scripts/build-exe.ts --target=bun-darwin-arm64",
+    "build:exe:all": "bun run build:web && bun run build:assets && bun scripts/build-exe.ts --target=bun-windows-x64 && bun scripts/build-exe.ts --target=bun-darwin-arm64",
     "start": "bun src/server/index.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/web/tsconfig.json"
   },
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "patchedDependencies": {
+    "sharp@0.34.5": "patches/sharp@0.34.5.patch"
+  }
 }

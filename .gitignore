@@ -1,5 +1,8 @@
 node_modules/
 dist/
+dist-mac/
+dist-win/
+dist-linux/
 dist-web/
 data/
 *.local

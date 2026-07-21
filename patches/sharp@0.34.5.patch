@@ -1,0 +1,20 @@
+diff --git a/lib/sharp.js b/lib/sharp.js
+index 1081c9314de1b669b0744a931a3b6b570c9f6609..5a828b7eb767faba87a925bd21c108b7621a82b4 100644
+--- a/lib/sharp.js
++++ b/lib/sharp.js
+@@ -6,11 +6,15 @@
+ // Inspects the runtime environment and exports the relevant sharp.node binary
+ 
+ const { familySync, versionSync } = require('detect-libc');
++const nodePath = require('node:path');
++const _exeBase = nodePath.basename(process.execPath).toLowerCase();
++const _pkgBaseDir = _exeBase.startsWith('bun') ? process.cwd() : nodePath.dirname(process.execPath);
+ 
+ const { runtimePlatformArch, isUnsupportedNodeRuntime, prebuiltPlatforms, minimumLibvipsVersion } = require('./libvips');
+ const runtimePlatform = runtimePlatformArch();
+ 
+ const paths = [
++  nodePath.join(_pkgBaseDir, 'node_modules', '@img', `sharp-${runtimePlatform}`, 'lib', `sharp-${runtimePlatform}.node`),
+   `../src/build/Release/sharp-${runtimePlatform}.node`,
+   '../src/build/Release/sharp-wasm32.node',
+   `@img/sharp-${runtimePlatform}/sharp.node`,
