@@ -1,7 +1,9 @@
-import { HistoryOutlined, PlayCircleOutlined, ProfileOutlined, SettingOutlined } from '@ant-design/icons';
+import { HistoryOutlined, UnorderedListOutlined, PlayCircleOutlined, ProfileOutlined, SettingOutlined } from '@ant-design/icons';
 import { App as AntApp, Layout, Menu } from 'antd';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import HistoryPage from './pages/HistoryPage';
+import QueueEditPage from './pages/QueueEditPage';
+import QueuesPage from './pages/QueuesPage';
 import RunDetailPage from './pages/RunDetailPage';
 import RunPage from './pages/RunPage';
 import SettingsPage from './pages/SettingsPage';
@@ -12,6 +14,7 @@ const { Sider, Header, Content } = Layout;
 
 const menuItems = [
   { key: '/tasks', icon: <ProfileOutlined />, label: <Link to="/tasks">任务</Link> },
+  { key: '/queues', icon: <UnorderedListOutlined />, label: <Link to="/queues">队列</Link> },
   { key: '/run', icon: <PlayCircleOutlined />, label: <Link to="/run">实时运行</Link> },
   { key: '/history', icon: <HistoryOutlined />, label: <Link to="/history">历史记录</Link> },
   { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">设置</Link> },
@@ -19,6 +22,7 @@ const menuItems = [
 
 const PAGE_TITLES: Record<string, string> = {
   '/tasks': '任务',
+  '/queues': '队列',
   '/run': '实时运行',
   '/history': '历史记录',
   '/settings': '设置',
@@ -45,6 +49,9 @@ export default function App() {
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="/tasks/new" element={<TaskEditPage />} />
               <Route path="/tasks/:id" element={<TaskEditPage />} />
+              <Route path="/queues" element={<QueuesPage />} />
+              <Route path="/queues/new" element={<QueueEditPage />} />
+              <Route path="/queues/:id" element={<QueueEditPage />} />
               <Route path="/run" element={<RunPage />} />
               <Route path="/history" element={<HistoryPage />} />
               <Route path="/history/:id" element={<RunDetailPage />} />

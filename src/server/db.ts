@@ -62,6 +62,20 @@ CREATE TABLE IF NOT EXISTS run_queue (
   run_id INTEGER,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS queues (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS queue_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  queue_id INTEGER NOT NULL,
+  task_id INTEGER NOT NULL,
+  model_id TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_run_steps_run_id ON run_steps(run_id);
 `;
 

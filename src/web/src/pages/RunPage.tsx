@@ -21,7 +21,12 @@ import {
 } from "antd";
 import { useEffect, useRef, useState } from "react";
 import type { RunStepRecord, TaskRecord } from "../../../shared/types";
-import { api, type CurrentRunState, type ModelBrief, type QueueItem } from "../api";
+import {
+	api,
+	type CurrentRunState,
+	type ModelBrief,
+	type QueueItem,
+} from "../api";
 import { RunStatusTag, formatDuration } from "../components";
 import { useWebSocket, type WsMessage } from "../hooks";
 
@@ -58,8 +63,14 @@ export default function RunPage() {
 			.then(setCurrent)
 			.catch((error: Error) => message.error(error.message))
 			.finally(() => setLoading(false));
-		api.listQueue().then((r) => setQueueItems(r.items)).catch(() => {});
-		api.listTasks().then(setTasks).catch(() => {});
+		api
+			.listQueue()
+			.then((r) => setQueueItems(r.items))
+			.catch(() => {});
+		api
+			.listTasks()
+			.then(setTasks)
+			.catch(() => {});
 		api
 			.listModels()
 			.then((r) => {
@@ -158,7 +169,10 @@ export default function RunPage() {
 			return;
 		}
 		try {
-			const result = await api.startRun({ taskId: addTaskId, modelId: addModelId });
+			const result = await api.startRun({
+				taskId: addTaskId,
+				modelId: addModelId,
+			});
 			if (result.queued) {
 				message.success("已加入队列");
 			} else {
@@ -271,7 +285,10 @@ export default function RunPage() {
 										<Space>
 											<Tag>{`#${index + 1}`}</Tag>
 											<Typography.Text strong>{item.taskName}</Typography.Text>
-											<Typography.Text type="secondary" style={{ fontSize: 12 }}>
+											<Typography.Text
+												type="secondary"
+												style={{ fontSize: 12 }}
+											>
 												{item.model}
 											</Typography.Text>
 										</Space>
@@ -302,7 +319,13 @@ export default function RunPage() {
 								))}
 							</Flex>
 						</div>
-						<div style={{ borderTop: "1px solid #f0f0f0", paddingTop: 8, marginTop: 8 }}>
+						<div
+							style={{
+								borderTop: "1px solid #f0f0f0",
+								paddingTop: 8,
+								marginTop: 8,
+							}}
+						>
 							<Space style={{ width: "100%" }}>
 								<Select
 									style={{ flex: 1, minWidth: 160 }}
@@ -324,7 +347,11 @@ export default function RunPage() {
 										value: model.id,
 									}))}
 								/>
-								<Button type="primary" icon={<PlusOutlined />} onClick={addToQueue}>
+								<Button
+									type="primary"
+									icon={<PlusOutlined />}
+									onClick={addToQueue}
+								>
 									添加
 								</Button>
 							</Space>
@@ -369,7 +396,9 @@ export default function RunPage() {
 										>
 											<Space wrap>
 												<Tag>{`#${item.stepIndex + 1}`}</Tag>
-												<Typography.Text strong>{item.stepName}</Typography.Text>
+												<Typography.Text strong>
+													{item.stepName}
+												</Typography.Text>
 												<Tag color="blue">{item.action}</Tag>
 												{item.status === "running" && (
 													<Tag color="processing">执行中</Tag>

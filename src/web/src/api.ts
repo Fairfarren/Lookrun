@@ -51,6 +51,24 @@ export interface QueueItem {
 	createdAt: string;
 }
 
+export interface QueueDef {
+	id: number;
+	name: string;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface QueueDefWithItems extends QueueDef {
+	items: {
+		id: number;
+		queueId: number;
+		taskId: number;
+		modelId: string;
+		position: number;
+		createdAt: string;
+	}[];
+}
+
 export const api = {
 	// 任务
 	listTasks: () => request<TaskRecord[]>("/api/tasks"),
@@ -100,6 +118,27 @@ export const api = {
 		}),
 	cancelQueueItem: (id: number) =>
 		request<{ items: QueueItem[] }>(`/api/queue/${id}`, { method: "DELETE" }),
+
+	// 命名队列
+	listQueues: () => request<{ items: QueueDef[] }>("/api/queues"),
+	createQueue: (name: string) =>
+		request<QueueDef>("/api/queues", {
+			method: "POST",
+			body: JSON.stringify({ name }),
+		}),
+	getQueue: (id: number) => request<QueueDefWithItems>(`/api/queues/${id}`),
+	updateQueue: (
+		id: number,
+		input: { name: string; items: { taskId: number; modelId: string }[] },
+		) =>
+		request<QueueDefWithItems>(`/api/queues/${id}`, {
+			method: "PUT",
+			body: JSON.stringify(input),
+		}),
+	deleteQueue: (id: number) =>
+		request<{ ok: boolean }>(`/api/queues/${id}`, { method: "DELETE" }),
+	startQueue: (id: number) =>
+		request<{ started: number; queued: number; errors: string[] }>(`/api/queues/${id}/start`, { method: "POST" }),
 
 	// 模型
 	listModels: () =>

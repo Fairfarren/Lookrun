@@ -19,6 +19,7 @@ import {
 } from "./db";
 import { Runner, ScriptInvalidError } from "./runner";
 import { cancelQueueItem, listQueue, moveQueueItem } from "./queue";
+import { createQueue, deleteQueue, getQueue, listQueues, updateQueue } from "./queue-defs";
 import { broadcast } from "./ws";
 import { cleanupAllRuns, storageStats } from "./storage";
 import { checkModelVision, getModelById, loadModels } from "./models";
@@ -180,6 +181,86 @@ export function registerRoutes(app: Hono) {
 		const items = listQueue(db);
 		broadcast({ type: "queue", items });
 		return c.json({ items });
+	});
+
+	// ---------- 命名队列（可复用的固定任务集合，每天点一下开始全跑） ----------
+	app.get("/api/queues", (c) => c.json({ items: listQueues(db) }));
+
+	app.post("/api/queues", async (c) => {
+		const body = await c.req.json<{ name?: string }>();
+		if (!body.name?.trim()) {
+			return c.json({ error: "队列名不能为空" }, 400);
+		}
+		return c.json(createQueue(db, { name: body.name.trim() }), 201);
+	});
+
+	app.get("/api/queues/:id", (c) => {
+		const q = getQueue(db, Number(c.req.param("id")));
+		return q ? c.json(q) : c.json({ error: "队列不存在" }, 404);
+	});
+
+	app.put("/api/queues/:id", async (c) => {
+		const id = Number(c.req.param("id"));
+		if (!getQueue(db, id)) {
+			return c.json({ error: "队列不存在" }, 404);
+		}
+		const body = await c.req.json<{ name?: string; items?: { taskId: number; modelId: string }[] }>();
+		if (!body.name?.trim()) {
+			return c.json({ error: "队列名不能为空" }, 400);
+		}
+		updateQueue(db, id, { name: body.name.trim(), items: body.items ?? [] });
+		return c.json(getQueue(db, id));
+	});
+
+	app.delete("/api/queues/:id", (c) => {
+		const id = Number(c.req.param("id"));
+		if (!getQueue(db, id)) {
+			return c.json({ error: "队列不存在" }, 404);
+		}
+		deleteQueue(db, id);
+		return c.json({ ok: true });
+	});
+
+	// 启动命名队列：按顺序把每个任务交给 runner（第一个立即跑，后续自动入队）
+	app.post("/api/queues/:id/start", (c) => {
+		const id = Number(c.req.param("id"));
+		const q = getQueue(db, id);
+		if (!q) {
+			return c.json({ error: "队列不存在" }, 404);
+		}
+		if (q.items.length === 0) {
+			return c.json({ error: "队列为空，没有可执行的任务" }, 400);
+		}
+		let started = 0;
+		let queued = 0;
+		const errors: string[] = [];
+		for (const item of q.items) {
+			const task = getTask(db, item.taskId);
+			if (!task) {
+				errors.push(`任务 #${item.taskId} 不存在，已跳过`);
+				continue;
+			}
+			try {
+				const result = runner.start({
+					taskId: task.id,
+					taskName: task.name,
+					yaml: task.yaml,
+					modelId: item.modelId,
+				});
+				if (result.queued) {
+					queued++;
+				} else {
+					started++;
+				}
+			} catch (error) {
+				if (error instanceof ScriptInvalidError) {
+					errors.push(`任务「${task.name}」校验失败：${error.errors.join("；")}`);
+				} else {
+					errors.push(`任务「${task.name}」启动失败：${error instanceof Error ? error.message : String(error)}`);
+				}
+			}
+		}
+		return c.json({ started, queued, errors });
 	});
 
 	app.get("/api/runs/current", (c) => {
