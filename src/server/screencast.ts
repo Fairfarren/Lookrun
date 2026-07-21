@@ -3,8 +3,8 @@ import { broadcast } from './ws';
 
 // screencast 参数：质量与尺寸按实时预览需求压低，减少编码和传输开销
 const SCREENCAST_QUALITY = 60;
-const SCREENCAST_MAX_WIDTH = 1280;
-const SCREENCAST_MAX_HEIGHT = 800;
+const SCREENCAST_MAX_WIDTH = 840;
+const SCREENCAST_MAX_HEIGHT = 1800;
 const FRAME_MIN_INTERVAL_MS = 100;
 
 // 启动 CDP screencast，把浏览器画面帧经 WebSocket 推给前端

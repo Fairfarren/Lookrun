@@ -106,7 +106,7 @@ async function main() {
   const started = await api<{ runId: number }>('/api/runs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ taskId, modelId: 'gemma4' }),
+    body: JSON.stringify({ taskId, modelId: 'kimi-k2.7-code' }),
   });
   if (started.status !== 200) throw new Error(`启动运行失败：${JSON.stringify(started.body)}`);
 
@@ -137,7 +137,7 @@ async function main() {
   const started2 = await api<{ runId: number }>('/api/runs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ taskId, modelId: 'gemma4' }),
+    body: JSON.stringify({ taskId, modelId: 'kimi-k2.7-code' }),
   });
   await Bun.sleep(800);
   await api('/api/runs/current/stop', { method: 'POST' });
@@ -153,7 +153,7 @@ async function main() {
   const started3 = await api<{ runId: number }>('/api/runs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ taskId, modelId: 'gemma4' }),
+    body: JSON.stringify({ taskId, modelId: 'kimi-k2.7-code' }),
   });
   const detail3 = await waitForRunFinish(started3.body.runId);
   console.log('失败运行状态:', detail3.run.status, '| 已完成步骤数:', detail3.steps.length);

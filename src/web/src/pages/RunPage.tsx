@@ -98,9 +98,12 @@ export default function RunPage() {
 
   const running = current.status === 'running';
 
+  // 一屏高度：减去顶部导航、边距、卡片标题和底部结果行，保证画面区不溢出视口
+  const frameAreaHeight = 'calc(100vh - 250px)';
+
   return (
     <Row gutter={16}>
-      <Col span={14}>
+      <Col span={10}>
         <Card
           title="实时画面"
           extra={
@@ -112,11 +115,25 @@ export default function RunPage() {
           }
         >
           {running || frame ? (
-            <div style={{ background: '#000', textAlign: 'center', borderRadius: 8, overflow: 'hidden' }}>
+            <div
+              style={{
+                background: '#000',
+                borderRadius: 8,
+                overflow: 'hidden',
+                height: frameAreaHeight,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
               {frame ? (
-                <img src={`data:image/jpeg;base64,${frame}`} style={{ width: '100%', display: 'block' }} alt="实时画面" />
+                <img
+                  src={`data:image/jpeg;base64,${frame}`}
+                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
+                  alt="实时画面"
+                />
               ) : (
-                <div style={{ color: '#fff', padding: 80 }}>等待浏览器画面...</div>
+                <div style={{ color: '#fff' }}>等待浏览器画面...</div>
               )}
             </div>
           ) : (
@@ -129,7 +146,7 @@ export default function RunPage() {
           )}
         </Card>
       </Col>
-      <Col span={10}>
+      <Col span={14}>
         <Card
           title={
             <Space>
@@ -142,7 +159,7 @@ export default function RunPage() {
             </Space>
           }
         >
-          <div ref={stepListRef} style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+          <div ref={stepListRef} style={{ maxHeight: frameAreaHeight, overflowY: 'auto' }}>
             {steps.length === 0 && <Typography.Text type="secondary">{running ? '准备中...' : '暂无步骤'}</Typography.Text>}
             <Flex vertical>
               {steps.map((item) => (

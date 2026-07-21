@@ -117,7 +117,7 @@ export default function SettingsPage() {
           )}
           <Typography.Text type="secondary">
             模型列表在打包时内置（resources/models.json），修改后需重新打包；运行时用 data/models.json 可覆盖。
-            自检不通过的模型不要用于 UI 自动化。
+            自检不通过的模型不要用于 UI 自动化。「自由指令」动作需要模型带 family 配置，没有 family 的模型在启动运行时会被直接拦截并提示。
           </Typography.Text>
         </Space>
       </Card>

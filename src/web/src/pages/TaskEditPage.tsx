@@ -264,7 +264,7 @@ export default function TaskEditPage() {
 					}
 				/>
 				<InputNumber
-					placeholder="视口宽(默认1280)"
+					placeholder="视口宽(默认390)"
 					min={320}
 					value={form.viewportWidth}
 					onChange={(value) =>
@@ -272,7 +272,7 @@ export default function TaskEditPage() {
 					}
 				/>
 				<InputNumber
-					placeholder="视口高(默认800)"
+					placeholder="视口高(默认844)"
 					min={320}
 					value={form.viewportHeight}
 					onChange={(value) =>

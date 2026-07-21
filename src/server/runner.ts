@@ -18,7 +18,9 @@ import { parseScript, type FlowStep, type ParsedScript } from './yamlflow';
 // Midscene 自己的 HTML 报告也落到数据目录下，方便需要时翻看
 process.env.MIDSCENE_RUN_DIR ??= REPORT_DIR;
 
-const DEFAULT_VIEWPORT = { width: 1280, height: 800 };
+const DEFAULT_VIEWPORT = { width: 390, height: 844 };
+// 手机视口参数：让被测站点按移动端布局渲染，截图比例接近真机
+const MOBILE_SCALE_FACTOR = 2;
 const PAGE_LOAD_TIMEOUT_MS = 30_000;
 const AI_WAIT_FOR_DEFAULT_TIMEOUT_MS = 15_000;
 const SCREENSHOT_QUALITY = 70;
@@ -80,6 +82,13 @@ export class Runner {
     if (!model) {
       throw new ScriptInvalidError([`模型 ${input.modelId} 不存在`]);
     }
+    // 「自由指令」需要模型带 family（Midscene 用它解析规划坐标），没有 family 的模型必然在第 1 步失败，提前拦截
+    const usesAiAct = parseResult.script.tasks.some((task) => task.flow.some((step) => step.action === 'ai'));
+    if (usesAiAct && !model.family) {
+      throw new ScriptInvalidError([
+        `任务包含「自由指令」步骤，需要模型配置 family；模型「${model.name}」没有 family，请改用 kimi，或把该步骤改成具体动作（点击/输入/断言等）`,
+      ]);
+    }
     const chrome = detectChrome();
     if (!chrome.path) {
       throw new ScriptInvalidError(['未检测到系统 Chrome，请先安装 Google Chrome 浏览器']);
@@ -132,7 +141,7 @@ export class Runner {
         width: script.viewportWidth ?? DEFAULT_VIEWPORT.width,
         height: script.viewportHeight ?? DEFAULT_VIEWPORT.height,
       };
-      await page.setViewport(viewport);
+      await page.setViewport({ ...viewport, isMobile: true, hasTouch: true, deviceScaleFactor: MOBILE_SCALE_FACTOR });
       stopScreencast = await startScreencast(page);
 
       const agent = MOCK_AI
