@@ -73,6 +73,7 @@ function SortableTaskItem({
 			ref={setNodeRef}
 			wrap
 			style={{
+				width: "100%",
 				transform: CSS.Transform.toString(transform),
 				transition,
 				opacity: isDragging ? 0.5 : 1,
