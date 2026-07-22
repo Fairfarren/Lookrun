@@ -14,3 +14,11 @@
   - 启动 `dist-mac/test-web-use-ai`：`/api/health` 返回 `{ok:true}`，`/api/system` 返回 Chrome 自动探测路径、dataDir 在 exe 同级，服务正常。
   - Windows 包从 registry 下载 `@img/sharp-win32-x64@0.34.5`（含 .node + libvips dll），文件齐全；因本机为 mac 无法实跑 Windows exe。
   - 单元测试 81 全过，前后端 TypeScript 检查通过。
+
+## [2026-07-22 11:32:06] 修复开发环境 API 代理连接被拒绝
+
+- **问题描述**：执行 `bun run dev` 后 Vite 页面可以打开，但访问 `/api/queues` 时反复出现 `ECONNREFUSED`。
+- **问题原因**：后端启动时静态导入了打包阶段生成的资源表；该资源表引用了未提交的旧 `dist-web` 哈希文件，导致后端在监听 3877 端口前直接崩溃，Vite 代理因没有可连接的后端而报错。
+- **修改方案**：将静态资源表改为由服务入口注入；仅打包产物动态加载内嵌资源，开发态由 Vite 提供页面，不再解析打包专用文件。补充回归测试，确保开发态加载静态资源模块时不依赖已构建的前端文件。
+- **验证状态**：已通过
+- **说明**：回归测试先稳定复现旧实现的模块加载失败，修复后全量 89 个测试、前后端 TypeScript 检查与 Web 构建通过；`bun run dev` 启动后经 Vite 访问 `/api/queues` 返回 200，浏览器页面正常渲染且无控制台错误；macOS 单文件产物构建成功，独立启动后首页和 `/api/health` 均返回 200。

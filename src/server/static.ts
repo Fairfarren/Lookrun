@@ -1,5 +1,4 @@
 import type { Hono } from 'hono';
-import { embeddedAssets } from './gen/assets';
 
 const CONTENT_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -16,9 +15,9 @@ const CONTENT_TYPES: Record<string, string> = {
   '.map': 'application/json; charset=utf-8',
 };
 
-// 前端静态资源：打包后为二进制内嵌文件，开发时从 dist-web 磁盘读取
+// 前端静态资源：打包后使用二进制内嵌文件，开发页面由 Vite 提供
 // 非文件路径一律回退到 index.html（SPA 前端路由）
-export function registerStatic(app: Hono) {
+export function registerStatic(app: Hono, embeddedAssets: Record<string, string>) {
   app.get('*', (c) => {
     const requestPath = c.req.path === '/' ? '/index.html' : c.req.path;
     const isFileRequest = /\.[a-zA-Z0-9]+$/.test(requestPath);
