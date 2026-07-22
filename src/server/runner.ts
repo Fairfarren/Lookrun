@@ -27,7 +27,8 @@ import {
 } from "./queue";
 import { cleanupOldRuns } from "./retention";
 import {
-	clickPointForStep,
+	clickTargetForStep,
+	type ClickTarget,
 	markClickOnScreenshot,
 } from "./screenshot-marker";
 import { startScreencast } from "./screencast";
@@ -325,11 +326,13 @@ export class Runner {
 					const aiResult =
 						dispatched ??
 						(agent ? extractLastAiResult(agent.dumpDataString()) : null);
-					const clickPoint = clickPointForStep(step.action, aiResult);
-					if (clickPoint) {
-						await markStoredScreenshot(
-							path.join(SCREENSHOT_DIR, shotBefore),
-							clickPoint,
+					const clickTarget = clickTargetForStep(step.action, aiResult);
+					if (clickTarget) {
+						await markStoredScreenshots(
+							[shotBefore, shotAfter].map((shot) =>
+								path.join(SCREENSHOT_DIR, shot),
+							),
+							clickTarget,
 						);
 					}
 					this.recordStep(runId, index, taskName, step, page.url(), {
@@ -500,13 +503,17 @@ async function takeScreenshot(page: Page, dir: string, fileName: string) {
 	return `${path.basename(dir)}/${fileName}`;
 }
 
-async function markStoredScreenshot(
-	filePath: string,
-	point: [number, number],
+async function markStoredScreenshots(
+	filePaths: string[],
+	target: ClickTarget,
 ) {
-	const screenshot = Buffer.from(await Bun.file(filePath).arrayBuffer());
-	const marked = await markClickOnScreenshot(screenshot, point);
-	await Bun.write(filePath, marked);
+	await Promise.all(
+		filePaths.map(async (filePath) => {
+			const screenshot = Buffer.from(await Bun.file(filePath).arrayBuffer());
+			const marked = await markClickOnScreenshot(screenshot, target);
+			await Bun.write(filePath, marked);
+		}),
+	);
 }
 
 function errorMessage(error: unknown) {
