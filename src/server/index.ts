@@ -7,6 +7,11 @@ import { registerRoutes } from "./routes";
 import { registerStatic } from "./static";
 import { addWsClient, removeWsClient } from "./ws";
 
+// 打包产物才加载编译期生成的内嵌资源；开发态由 Vite 提供前端页面
+function isPackaged() {
+	return !path.basename(process.execPath).toLowerCase().startsWith("bun");
+}
+
 const app = new Hono();
 const { upgradeWebSocket, websocket } = createBunWebSocket();
 
@@ -27,12 +32,10 @@ app.get(
 	})),
 );
 
-registerStatic(app);
-
-// 打包形态（可执行文件）下启动后自动打开浏览器
-function isPackaged() {
-	return !path.basename(process.execPath).toLowerCase().startsWith("bun");
-}
+const embeddedAssets = isPackaged()
+	? (await import("./gen/assets")).embeddedAssets
+	: {};
+registerStatic(app, embeddedAssets);
 
 function openBrowser(url: string) {
 	const command =
