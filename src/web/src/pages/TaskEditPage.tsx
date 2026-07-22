@@ -31,6 +31,7 @@ import {
 	type FormTask,
 } from "../../../shared/yaml-form";
 import { api } from "../api";
+import { useThemeMode } from "../theme-context";
 
 const VALIDATE_DEBOUNCE_MS = 800;
 
@@ -71,6 +72,7 @@ function moveItem<T>(list: T[], index: number, offset: -1 | 1): T[] {
 }
 
 export default function TaskEditPage() {
+	const themeMode = useThemeMode();
 	const { id } = useParams();
 	const isNew = id === undefined || id === "new";
 	const { message } = AntApp.useApp();
@@ -439,6 +441,7 @@ export default function TaskEditPage() {
 			<CodeMirror
 				value={yamlText}
 				height="420px"
+				theme={themeMode}
 				extensions={[yaml()]}
 				onChange={setYamlText}
 				basicSetup={{ lineNumbers: true, foldGutter: true }}

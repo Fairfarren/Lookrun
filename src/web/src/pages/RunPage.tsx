@@ -17,6 +17,7 @@ import {
 	Space,
 	Spin,
 	Tag,
+	theme,
 	Typography,
 } from "antd";
 import { useEffect, useRef, useState } from "react";
@@ -40,6 +41,7 @@ interface LiveStep {
 
 export default function RunPage() {
 	const { message } = AntApp.useApp();
+	const { token } = theme.useToken();
 	const [current, setCurrent] = useState<CurrentRunState>({
 		status: "idle",
 		run: null,
@@ -276,7 +278,7 @@ export default function RunPage() {
 										key={item.id}
 										style={{
 											padding: "6px 0",
-											borderBottom: "1px solid #f0f0f0",
+											borderBottom: `1px solid ${token.colorBorderSecondary}`,
 											display: "flex",
 											alignItems: "center",
 											justifyContent: "space-between",
@@ -321,7 +323,7 @@ export default function RunPage() {
 						</div>
 						<div
 							style={{
-								borderTop: "1px solid #f0f0f0",
+								borderTop: `1px solid ${token.colorBorderSecondary}`,
 								paddingTop: 8,
 								marginTop: 8,
 							}}
@@ -386,7 +388,7 @@ export default function RunPage() {
 										key={item.stepIndex}
 										style={{
 											padding: "10px 0",
-											borderBottom: "1px solid #f0f0f0",
+											borderBottom: `1px solid ${token.colorBorderSecondary}`,
 										}}
 									>
 										<Space

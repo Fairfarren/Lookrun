@@ -1,4 +1,4 @@
-import { App as AntApp, Card, Col, Descriptions, Image, Row, Space, Spin, Tag, Typography } from 'antd';
+import { App as AntApp, Card, Col, Descriptions, Image, Row, Space, Spin, Tag, theme, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { RunRecord, RunStepRecord } from '../../../shared/types';
@@ -8,6 +8,7 @@ import { RunStatusTag, formatDuration, formatTime } from '../components';
 export default function RunDetailPage() {
   const { id } = useParams();
   const { message } = AntApp.useApp();
+  const { token } = theme.useToken();
   const [run, setRun] = useState<RunRecord | null>(null);
   const [steps, setSteps] = useState<RunStepRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,7 +94,7 @@ export default function RunDetailPage() {
                 {step.aiResult && (
                   <div>
                     <Typography.Text strong>AI 识别：</Typography.Text>
-                    <pre style={{ background: '#f5f5f5', padding: 8, borderRadius: 4, margin: '4px 0', whiteSpace: 'pre-wrap' }}>
+                    <pre style={{ background: token.colorFillSecondary, padding: 8, borderRadius: 4, margin: '4px 0', whiteSpace: 'pre-wrap' }}>
                       {formatAiResult(step.aiResult)}
                     </pre>
                   </div>

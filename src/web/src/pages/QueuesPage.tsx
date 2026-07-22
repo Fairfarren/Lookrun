@@ -12,6 +12,7 @@ import {
 	Flex,
 	Space,
 	Spin,
+	theme,
 	Typography,
 } from "antd";
 import { useEffect, useState } from "react";
@@ -20,6 +21,7 @@ import { api, type QueueDef } from "../api";
 
 export default function QueuesPage() {
 	const { message, modal } = AntApp.useApp();
+	const { token } = theme.useToken();
 	const navigate = useNavigate();
 	const [queues, setQueues] = useState<QueueDef[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -96,7 +98,10 @@ export default function QueuesPage() {
 							key={queue.id}
 							justify="space-between"
 							align="center"
-							style={{ padding: "12px 0", borderBottom: "1px solid #f0f0f0" }}
+							style={{
+								padding: "12px 0",
+								borderBottom: `1px solid ${token.colorBorderSecondary}`,
+							}}
 						>
 							<Space orientation="vertical" size={2}>
 								<Typography.Text strong>{queue.name}</Typography.Text>

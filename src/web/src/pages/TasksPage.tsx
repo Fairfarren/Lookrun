@@ -14,6 +14,7 @@ import {
 	Select,
 	Space,
 	Spin,
+	theme,
 	Typography,
 } from "antd";
 import { useEffect, useState } from "react";
@@ -24,6 +25,7 @@ import { formatTime } from "../components";
 
 export default function TasksPage() {
 	const { message, modal } = AntApp.useApp();
+	const { token } = theme.useToken();
 	const navigate = useNavigate();
 	const [tasks, setTasks] = useState<TaskRecord[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -114,7 +116,10 @@ export default function TasksPage() {
 							key={task.id}
 							justify="space-between"
 							align="center"
-							style={{ padding: "12px 0", borderBottom: "1px solid #f0f0f0" }}
+							style={{
+								padding: "12px 0",
+								borderBottom: `1px solid ${token.colorBorderSecondary}`,
+							}}
 						>
 							<Space orientation="vertical" size={2}>
 								<Typography.Text strong>{task.name}</Typography.Text>
