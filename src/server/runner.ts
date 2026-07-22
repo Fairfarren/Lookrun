@@ -26,6 +26,10 @@ import {
 	setQueueStatus,
 } from "./queue";
 import { cleanupOldRuns } from "./retention";
+import {
+	clickPointForStep,
+	markClickOnScreenshot,
+} from "./screenshot-marker";
 import { startScreencast } from "./screencast";
 import { broadcast } from "./ws";
 import { parseScript, type FlowStep, type ParsedScript } from "./yamlflow";
@@ -321,6 +325,13 @@ export class Runner {
 					const aiResult =
 						dispatched ??
 						(agent ? extractLastAiResult(agent.dumpDataString()) : null);
+					const clickPoint = clickPointForStep(step.action, aiResult);
+					if (clickPoint) {
+						await markStoredScreenshot(
+							path.join(SCREENSHOT_DIR, shotBefore),
+							clickPoint,
+						);
+					}
 					this.recordStep(runId, index, taskName, step, page.url(), {
 						status: "success",
 						error: null,
@@ -487,6 +498,15 @@ async function takeScreenshot(page: Page, dir: string, fileName: string) {
 	});
 	await Bun.write(path.join(dir, fileName), Buffer.from(base64, "base64"));
 	return `${path.basename(dir)}/${fileName}`;
+}
+
+async function markStoredScreenshot(
+	filePath: string,
+	point: [number, number],
+) {
+	const screenshot = Buffer.from(await Bun.file(filePath).arrayBuffer());
+	const marked = await markClickOnScreenshot(screenshot, point);
+	await Bun.write(filePath, marked);
 }
 
 function errorMessage(error: unknown) {
