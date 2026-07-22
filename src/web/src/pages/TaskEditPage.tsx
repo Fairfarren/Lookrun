@@ -1,10 +1,20 @@
 import { yaml } from "@codemirror/lang-yaml";
+import { DeleteOutlined, HolderOutlined, PlusOutlined } from "@ant-design/icons";
 import {
-	ArrowDownOutlined,
-	ArrowUpOutlined,
-	DeleteOutlined,
-	PlusOutlined,
-} from "@ant-design/icons";
+	DndContext,
+	KeyboardSensor,
+	PointerSensor,
+	closestCenter,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import {
+	SortableContext,
+	sortableKeyboardCoordinates,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import CodeMirror from "@uiw/react-codemirror";
 import {
 	App as AntApp,
@@ -19,7 +29,7 @@ import {
 	Space,
 	Typography,
 } from "antd";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
 	ACTION_OPTIONS,
@@ -31,7 +41,9 @@ import {
 	type FormTask,
 } from "../../../shared/yaml-form";
 import { api } from "../api";
+import { reorderById } from "../sortable-items";
 import { useThemeMode } from "../theme-context";
+import { createValidationErrorKey } from "../validation-errors";
 
 const VALIDATE_DEBOUNCE_MS = 800;
 
@@ -60,15 +72,161 @@ function createEmptyForm(): FormScript {
 	return { target: "", tasks: [createEmptyTask(1)] };
 }
 
-// 上移/下移数组元素，返回新数组
-function moveItem<T>(list: T[], index: number, offset: -1 | 1): T[] {
-	const target = index + offset;
-	if (target < 0 || target >= list.length) {
-		return list;
-	}
-	const next = [...list];
-	[next[index], next[target]] = [next[target], next[index]];
-	return next;
+interface SortableListProps {
+	ids: string[];
+	onReorder: (activeId: string, overId: string) => void;
+	children: ReactNode;
+}
+
+function SortableList({ ids, onReorder, children }: SortableListProps) {
+	const sensors = useSensors(
+		useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+		useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+	);
+
+	return (
+		<DndContext
+			sensors={sensors}
+			collisionDetection={closestCenter}
+			onDragEnd={({ active, over }) => {
+				if (over) onReorder(String(active.id), String(over.id));
+			}}
+		>
+			<SortableContext items={ids} strategy={verticalListSortingStrategy}>
+				{children}
+			</SortableContext>
+		</DndContext>
+	);
+}
+
+interface SortableTaskCardProps {
+	id: string;
+	index: number;
+	name: string;
+	canDelete: boolean;
+	onNameChange: (name: string) => void;
+	onDelete: () => void;
+	children: ReactNode;
+}
+
+function SortableTaskCard({
+	id,
+	index,
+	name,
+	canDelete,
+	onNameChange,
+	onDelete,
+	children,
+}: SortableTaskCardProps) {
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		setActivatorNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id });
+
+	return (
+		<Card
+			ref={setNodeRef}
+			size="small"
+			style={{
+				transform: CSS.Transform.toString(transform),
+				transition,
+				opacity: isDragging ? 0.5 : 1,
+				position: "relative",
+				zIndex: isDragging ? 1 : undefined,
+			}}
+			title={
+				<Space>
+					<Button
+						ref={setActivatorNodeRef}
+						type="text"
+						size="small"
+						icon={<HolderOutlined />}
+						aria-label={`拖拽第 ${index + 1} 个步骤组进行排序`}
+						title="拖拽排序"
+						style={{
+							cursor: isDragging ? "grabbing" : "grab",
+							touchAction: "none",
+						}}
+						{...attributes}
+						{...listeners}
+					/>
+					<Typography.Text type="secondary">{`${index + 1}.`}</Typography.Text>
+					<Input
+						style={{ maxWidth: 320 }}
+						placeholder="步骤组名称，如：登录"
+						value={name}
+						onChange={(event) => onNameChange(event.target.value)}
+					/>
+				</Space>
+			}
+			extra={
+				<Button
+					size="small"
+					danger
+					icon={<DeleteOutlined />}
+					disabled={!canDelete}
+					onClick={onDelete}
+				/>
+			}
+		>
+			{children}
+		</Card>
+	);
+}
+
+interface SortableStepRowProps {
+	id: string;
+	index: number;
+	children: ReactNode;
+}
+
+function SortableStepRow({ id, index, children }: SortableStepRowProps) {
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		setActivatorNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id });
+
+	return (
+		<Flex
+			ref={setNodeRef}
+			gap={8}
+			align="center"
+			wrap="wrap"
+			style={{
+				transform: CSS.Transform.toString(transform),
+				transition,
+				opacity: isDragging ? 0.5 : 1,
+				position: "relative",
+				zIndex: isDragging ? 1 : undefined,
+			}}
+		>
+			<Button
+				ref={setActivatorNodeRef}
+				type="text"
+				size="small"
+				icon={<HolderOutlined />}
+				aria-label={`拖拽第 ${index + 1} 个步骤进行排序`}
+				title="拖拽排序"
+				style={{ cursor: isDragging ? "grabbing" : "grab", touchAction: "none" }}
+				{...attributes}
+				{...listeners}
+			/>
+			<Typography.Text type="secondary" style={{ width: 24 }}>
+				{index + 1}.
+			</Typography.Text>
+			{children}
+		</Flex>
+	);
 }
 
 export default function TaskEditPage() {
@@ -283,130 +441,98 @@ export default function TaskEditPage() {
 				/>
 			</Flex>
 
-			{form.tasks.map((task, taskIndex) => (
-				<Card
-					key={task.id}
-					size="small"
-					title={
-						<Input
-							style={{ maxWidth: 320 }}
-							placeholder="步骤组名称，如：登录"
-							value={task.name}
-							onChange={(e) => updateTask(taskIndex, { name: e.target.value })}
-						/>
-					}
-					extra={
-						<Space>
-							<Button
-								size="small"
-								icon={<ArrowUpOutlined />}
-								disabled={taskIndex === 0}
-								onClick={() =>
-									setForm((prev) => ({
-										...prev,
-										tasks: moveItem(prev.tasks, taskIndex, -1),
-									}))
+			<SortableList
+				ids={form.tasks.map((task) => task.id)}
+				onReorder={(activeId, overId) =>
+					setForm((prev) => ({
+						...prev,
+						tasks: reorderById(prev.tasks, activeId, overId),
+					}))
+				}
+			>
+				{form.tasks.map((task, taskIndex) => (
+					<SortableTaskCard
+						key={task.id}
+						id={task.id}
+						index={taskIndex}
+						name={task.name}
+						canDelete={form.tasks.length > 1}
+						onNameChange={(taskName) =>
+							updateTask(taskIndex, { name: taskName })
+						}
+						onDelete={() =>
+							setForm((prev) => ({
+								...prev,
+								tasks: prev.tasks.filter((currentTask) => currentTask.id !== task.id),
+							}))
+						}
+					>
+						<Flex vertical gap={8}>
+							<SortableList
+								ids={task.steps.map((step) => step.id)}
+								onReorder={(activeId, overId) =>
+									updateTask(taskIndex, {
+										steps: reorderById(task.steps, activeId, overId),
+									})
 								}
-							/>
+							>
+								{task.steps.map((step, stepIndex) => (
+									<SortableStepRow
+										key={step.id}
+										id={step.id}
+										index={stepIndex}
+									>
+										<Select
+											style={{ width: 110 }}
+											value={step.action}
+											options={ACTION_OPTIONS.map((option) => ({
+												label: option.label,
+												value: option.action,
+											}))}
+											onChange={(action) =>
+												updateStep(taskIndex, stepIndex, createEmptyStep(action))
+											}
+										/>
+										{renderStepFields(taskIndex, stepIndex, step)}
+										<Input
+											style={{ width: 110 }}
+											placeholder="步骤名(可选)"
+											value={step.name ?? ""}
+											onChange={(e) =>
+												updateStep(taskIndex, stepIndex, {
+													name: e.target.value,
+												})
+											}
+										/>
+										<Button
+											size="small"
+											danger
+											icon={<DeleteOutlined />}
+											disabled={task.steps.length === 1}
+											onClick={() =>
+												updateTask(taskIndex, {
+													steps: task.steps.filter((_, i) => i !== stepIndex),
+												})
+											}
+										/>
+									</SortableStepRow>
+								))}
+							</SortableList>
 							<Button
-								size="small"
-								icon={<ArrowDownOutlined />}
-								disabled={taskIndex === form.tasks.length - 1}
+								type="dashed"
+								icon={<PlusOutlined />}
 								onClick={() =>
-									setForm((prev) => ({
-										...prev,
-										tasks: moveItem(prev.tasks, taskIndex, 1),
-									}))
+									updateTask(taskIndex, {
+										steps: [...task.steps, createEmptyStep()],
+									})
 								}
-							/>
-							<Button
-								size="small"
-								danger
-								icon={<DeleteOutlined />}
-								disabled={form.tasks.length === 1}
-								onClick={() =>
-									setForm((prev) => ({
-										...prev,
-										tasks: prev.tasks.filter((_, i) => i !== taskIndex),
-									}))
-								}
-							/>
-						</Space>
-					}
-				>
-					<Flex vertical gap={8}>
-						{task.steps.map((step, stepIndex) => (
-							<Flex key={step.id} gap={8} align="center" wrap="wrap">
-								<Typography.Text type="secondary" style={{ width: 24 }}>
-									{stepIndex + 1}.
-								</Typography.Text>
-								<Select
-									style={{ width: 110 }}
-									value={step.action}
-									options={ACTION_OPTIONS.map((option) => ({
-										label: option.label,
-										value: option.action,
-									}))}
-									onChange={(action) =>
-										updateStep(taskIndex, stepIndex, createEmptyStep(action))
-									}
-								/>
-								{renderStepFields(taskIndex, stepIndex, step)}
-								<Input
-									style={{ width: 110 }}
-									placeholder="步骤名(可选)"
-									value={step.name ?? ""}
-									onChange={(e) =>
-										updateStep(taskIndex, stepIndex, { name: e.target.value })
-									}
-								/>
-								<Button
-									size="small"
-									icon={<ArrowUpOutlined />}
-									disabled={stepIndex === 0}
-									onClick={() =>
-										updateTask(taskIndex, {
-											steps: moveItem(task.steps, stepIndex, -1),
-										})
-									}
-								/>
-								<Button
-									size="small"
-									icon={<ArrowDownOutlined />}
-									disabled={stepIndex === task.steps.length - 1}
-									onClick={() =>
-										updateTask(taskIndex, {
-											steps: moveItem(task.steps, stepIndex, 1),
-										})
-									}
-								/>
-								<Button
-									size="small"
-									danger
-									icon={<DeleteOutlined />}
-									disabled={task.steps.length === 1}
-									onClick={() =>
-										updateTask(taskIndex, {
-											steps: task.steps.filter((_, i) => i !== stepIndex),
-										})
-									}
-								/>
-							</Flex>
-						))}
-						<Button
-							type="dashed"
-							icon={<PlusOutlined />}
-							onClick={() =>
-								updateTask(taskIndex, {
-									steps: [...task.steps, createEmptyStep()],
-								})
-							}
-						>
-							添加步骤
-						</Button>
-					</Flex>
-				</Card>
-			))}
+							>
+								添加步骤
+							</Button>
+						</Flex>
+					</SortableTaskCard>
+				))}
+			</SortableList>
 
 			<Button
 				type="dashed"
@@ -486,8 +612,10 @@ export default function TaskEditPage() {
 						title="脚本存在问题"
 						description={
 							<ul style={{ margin: 0, paddingInlineStart: 20 }}>
-								{errors.map((error) => (
-									<li key={error}>{error}</li>
+								{errors.map((error, errorIndex) => (
+									<li key={createValidationErrorKey(error, errorIndex)}>
+										{error}
+									</li>
 								))}
 							</ul>
 						}

@@ -1,9 +1,23 @@
 import {
-	ArrowDownOutlined,
-	ArrowUpOutlined,
 	DeleteOutlined,
+	HolderOutlined,
 	PlusOutlined,
 } from "@ant-design/icons";
+import {
+	DndContext,
+	KeyboardSensor,
+	PointerSensor,
+	closestCenter,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import {
+	SortableContext,
+	sortableKeyboardCoordinates,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
 	App as AntApp,
 	Button,
@@ -13,22 +27,97 @@ import {
 	Space,
 	Typography,
 } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { TaskRecord } from "../../../shared/types";
 import { api, type ModelBrief, type QueueDefWithItems } from "../api";
+import { reorderById } from "../sortable-items";
 
 interface EditItem {
+	id: string;
 	taskId: number | undefined;
 	modelId: string | undefined;
 }
 
-function moveItem(list: EditItem[], index: number, offset: -1 | 1): EditItem[] {
-	const target = index + offset;
-	if (target < 0 || target >= list.length) return list;
-	const next = [...list];
-	[next[index], next[target]] = [next[target], next[index]];
-	return next;
+interface SortableTaskItemProps {
+	item: EditItem;
+	index: number;
+	tasks: TaskRecord[];
+	models: ModelBrief[];
+	canDelete: boolean;
+	onUpdate: (patch: Partial<EditItem>) => void;
+	onDelete: () => void;
+}
+
+function SortableTaskItem({
+	item,
+	index,
+	tasks,
+	models,
+	canDelete,
+	onUpdate,
+	onDelete,
+}: SortableTaskItemProps) {
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		setActivatorNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id: item.id });
+
+	return (
+		<Space
+			ref={setNodeRef}
+			wrap
+			style={{
+				transform: CSS.Transform.toString(transform),
+				transition,
+				opacity: isDragging ? 0.5 : 1,
+				position: "relative",
+				zIndex: isDragging ? 1 : undefined,
+			}}
+		>
+			<Button
+				ref={setActivatorNodeRef}
+				type="text"
+				size="small"
+				icon={<HolderOutlined />}
+				aria-label={`拖拽第 ${index + 1} 个任务进行排序`}
+				title="拖拽排序"
+				style={{ cursor: isDragging ? "grabbing" : "grab", touchAction: "none" }}
+				{...attributes}
+				{...listeners}
+			/>
+			<Typography.Text type="secondary">{`${index + 1}.`}</Typography.Text>
+			<Select
+				style={{ width: 200 }}
+				placeholder="选择任务"
+				value={item.taskId}
+				onChange={(taskId) => onUpdate({ taskId })}
+				options={tasks.map((task) => ({ label: task.name, value: task.id }))}
+			/>
+			<Select
+				style={{ width: 180 }}
+				placeholder="选择模型"
+				value={item.modelId}
+				onChange={(modelId) => onUpdate({ modelId })}
+				options={models.map((model) => ({
+					label: model.name,
+					value: model.id,
+				}))}
+			/>
+			<Button
+				size="small"
+				danger
+				icon={<DeleteOutlined />}
+				disabled={!canDelete}
+				onClick={onDelete}
+			/>
+		</Space>
+	);
 }
 
 export default function QueueEditPage() {
@@ -36,12 +125,26 @@ export default function QueueEditPage() {
 	const isNew = id === undefined || id === "new";
 	const { message } = AntApp.useApp();
 	const navigate = useNavigate();
+	const nextItemId = useRef(0);
 
 	const [name, setName] = useState("");
 	const [items, setItems] = useState<EditItem[]>([]);
 	const [tasks, setTasks] = useState<TaskRecord[]>([]);
 	const [models, setModels] = useState<ModelBrief[]>([]);
 	const [saving, setSaving] = useState(false);
+	const sensors = useSensors(
+		useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+		useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+	);
+
+	const createEditItem = (
+		taskId: number | undefined,
+		modelId: string | undefined,
+	): EditItem => ({
+		id: `queue-item-${id ?? "new"}-${nextItemId.current++}`,
+		taskId,
+		modelId,
+	});
 
 	useEffect(() => {
 		api
@@ -58,15 +161,14 @@ export default function QueueEditPage() {
 				.then((q: QueueDefWithItems) => {
 					setName(q.name);
 					setItems(
-						q.items.map((item) => ({
-							taskId: item.taskId,
-							modelId: item.modelId,
-						})),
+						q.items.map((item) =>
+							createEditItem(item.taskId, item.modelId),
+						),
 					);
 				})
 				.catch((e: Error) => message.error(e.message));
 		} else {
-			setItems([{ taskId: undefined, modelId: undefined }]);
+			setItems([createEditItem(undefined, undefined)]);
 		}
 	}, [id]);
 
@@ -125,7 +227,7 @@ export default function QueueEditPage() {
 				</Space>
 			}
 		>
-			<Space direction="vertical" size="middle" style={{ width: "100%" }}>
+			<Space orientation="vertical" size="middle" style={{ width: "100%" }}>
 				<div>
 					<Typography.Text strong>队列名</Typography.Text>
 					<Input
@@ -138,49 +240,46 @@ export default function QueueEditPage() {
 				<div>
 					<Typography.Text strong>任务列表（按顺序串行执行）</Typography.Text>
 				</div>
-				{items.map((item, index) => (
-					<Space key={index} wrap>
-						<Typography.Text type="secondary">{`${index + 1}.`}</Typography.Text>
-						<Select
-							style={{ width: 200 }}
-							placeholder="选择任务"
-							value={item.taskId}
-							onChange={(v) => updateItem(index, { taskId: v })}
-							options={tasks.map((t) => ({ label: t.name, value: t.id }))}
-						/>
-						<Select
-							style={{ width: 180 }}
-							placeholder="选择模型"
-							value={item.modelId}
-							onChange={(v) => updateItem(index, { modelId: v })}
-							options={models.map((m) => ({ label: m.name, value: m.id }))}
-						/>
-						<Button
-							size="small"
-							icon={<ArrowUpOutlined />}
-							disabled={index === 0}
-							onClick={() => setItems(moveItem(items, index, -1))}
-						/>
-						<Button
-							size="small"
-							icon={<ArrowDownOutlined />}
-							disabled={index === items.length - 1}
-							onClick={() => setItems(moveItem(items, index, 1))}
-						/>
-						<Button
-							size="small"
-							danger
-							icon={<DeleteOutlined />}
-							disabled={items.length === 1}
-							onClick={() => setItems(items.filter((_, i) => i !== index))}
-						/>
-					</Space>
-				))}
+				<DndContext
+					sensors={sensors}
+					collisionDetection={closestCenter}
+					onDragEnd={({ active, over }) => {
+						if (!over) return;
+						setItems((currentItems) =>
+							reorderById(currentItems, String(active.id), String(over.id)),
+						);
+					}}
+				>
+					<SortableContext
+						items={items.map((item) => item.id)}
+						strategy={verticalListSortingStrategy}
+					>
+						{items.map((item, index) => (
+							<SortableTaskItem
+								key={item.id}
+								item={item}
+								index={index}
+								tasks={tasks}
+								models={models}
+								canDelete={items.length > 1}
+								onUpdate={(patch) => updateItem(index, patch)}
+								onDelete={() =>
+									setItems((currentItems) =>
+										currentItems.filter((currentItem) => currentItem.id !== item.id),
+									)
+								}
+							/>
+						))}
+					</SortableContext>
+				</DndContext>
 				<Button
 					type="dashed"
 					icon={<PlusOutlined />}
 					onClick={() =>
-						setItems([...items, { taskId: undefined, modelId: undefined }])
+						setItems((currentItems) => [
+							...currentItems,
+							createEditItem(undefined, undefined),
+						])
 					}
 				>
 					添加任务
