@@ -19,6 +19,13 @@ import {
 } from "antd";
 import { useEffect, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import {
+	APP_SHELL_STYLE,
+	CONTENT_STYLE,
+	HEADER_STYLE,
+	MAIN_LAYOUT_STYLE,
+	SIDER_STYLE,
+} from "./layout";
 import HistoryPage from "./pages/HistoryPage";
 import QueueEditPage from "./pages/QueueEditPage";
 import QueuesPage from "./pages/QueuesPage";
@@ -84,16 +91,22 @@ function AppContent({
 	return (
 		<ThemeModeContext.Provider value={themeMode}>
 			<AntApp>
-				<Layout style={{ minHeight: "100vh" }}>
-					<Sider theme={themeMode}>
+				<Layout style={APP_SHELL_STYLE}>
+					<Sider
+						data-testid="app-sidebar"
+						style={SIDER_STYLE}
+						theme={themeMode}
+					>
 						<div style={{ padding: 16, fontWeight: "bold", fontSize: 16 }}>
 							AI 自动化测试
 						</div>
 						<Menu mode="inline" selectedKeys={[selectedKey]} items={menuItems} />
 					</Sider>
-					<Layout>
+					<Layout style={MAIN_LAYOUT_STYLE}>
 						<Header
+							data-testid="app-header"
 							style={{
+								...HEADER_STYLE,
 								background: token.colorBgContainer,
 								padding: "0 24px",
 								fontSize: 16,
@@ -121,7 +134,7 @@ function AppContent({
 								</Tooltip>
 							</Flex>
 						</Header>
-						<Content style={{ margin: 16 }}>
+						<Content data-testid="app-content" style={CONTENT_STYLE}>
 							<Routes>
 								<Route path="/" element={<Navigate to="/tasks" replace />} />
 								<Route path="/tasks" element={<TasksPage />} />
