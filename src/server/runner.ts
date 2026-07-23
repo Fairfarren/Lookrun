@@ -5,6 +5,7 @@ import puppeteer from "puppeteer-core";
 import type { Browser, Page } from "puppeteer-core";
 import type { Database } from "bun:sqlite";
 import type { ModelConfig, RunRecord, RunStepRecord } from "../shared/types";
+import { formatErrorMessage, formatStepError } from "./ai-error";
 import { extractLastAiResult } from "./ai-result";
 import { detectChrome } from "./chrome";
 import { REPORT_DIR, RUN_KEEP_COUNT, SCREENSHOT_DIR } from "./config";
@@ -351,7 +352,7 @@ export class Runner {
 						stepDir,
 						`${index}-after.jpg`,
 					).catch(() => null);
-					const message = errorMessage(error);
+					const message = formatStepError(error, step);
 					this.recordStep(runId, index, taskName, step, page.url(), {
 						status: "failed",
 						error: message,
@@ -390,7 +391,7 @@ export class Runner {
 			this.finish(
 				runId,
 				this.stopRequested ? "stopped" : "failed",
-				this.stopRequested ? "手动停止" : errorMessage(error),
+				this.stopRequested ? "手动停止" : formatErrorMessage(error),
 				startedAt,
 				totalInput,
 				totalOutput,
@@ -514,11 +515,6 @@ async function markStoredScreenshots(
 			await Bun.write(filePath, marked);
 		}),
 	);
-}
-
-function errorMessage(error: unknown) {
-	const message = error instanceof Error ? error.message : String(error);
-	return message.length > 500 ? `${message.slice(0, 500)}...` : message;
 }
 
 // 执行单步。返回 AI 结果摘要；返回 null 时由调用方从 Midscene dump 提取
