@@ -1,5 +1,6 @@
 import type { Hono } from "hono";
 import { serveStatic } from "hono/bun";
+import { formatRunHistory } from "./ai-error";
 import { detectChrome } from "./chrome";
 import { DB_PATH, REPORT_DIR, SCREENSHOT_DIR } from "./config";
 import {
@@ -301,7 +302,7 @@ export function registerRoutes(app: Hono) {
 		if (!run) {
 			return c.json({ error: "运行记录不存在" }, 404);
 		}
-		return c.json({ run, steps: listRunSteps(db, id) });
+		return c.json(formatRunHistory(run, listRunSteps(db, id)));
 	});
 
 	// 步骤截图
