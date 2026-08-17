@@ -54,7 +54,7 @@ bun run build:exe
 bun scripts/build-exe.ts --target=bun-windows-x64
 ```
 
-产物双击后自动启动服务并打开浏览器（`http://localhost:3877`），任务、运行记录、截图都写在程序同级的 `data/` 目录。请分发完整的 `dist-mac/` 或 `dist-win/` 目录，不能只复制其中的可执行文件。
+产物双击后自动启动服务并打开浏览器（`http://localhost:3877`），任务、运行记录、截图都写在程序同级的 `data/` 目录。请分发完整的 `dist-mac/` 或 `dist-win/` 目录，不能只复制其中的可执行文件。Android 实时预览依赖的 FFmpeg 与 scrcpy-server 位于同级 `runtime-tools/`，构建脚本会按目标平台自动安装。
 
 > macOS 未签名：首次打开需在「访达」中右键 → 打开；Windows SmartScreen 选择「仍要运行」。
 > 运行时也可用 `data/models.json` 覆盖内置模型配置，无需重新打包。

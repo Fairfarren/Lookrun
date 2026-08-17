@@ -5,6 +5,7 @@ import {
 	createAndroidDeviceLister,
 	findLauncherAppCenter,
 	isDirectAndroidLaunchTarget,
+	parseAndroidLauncherPackages,
 	parseAndroidScreenSize,
 	resolveAdbPath,
 } from "../src/server/android";
@@ -39,6 +40,44 @@ describe("findLauncherAppCenter", () => {
 				"A&B",
 			),
 		).toEqual({ x: 20, y: 30 });
+	});
+});
+
+describe("parseAndroidLauncherPackages", () => {
+	test("从可启动组件中提取包名并排序", () => {
+		const output = [
+			"com.example.second/.MainActivity",
+			"com.example.first/com.example.first.LauncherActivity",
+		].join("\n");
+
+		expect(parseAndroidLauncherPackages(output)).toEqual([
+			{ packageName: "com.example.first" },
+			{ packageName: "com.example.second" },
+		]);
+	});
+
+	test("同一应用存在多个启动入口时只保留一个包名", () => {
+		const output = [
+			"com.example.same/.MainActivity",
+			"com.example.same/.AlternateActivity",
+		].join("\n");
+
+		expect(parseAndroidLauncherPackages(output)).toEqual([
+			{ packageName: "com.example.same" },
+		]);
+	});
+
+	test("忽略命令说明和格式异常的行", () => {
+		const output = [
+			"2 activities found:",
+			"No activities found",
+			"com.example.valid/.MainActivity",
+			"invalid-package/MainActivity",
+		].join("\n");
+
+		expect(parseAndroidLauncherPackages(output)).toEqual([
+			{ packageName: "com.example.valid" },
+		]);
 	});
 });
 

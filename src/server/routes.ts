@@ -36,6 +36,7 @@ import type { SystemInfo } from "../shared/types";
 import { parseScript } from "./yamlflow";
 import {
 	checkAndroidDevice,
+	listAndroidApps,
 	listAndroidDevices,
 } from "./android-service";
 import { detectAdbPath } from "./android";
@@ -337,6 +338,21 @@ export function registerRoutes(app: Hono) {
 			return c.json({ error: "请选择要检查的设备" }, 400);
 		}
 		return c.json(await checkAndroidDevice(body.deviceId.trim()));
+	});
+
+	app.get("/api/system/android-apps", async (c) => {
+		const deviceId = c.req.query("deviceId")?.trim();
+		if (!deviceId) {
+			return c.json({ error: "请选择要查询应用的设备" }, 400);
+		}
+		try {
+			return c.json({ apps: await listAndroidApps(deviceId) });
+		} catch (error) {
+			return c.json(
+				{ error: error instanceof Error ? error.message : String(error) },
+				500,
+			);
+		}
 	});
 
 	app.get("/api/system", (c) => {

@@ -24,6 +24,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import {
 	App as AntApp,
 	Alert,
+	AutoComplete,
 	Button,
 	Card,
 	Flex,
@@ -46,8 +47,12 @@ import {
 	type FormStep,
 	type FormTask,
 } from "../../../shared/yaml-form";
-import type { AndroidDeviceRecord } from "../../../shared/types";
+import type {
+	AndroidAppRecord,
+	AndroidDeviceRecord,
+} from "../../../shared/types";
 import { api } from "../api";
+import { createAndroidAppOptions } from "../android-app-options";
 import { reorderById } from "../sortable-items";
 import { useThemeMode } from "../theme-context";
 import { createValidationErrorKey } from "../validation-errors";
@@ -253,11 +258,16 @@ export default function TaskEditPage() {
 	const [saving, setSaving] = useState(false);
 	const [loaded, setLoaded] = useState(isNew);
 	const [androidDevices, setAndroidDevices] = useState<AndroidDeviceRecord[]>([]);
+	const [androidApps, setAndroidApps] = useState<AndroidAppRecord[]>([]);
 	const [loadingDevices, setLoadingDevices] = useState(false);
+	const [loadingApps, setLoadingApps] = useState(false);
 	const [checkingDevice, setCheckingDevice] = useState(false);
+	const androidAppsRequestId = useRef(0);
 	const validateTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
 		undefined,
 	);
+	const androidDeviceId =
+		form.target.type === "android" ? form.target.deviceId : "";
 
 	useEffect(() => {
 		if (!isNew) {
@@ -308,6 +318,38 @@ export default function TaskEditPage() {
 			void loadAndroidDevices();
 		}
 	}, [form.target.type]);
+
+	const loadAndroidApps = async (deviceId: string) => {
+		const requestId = androidAppsRequestId.current + 1;
+		androidAppsRequestId.current = requestId;
+		setAndroidApps([]);
+		setLoadingApps(true);
+		try {
+			const result = await api.listAndroidApps(deviceId);
+			if (requestId === androidAppsRequestId.current) {
+				setAndroidApps(result.apps);
+			}
+		} catch (error) {
+			if (requestId === androidAppsRequestId.current) {
+				setAndroidApps([]);
+				message.error(error instanceof Error ? error.message : String(error));
+			}
+		} finally {
+			if (requestId === androidAppsRequestId.current) {
+				setLoadingApps(false);
+			}
+		}
+	};
+
+	useEffect(() => {
+		if (!androidDeviceId) {
+			androidAppsRequestId.current += 1;
+			setAndroidApps([]);
+			setLoadingApps(false);
+			return;
+		}
+		void loadAndroidApps(androidDeviceId);
+	}, [androidDeviceId]);
 
 	// 当前编辑内容对应的 YAML 文本
 	const currentYaml = mode === "form" ? formToYaml(form) : yamlText;
@@ -425,6 +467,40 @@ export default function TaskEditPage() {
 						options={field.options}
 						onChange={onChange}
 					/>
+				);
+			}
+			if (
+				step.action === "launch" &&
+				field.key === "target" &&
+				form.target.type === "android"
+			) {
+				return (
+					<Flex key={field.key} gap={8} style={{ flex: 1, minWidth: 280 }}>
+						<AutoComplete
+							style={{ flex: 1 }}
+							value={typeof value === "string" ? value : ""}
+							options={createAndroidAppOptions(androidApps)}
+							placeholder={field.placeholder ?? field.label}
+							notFoundContent={
+								loadingApps
+									? "正在读取应用列表…"
+									: "没有匹配包名，可直接输入应用名称或包名"
+							}
+							filterOption={(inputValue, currentOption) =>
+								String(currentOption?.value ?? "")
+									.toLocaleLowerCase()
+									.includes(inputValue.toLocaleLowerCase())
+							}
+							onChange={onChange}
+						/>
+						<Button
+							icon={<ReloadOutlined />}
+							loading={loadingApps}
+							disabled={!androidDeviceId}
+							title="刷新应用列表"
+							onClick={() => void loadAndroidApps(androidDeviceId)}
+						/>
+					</Flex>
 				);
 			}
 			if (field.type === "number") {

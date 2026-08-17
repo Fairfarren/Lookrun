@@ -1,5 +1,13 @@
 # 修复历史记录
 
+## [2026-08-17 16:44:41] 修复 Windows 打包产物 Android 实时预览帧率过低
+
+- **问题描述**：Windows 完整包运行 Android 任务时，实时画面更新频率明显低于开发环境。
+- **问题原因**：连续预览依赖 scrcpy-server 提供 H.264 视频流，并依赖 FFmpeg 将采样帧转换为 JPEG；原构建脚本只安装 Sharp native 资源和 Android Platform Tools，没有为目标平台安装 FFmpeg，也没有给 Midscene 提供分发目录中的稳定资源路径。连续预览启动失败时会降级为每个步骤执行前后的截图，看起来像极低帧率。
+- **修改方案**：构建时按目标平台从 `@ffmpeg-installer/ffmpeg` 的锁定映射复制或下载 FFmpeg，并将 FFmpeg 与 scrcpy-server 放入 `runtime-tools/`；服务启动时解析 EXE 同目录的资源绝对路径；使用 Bun 依赖补丁让 Midscene 优先读取这两个显式路径，同时保留开发态原有解析作为回退。
+- **验证状态**：已通过
+- **说明**：先增加 Windows/macOS 包映射、打包路径和资源缺失回归测试；Windows x64 交叉构建成功，产物中的 `ffmpeg.exe` 为 PE32+ x86-64，scrcpy-server 与依赖原文件一致，编译后的 EXE 包含两个显式环境变量读取逻辑。全量测试、前后端类型检查和 Web 构建通过；本机为 macOS，Windows EXE 的真机帧率仍需在 Windows 上做最终验收。
+
 ## [2026-07-21 19:40:00] 修复 mac 打包产物运行 Midscene 时 Sharp 报错
 
 - **问题描述**：mac 上打包出的可执行程序运行任务，AI 断言步骤报错 `Assertion failed: 判断是否登陆... Reason: Invalid image: failed to decode base64 data (Sharp is not a function. (In 'Sharp(imageBuffer)', 'Sharp' is an instance of Object))`。

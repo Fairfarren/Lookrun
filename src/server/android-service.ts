@@ -4,6 +4,7 @@ import {
 	createAndroidDeviceChecker,
 	createAndroidDeviceLister,
 	detectAdbPath,
+	parseAndroidLauncherPackages,
 	parseAndroidScreenSize,
 } from "./android";
 
@@ -97,6 +98,24 @@ const listFromProvider = createAndroidDeviceLister(async () => {
 
 export async function listAndroidDevices() {
 	return listFromProvider();
+}
+
+export async function listAndroidApps(deviceId: string) {
+	const output = await runAdbCommand({
+		deviceId,
+		args: [
+			"shell",
+			"cmd",
+			"package",
+			"query-activities",
+			"--components",
+			"-a",
+			"android.intent.action.MAIN",
+			"-c",
+			"android.intent.category.LAUNCHER",
+		],
+	});
+	return parseAndroidLauncherPackages(output);
 }
 
 export const checkAndroidDevice = createAndroidDeviceChecker(listAndroidDevices);

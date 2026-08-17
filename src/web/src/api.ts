@@ -1,9 +1,10 @@
 import type {
+	AndroidAppRecord,
+	AndroidDeviceRecord,
 	RunRecord,
 	RunStepRecord,
 	SystemInfo,
 	TaskRecord,
-	AndroidDeviceRecord,
 } from "../../shared/types";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -169,6 +170,10 @@ export const api = {
 	systemInfo: () => request<SystemInfo>("/api/system"),
 	listAndroidDevices: () =>
 		request<{ devices: AndroidDeviceRecord[] }>("/api/system/android-devices"),
+	listAndroidApps: (deviceId: string) =>
+		request<{ apps: AndroidAppRecord[] }>(
+			`/api/system/android-apps?deviceId=${encodeURIComponent(deviceId)}`,
+		),
 	checkAndroidDevice: (deviceId: string) =>
 		request<
 			| { ok: true; device: AndroidDeviceRecord }

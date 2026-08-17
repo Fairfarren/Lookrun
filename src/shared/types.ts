@@ -75,3 +75,7 @@ export interface AndroidDeviceRecord {
 	id: string;
 	name: string;
 }
+
+export interface AndroidAppRecord {
+	packageName: string;
+}

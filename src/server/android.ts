@@ -22,6 +22,8 @@ interface AndroidAppLauncherInput {
 
 const ANDROID_PACKAGE_PATTERN =
 	/^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+(?:\/[a-z0-9_.$]+)?$/i;
+const ANDROID_PACKAGE_NAME_PATTERN =
+	/^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+$/i;
 const URI_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i;
 const ANDROID_APP_LIST_MAX_PAGES = 12;
 
@@ -93,6 +95,19 @@ export function isDirectAndroidLaunchTarget(target: string) {
 		ANDROID_PACKAGE_PATTERN.test(value) ||
 		URI_SCHEME_PATTERN.test(value)
 	);
+}
+
+export function parseAndroidLauncherPackages(output: string) {
+	const packageNames = new Set<string>();
+	for (const line of output.split(/\r?\n/)) {
+		const [packageName, activityName] = line.trim().split("/", 2);
+		if (activityName && ANDROID_PACKAGE_NAME_PATTERN.test(packageName)) {
+			packageNames.add(packageName);
+		}
+	}
+	return Array.from(packageNames)
+		.sort((left, right) => left.localeCompare(right))
+		.map((packageName) => ({ packageName }));
 }
 
 export function createAndroidAppLauncher(input: AndroidAppLauncherInput) {
