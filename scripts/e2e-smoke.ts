@@ -74,6 +74,11 @@ async function startServer(env: Record<string, string>): Promise<Subprocess> {
   return server;
 }
 
+async function stopServer(server: Subprocess) {
+  server.kill();
+  await server.exited;
+}
+
 async function createTaskAndGetId() {
   const yaml = `target: https://example.com
 tasks:
@@ -145,7 +150,7 @@ async function main() {
   console.log('停止后运行状态:', detail2.run.status);
   if (detail2.run.status !== 'stopped') throw new Error(`停止后状态应为 stopped，实际 ${detail2.run.status}`);
   ws2.close();
-  server.kill();
+  await stopServer(server);
 
   // 场景三：MOCK_FAIL_AT=2 验证失败即停
   console.log('== 场景三：失败即停 ==');
@@ -161,7 +166,7 @@ async function main() {
   if (detail3.steps.length !== 3) throw new Error(`失败即停后应只有 3 步记录，实际 ${detail3.steps.length}`);
   if (detail3.steps[2].status !== 'failed') throw new Error('第 3 步应为 failed');
   if (!detail3.run.error?.includes('第 3 步')) throw new Error(`错误信息应指出失败步骤：${detail3.run.error}`);
-  server.kill();
+  await stopServer(server);
 
   console.log('E2E_SMOKE_PASS');
 }

@@ -1,5 +1,10 @@
 import { yaml } from "@codemirror/lang-yaml";
-import { DeleteOutlined, HolderOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+	DeleteOutlined,
+	HolderOutlined,
+	PlusOutlined,
+	ReloadOutlined,
+} from "@ant-design/icons";
 import {
 	DndContext,
 	KeyboardSensor,
@@ -33,6 +38,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
 	ACTION_OPTIONS,
+	actionOptionsForTarget,
 	createStepId,
 	formToYaml,
 	yamlToForm,
@@ -40,6 +46,7 @@ import {
 	type FormStep,
 	type FormTask,
 } from "../../../shared/yaml-form";
+import type { AndroidDeviceRecord } from "../../../shared/types";
 import { api } from "../api";
 import { reorderById } from "../sortable-items";
 import { useThemeMode } from "../theme-context";
@@ -69,7 +76,7 @@ function createEmptyTask(index: number): FormTask {
 }
 
 function createEmptyForm(): FormScript {
-	return { target: "", tasks: [createEmptyTask(1)] };
+	return { target: { type: "web", url: "" }, tasks: [createEmptyTask(1)] };
 }
 
 interface SortableListProps {
@@ -245,6 +252,9 @@ export default function TaskEditPage() {
 	const [errors, setErrors] = useState<string[]>([]);
 	const [saving, setSaving] = useState(false);
 	const [loaded, setLoaded] = useState(isNew);
+	const [androidDevices, setAndroidDevices] = useState<AndroidDeviceRecord[]>([]);
+	const [loadingDevices, setLoadingDevices] = useState(false);
+	const [checkingDevice, setCheckingDevice] = useState(false);
 	const validateTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
 		undefined,
 	);
@@ -268,6 +278,36 @@ export default function TaskEditPage() {
 				.catch((error: Error) => message.error(error.message));
 		}
 	}, [id]);
+
+	const loadAndroidDevices = async () => {
+		setLoadingDevices(true);
+		try {
+			const result = await api.listAndroidDevices();
+			setAndroidDevices(result.devices);
+			setForm((prev) => {
+				if (prev.target.type !== "android" || prev.target.deviceId) {
+					return prev;
+				}
+				return {
+					...prev,
+					target: {
+						type: "android",
+						deviceId: result.devices[0]?.id ?? "",
+					},
+				};
+			});
+		} catch (error) {
+			message.error(error instanceof Error ? error.message : String(error));
+		} finally {
+			setLoadingDevices(false);
+		}
+	};
+
+	useEffect(() => {
+		if (form.target.type === "android") {
+			void loadAndroidDevices();
+		}
+	}, [form.target.type]);
 
 	// 当前编辑内容对应的 YAML 文本
 	const currentYaml = mode === "form" ? formToYaml(form) : yamlText;
@@ -411,35 +451,139 @@ export default function TaskEditPage() {
 		});
 	};
 
+	const checkSelectedAndroidDevice = async () => {
+		if (form.target.type !== "android" || !form.target.deviceId) {
+			return;
+		}
+		setCheckingDevice(true);
+		try {
+			const result = await api.checkAndroidDevice(form.target.deviceId);
+			if (result.ok) {
+				message.success(`设备 ${result.device.name} 连接正常`);
+			} else {
+				message.error(result.message);
+			}
+		} catch (error) {
+			message.error(error instanceof Error ? error.message : String(error));
+		} finally {
+			setCheckingDevice(false);
+		}
+	};
+
 	const renderFormEditor = () => (
 		<Space orientation="vertical" size="middle" style={{ width: "100%" }}>
 			<Flex gap={12} wrap="wrap" align="center">
+				<Typography.Text strong>运行目标</Typography.Text>
+				<Segmented
+					value={form.target.type}
+					options={[
+						{ label: "网页", value: "web" },
+						{ label: "Android", value: "android" },
+					]}
+					onChange={(value) => {
+						const targetType = value === "android" ? "android" : "web";
+						setForm((prev) => ({
+							...prev,
+							target:
+								targetType === "android"
+									? { type: "android", deviceId: "" }
+									: { type: "web", url: "" },
+							tasks: prev.tasks.map((task) => ({
+								...task,
+								steps: task.steps.map((step) =>
+									actionOptionsForTarget(targetType).some(
+										(option) => option.action === step.action,
+									)
+										? step
+										: createEmptyStep(),
+								),
+							})),
+						}));
+					}}
+				/>
+			</Flex>
+
+			{form.target.type === "web" ? (
+				<Flex gap={12} wrap="wrap" align="center">
 				<Typography.Text strong>URL</Typography.Text>
 				<Input
 					style={{ flex: 1, minWidth: 260 }}
 					placeholder="被测页面地址，如 https://example.com"
-					value={form.target}
+					value={form.target.url}
 					onChange={(e) =>
-						setForm((prev) => ({ ...prev, target: e.target.value }))
+						setForm((prev) => ({
+							...prev,
+							target:
+								prev.target.type === "web"
+									? { ...prev.target, url: e.target.value }
+									: prev.target,
+						}))
 					}
 				/>
 				<InputNumber
 					placeholder="视口宽(默认390)"
 					min={320}
-					value={form.viewportWidth}
+					value={form.target.viewportWidth}
 					onChange={(value) =>
-						setForm((prev) => ({ ...prev, viewportWidth: value ?? undefined }))
+						setForm((prev) => ({
+							...prev,
+							target:
+								prev.target.type === "web"
+									? { ...prev.target, viewportWidth: value ?? undefined }
+									: prev.target,
+						}))
 					}
 				/>
 				<InputNumber
 					placeholder="视口高(默认844)"
 					min={320}
-					value={form.viewportHeight}
+					value={form.target.viewportHeight}
 					onChange={(value) =>
-						setForm((prev) => ({ ...prev, viewportHeight: value ?? undefined }))
+						setForm((prev) => ({
+							...prev,
+							target:
+								prev.target.type === "web"
+									? { ...prev.target, viewportHeight: value ?? undefined }
+									: prev.target,
+						}))
 					}
 				/>
-			</Flex>
+				</Flex>
+			) : (
+				<Flex gap={12} wrap="wrap" align="center">
+					<Typography.Text strong>设备号</Typography.Text>
+					<Select
+						style={{ flex: 1, minWidth: 320 }}
+						loading={loadingDevices}
+						placeholder="选择已连接并授权的 Android 设备"
+						value={form.target.deviceId || undefined}
+						options={androidDevices.map((device) => ({
+							label: `${device.name}（${device.id}）`,
+							value: device.id,
+						}))}
+						onChange={(deviceId) =>
+							setForm((prev) => ({
+								...prev,
+								target: { type: "android", deviceId },
+							}))
+						}
+					/>
+					<Button
+						icon={<ReloadOutlined />}
+						loading={loadingDevices}
+						onClick={() => void loadAndroidDevices()}
+					>
+						刷新设备
+					</Button>
+					<Button
+						loading={checkingDevice}
+						disabled={!form.target.deviceId}
+						onClick={() => void checkSelectedAndroidDevice()}
+					>
+						检查连接
+					</Button>
+				</Flex>
+			)}
 
 			<SortableList
 				ids={form.tasks.map((task) => task.id)}
@@ -485,7 +629,7 @@ export default function TaskEditPage() {
 										<Select
 											style={{ width: 110 }}
 											value={step.action}
-											options={ACTION_OPTIONS.map((option) => ({
+											options={actionOptionsForTarget(form.target.type).map((option) => ({
 												label: option.label,
 												value: option.action,
 											}))}

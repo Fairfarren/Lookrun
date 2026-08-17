@@ -3,6 +3,7 @@ import type {
 	RunStepRecord,
 	SystemInfo,
 	TaskRecord,
+	AndroidDeviceRecord,
 } from "../../shared/types";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -166,6 +167,16 @@ export const api = {
 
 	// 系统信息
 	systemInfo: () => request<SystemInfo>("/api/system"),
+	listAndroidDevices: () =>
+		request<{ devices: AndroidDeviceRecord[] }>("/api/system/android-devices"),
+	checkAndroidDevice: (deviceId: string) =>
+		request<
+			| { ok: true; device: AndroidDeviceRecord }
+			| { ok: false; message: string }
+		>("/api/system/android-devices/check", {
+			method: "POST",
+			body: JSON.stringify({ deviceId }),
+		}),
 	storageStats: () => request<StorageStats>("/api/system/storage"),
 	cleanupStorage: () =>
 		request<{ deletedRuns: number; freedBytes: number }>(

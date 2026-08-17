@@ -1,0 +1,17 @@
+diff --git a/source-map-support.js b/source-map-support.js
+index 2942b5eaf1c8229993bbc61fb106451578b9c76a..514c0d52f43a700f60cf5cf47136bd18f52401d0 100644
+--- a/source-map-support.js
++++ b/source-map-support.js
+@@ -241,7 +241,11 @@ function mapSourcePosition(position) {
+
+   // Resolve the source URL relative to the URL of the source map
+   if (sourceMap && sourceMap.map && typeof sourceMap.map.originalPositionFor === 'function') {
+-    var originalPosition = sourceMap.map.originalPositionFor(position);
++    var originalPosition = sourceMap.map.originalPositionFor({
++      source: position.source,
++      line: Math.max(1, position.line),
++      column: Math.max(0, position.column)
++    });
+
+     // Only return the original position if a matching line was found. If no
+     // matching line is found then we return position instead, which will cause

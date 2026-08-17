@@ -13,6 +13,7 @@ export const SUPPORTED_ACTIONS = [
   'aiKeyboardPress',
   'aiScroll',
   'sleep',
+  'launch',
 ] as const;
 
 export interface FlowStep {
@@ -30,10 +31,20 @@ export interface FlowTask {
   flow: FlowStep[];
 }
 
+export type ParsedTarget =
+  | {
+      type: 'web';
+      url: string;
+      viewportWidth?: number;
+      viewportHeight?: number;
+    }
+  | {
+      type: 'android';
+      deviceId: string;
+    };
+
 export interface ParsedScript {
-  target: string;
-  viewportWidth?: number;
-  viewportHeight?: number;
+  target: ParsedTarget;
   tasks: FlowTask[];
 }
 
@@ -50,7 +61,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function validateStep(index: number, step: unknown, errors: string[]) {
+function validateStep(
+  index: number,
+  step: unknown,
+  targetType: ParsedTarget['type'],
+  errors: string[],
+) {
   const prefix = `第 ${index + 1} 步`;
   if (!isRecord(step)) {
     errors.push(`${prefix}：步骤必须是一个动作对象`);
@@ -77,6 +93,19 @@ function validateStep(index: number, step: unknown, errors: string[]) {
     errors.push(`${prefix}：name 必须是字符串`);
   }
   const params = step[action];
+  if (action === 'launch') {
+    if (targetType !== 'android') {
+      errors.push(`${prefix}（launch）：打开 App 只能用于 Android 任务`);
+    }
+    if (typeof params !== 'string' || params === '') {
+      errors.push(`${prefix}（launch）：需要填写 App 名称、包名或包名/Activity`);
+    }
+    return;
+  }
+  if (targetType === 'android' && (action === 'aiHover' || action === 'aiRightClick')) {
+    errors.push(`${prefix}（${action}）：Android 任务不支持该动作`);
+    return;
+  }
   if (action === 'aiInput') {
     if (!isRecord(params) || typeof params.locate !== 'string' || params.locate === '') {
       errors.push(`${prefix}（aiInput）：需要 locate 字段描述输入框位置`);
@@ -129,25 +158,41 @@ export function parseScript(yamlText: string, variables: Record<string, string>)
     return { ok: false, errors };
   }
 
-  if (typeof doc.target !== 'string' || doc.target === '') {
-    errors.push('缺少 target 字段（被测页面地址）');
-  } else if (!/^https?:\/\//.test(doc.target)) {
-    errors.push(`target 必须是 http(s) 地址，当前是：${doc.target}`);
+  const hasWebTarget = doc.target !== undefined;
+  const hasAndroidTarget = doc.android !== undefined;
+  if (hasWebTarget && hasAndroidTarget) {
+    errors.push('网页 target 和 android 只能配置一个');
+  }
+  let target: ParsedTarget;
+  if (hasAndroidTarget) {
+    if (!isRecord(doc.android) || typeof doc.android.deviceId !== 'string' || doc.android.deviceId === '') {
+      errors.push('android.deviceId 必须是非空设备号');
+    }
+    target = {
+      type: 'android',
+      deviceId: isRecord(doc.android) && typeof doc.android.deviceId === 'string' ? doc.android.deviceId : '',
+    };
+  } else {
+    if (typeof doc.target !== 'string' || doc.target === '') {
+      errors.push('缺少 target 字段（被测页面地址）');
+    } else if (!/^https?:\/\//.test(doc.target)) {
+      errors.push(`target 必须是 http(s) 地址，当前是：${doc.target}`);
+    }
+    if (doc.viewportWidth !== undefined && typeof doc.viewportWidth !== 'number') {
+      errors.push('viewportWidth 必须是数字');
+    }
+    if (doc.viewportHeight !== undefined && typeof doc.viewportHeight !== 'number') {
+      errors.push('viewportHeight 必须是数字');
+    }
+    target = {
+      type: 'web',
+      url: String(doc.target ?? ''),
+      viewportWidth: typeof doc.viewportWidth === 'number' ? doc.viewportWidth : undefined,
+      viewportHeight: typeof doc.viewportHeight === 'number' ? doc.viewportHeight : undefined,
+    };
   }
 
-  if (doc.viewportWidth !== undefined && typeof doc.viewportWidth !== 'number') {
-    errors.push('viewportWidth 必须是数字');
-  }
-  if (doc.viewportHeight !== undefined && typeof doc.viewportHeight !== 'number') {
-    errors.push('viewportHeight 必须是数字');
-  }
-
-  const script: ParsedScript = {
-    target: String(doc.target ?? ''),
-    viewportWidth: typeof doc.viewportWidth === 'number' ? doc.viewportWidth : undefined,
-    viewportHeight: typeof doc.viewportHeight === 'number' ? doc.viewportHeight : undefined,
-    tasks: [],
-  };
+  const script: ParsedScript = { target, tasks: [] };
 
   if (!Array.isArray(doc.tasks) || doc.tasks.length === 0) {
     errors.push('tasks 必须是非空数组');
@@ -169,7 +214,7 @@ export function parseScript(yamlText: string, variables: Record<string, string>)
     }
     const flow: FlowStep[] = [];
     task.flow.forEach((step: unknown, stepIndex: number) => {
-      validateStep(stepIndex, step, errors);
+      validateStep(stepIndex, step, target.type, errors);
       if (isRecord(step)) {
         const actionKeys = Object.keys(step).filter((key) => key !== 'name' && key !== 'timeout');
         const action = actionKeys[0];

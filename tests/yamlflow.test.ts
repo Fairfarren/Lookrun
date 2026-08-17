@@ -40,12 +40,56 @@ tasks:
     const result = parseScript(validYaml, { PASSWORD: 's3cret' });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.script.target).toBe('https://example.com');
+    expect(result.script.target).toEqual({
+      type: 'web',
+      url: 'https://example.com',
+      viewportWidth: undefined,
+      viewportHeight: undefined,
+    });
     expect(result.script.tasks).toHaveLength(2);
     expect(result.script.tasks[0].name).toBe('登录');
     expect(result.script.tasks[0].flow).toHaveLength(4);
     expect(result.script.tasks[0].flow[2].action).toBe('aiTap');
     expect(result.script.tasks[1].flow[1].action).toBe('sleep');
+  });
+
+  test('解析指定设备并打开 App 的 Android 脚本', () => {
+    const result = parseScript(`
+android:
+  deviceId: test-device
+tasks:
+  - name: 进入 VIP
+    flow:
+      - launch: com.come123.game
+      - aiTap: VIP
+`, {});
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.script.target).toEqual({
+      type: 'android',
+      deviceId: 'test-device',
+    });
+    expect(result.script.tasks[0].flow[0]).toMatchObject({
+      action: 'launch',
+      params: 'com.come123.game',
+    });
+  });
+
+  test('Android 任务缺少设备号时报错', () => {
+    const result = parseScript('android: {}\ntasks:\n  - name: a\n    flow:\n      - aiTap: VIP\n', {});
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.join('\n')).toContain('deviceId');
+  });
+
+  test('网页任务不能使用打开 App 步骤', () => {
+    const result = parseScript('target: https://a.com\ntasks:\n  - name: a\n    flow:\n      - launch: com.example.app\n', {});
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.join('\n')).toContain('Android');
   });
 
   test('变量替换在解析前完成', () => {

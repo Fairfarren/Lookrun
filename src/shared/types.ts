@@ -58,6 +58,7 @@ export interface ModelConfig {
 
 export interface SystemInfo {
 	chromePath: string | null;
+	adbPath: string | null;
 	// env 环境变量 / detected 固定路径 / registry 注册表(Win) / spotlight Spotlight(Mac) / which which命令(Linux) / none 未找到
 	chromeSource:
 		| "env"
@@ -68,4 +69,9 @@ export interface SystemInfo {
 		| "none";
 	dataDir: string;
 	version: string;
+}
+
+export interface AndroidDeviceRecord {
+	id: string;
+	name: string;
 }

@@ -18,10 +18,20 @@ export interface FormTask {
 	steps: FormStep[];
 }
 
+export type FormTarget =
+	| {
+			type: "web";
+			url: string;
+			viewportWidth?: number;
+			viewportHeight?: number;
+	  }
+	| {
+			type: "android";
+			deviceId: string;
+	  };
+
 export interface FormScript {
-	target: string;
-	viewportWidth?: number;
-	viewportHeight?: number;
+	target: FormTarget;
 	tasks: FormTask[];
 }
 
@@ -39,7 +49,21 @@ export const ACTION_OPTIONS: {
 	action: string;
 	label: string;
 	fields: ActionField[];
+	platforms?: FormTarget["type"][];
 }[] = [
+	{
+		action: "launch",
+		label: "打开 App",
+		platforms: ["android"],
+		fields: [
+			{
+				key: "target",
+				label: "App 名称或包名",
+				placeholder: "如：ctest 或 com.example.app",
+				type: "text",
+			},
+		],
+	},
 	{
 		action: "aiTap",
 		label: "点击",
@@ -116,6 +140,7 @@ export const ACTION_OPTIONS: {
 	{
 		action: "aiHover",
 		label: "悬停",
+		platforms: ["web"],
 		fields: [
 			{
 				key: "locate",
@@ -128,6 +153,7 @@ export const ACTION_OPTIONS: {
 	{
 		action: "aiRightClick",
 		label: "右键点击",
+		platforms: ["web"],
 		fields: [
 			{
 				key: "locate",
@@ -208,6 +234,12 @@ export const ACTION_OPTIONS: {
 
 const SUPPORTED_FORM_ACTIONS = ACTION_OPTIONS.map((option) => option.action);
 
+export function actionOptionsForTarget(targetType: FormTarget["type"]) {
+	return ACTION_OPTIONS.filter(
+		(option) => !option.platforms || option.platforms.includes(targetType),
+	);
+}
+
 export function createStepId() {
 	return crypto.randomUUID();
 }
@@ -222,6 +254,9 @@ function stepToYamlObject(step: FormStep) {
 	const params = step.params;
 	let body: Record<string, unknown>;
 	switch (step.action) {
+		case "launch":
+			body = { launch: params.target ?? "" };
+			break;
 		case "aiInput":
 			body = {
 				aiInput: { locate: params.locate ?? "", value: params.value ?? "" },
@@ -264,12 +299,17 @@ function stepToYamlObject(step: FormStep) {
 }
 
 export function formToYaml(form: FormScript) {
-	const doc: Record<string, unknown> = { target: form.target };
-	if (form.viewportWidth !== undefined) {
-		doc.viewportWidth = form.viewportWidth;
-	}
-	if (form.viewportHeight !== undefined) {
-		doc.viewportHeight = form.viewportHeight;
+	const doc: Record<string, unknown> = {};
+	if (form.target.type === "web") {
+		doc.target = form.target.url;
+		if (form.target.viewportWidth !== undefined) {
+			doc.viewportWidth = form.target.viewportWidth;
+		}
+		if (form.target.viewportHeight !== undefined) {
+			doc.viewportHeight = form.target.viewportHeight;
+		}
+	} else {
+		doc.android = { deviceId: form.target.deviceId };
 	}
 	doc.tasks = form.tasks.map((task) => ({
 		name: task.name,
@@ -283,7 +323,10 @@ export function formToYaml(form: FormScript) {
 export type YamlToFormResult = { ok: true; form: FormScript } | { ok: false };
 
 // 把 YAML 步骤解析为表单步骤，遇到表单无法表达的内容返回 null
-function yamlStepToForm(step: unknown): FormStep | null {
+function yamlStepToForm(
+	step: unknown,
+	targetType: FormTarget["type"],
+): FormStep | null {
 	if (!isRecord(step)) {
 		return null;
 	}
@@ -299,6 +342,10 @@ function yamlStepToForm(step: unknown): FormStep | null {
 		return null;
 	}
 	const action = actionKeys[0];
+	const option = ACTION_OPTIONS.find((item) => item.action === action);
+	if (option?.platforms && !option.platforms.includes(targetType)) {
+		return null;
+	}
 	const raw = step[action];
 
 	const text = (value: unknown) => (typeof value === "string" ? value : null);
@@ -310,6 +357,10 @@ function yamlStepToForm(step: unknown): FormStep | null {
 	});
 
 	switch (action) {
+		case "launch": {
+			const target = text(raw);
+			return target === null ? null : formStep({ target });
+		}
 		case "ai":
 		case "aiAssert":
 		case "aiQuery":
@@ -374,12 +425,31 @@ export function yamlToForm(yamlText: string): YamlToFormResult {
 	} catch {
 		return { ok: false };
 	}
-	if (
-		!isRecord(doc) ||
-		typeof doc.target !== "string" ||
-		!Array.isArray(doc.tasks) ||
-		doc.tasks.length === 0
-	) {
+	if (!isRecord(doc) || !Array.isArray(doc.tasks) || doc.tasks.length === 0) {
+		return { ok: false };
+	}
+	const hasWebTarget = typeof doc.target === "string";
+	const hasAndroidTarget = isRecord(doc.android);
+	if (hasWebTarget === hasAndroidTarget) {
+		return { ok: false };
+	}
+	const target: FormTarget = hasWebTarget
+		? {
+			type: "web",
+			url: String(doc.target),
+			viewportWidth:
+				typeof doc.viewportWidth === "number" ? doc.viewportWidth : undefined,
+			viewportHeight:
+				typeof doc.viewportHeight === "number" ? doc.viewportHeight : undefined,
+		}
+		: {
+			type: "android",
+			deviceId:
+				isRecord(doc.android) && typeof doc.android.deviceId === "string"
+					? doc.android.deviceId
+					: "",
+		};
+	if (target.type === "android" && target.deviceId === "") {
 		return { ok: false };
 	}
 
@@ -394,7 +464,7 @@ export function yamlToForm(yamlText: string): YamlToFormResult {
 		}
 		const steps: FormStep[] = [];
 		for (const step of task.flow) {
-			const formStep = yamlStepToForm(step);
+			const formStep = yamlStepToForm(step, target.type);
 			if (!formStep) {
 				return { ok: false };
 			}
@@ -406,11 +476,7 @@ export function yamlToForm(yamlText: string): YamlToFormResult {
 	return {
 		ok: true,
 		form: {
-			target: doc.target,
-			viewportWidth:
-				typeof doc.viewportWidth === "number" ? doc.viewportWidth : undefined,
-			viewportHeight:
-				typeof doc.viewportHeight === "number" ? doc.viewportHeight : undefined,
+			target,
 			tasks,
 		},
 	};
