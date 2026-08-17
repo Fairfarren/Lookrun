@@ -1,0 +1,76 @@
+diff --git a/dist/es/cli.mjs b/dist/es/cli.mjs
+index f0b8b07b9d53ef2a9a7a7fd54d29083636c4a522..9eaed715d9f142bbde027eb214786530e4eda39f 100644
+--- a/dist/es/cli.mjs
++++ b/dist/es/cli.mjs
+@@ -176,10 +176,14 @@ var __webpack_modules__ = {
+                 return output.filter((line)=>'string' == typeof line);
+             }
+             resolveServerBinPath() {
++                const configuredPath = process.env.MIDSCENE_SCRCPY_SERVER_PATH;
++                if (configuredPath) return configuredPath;
+                 const androidPkgJson = (0, node_module__rspack_import_1.createRequire)(import.meta.url).resolve('@midscene/android/package.json');
+                 return node_path__rspack_import_2["default"].join(node_path__rspack_import_2["default"].dirname(androidPkgJson), 'bin', 'scrcpy-server');
+             }
+             getFfmpegPath() {
++                const configuredPath = process.env.MIDSCENE_FFMPEG_PATH;
++                if (configuredPath) return configuredPath;
+                 try {
+                     const dynamicRequire = (0, node_module__rspack_import_1.createRequire)(import.meta.url);
+                     const ffmpegInstaller = dynamicRequire('@ffmpeg-installer/ffmpeg');
+diff --git a/dist/es/index.mjs b/dist/es/index.mjs
+index b9e7d290eb638ea4ed8ad0878084def6b548f0d5..94181ddf4ac05b81f9895d84487621ea768b5e79 100644
+--- a/dist/es/index.mjs
++++ b/dist/es/index.mjs
+@@ -175,10 +175,14 @@ var __webpack_modules__ = {
+                 return output.filter((line)=>'string' == typeof line);
+             }
+             resolveServerBinPath() {
++                const configuredPath = process.env.MIDSCENE_SCRCPY_SERVER_PATH;
++                if (configuredPath) return configuredPath;
+                 const androidPkgJson = (0, node_module__rspack_import_1.createRequire)(import.meta.url).resolve('@midscene/android/package.json');
+                 return node_path__rspack_import_2["default"].join(node_path__rspack_import_2["default"].dirname(androidPkgJson), 'bin', 'scrcpy-server');
+             }
+             getFfmpegPath() {
++                const configuredPath = process.env.MIDSCENE_FFMPEG_PATH;
++                if (configuredPath) return configuredPath;
+                 try {
+                     const dynamicRequire = (0, node_module__rspack_import_1.createRequire)(import.meta.url);
+                     const ffmpegInstaller = dynamicRequire('@ffmpeg-installer/ffmpeg');
+diff --git a/dist/lib/cli.js b/dist/lib/cli.js
+index fd8d81b6e871351491c8e61b1790d26b2df9a59f..b0c0530d2a8f5b70e3273aa8d2d22e514372101e 100644
+--- a/dist/lib/cli.js
++++ b/dist/lib/cli.js
+@@ -164,10 +164,14 @@ var __webpack_modules__ = {
+                 return output.filter((line)=>'string' == typeof line);
+             }
+             resolveServerBinPath() {
++                const configuredPath = process.env.MIDSCENE_SCRCPY_SERVER_PATH;
++                if (configuredPath) return configuredPath;
+                 const androidPkgJson = (0, node_module__rspack_import_1.createRequire)(__rslib_import_meta_url__).resolve('@midscene/android/package.json');
+                 return node_path__rspack_import_2_default().join(node_path__rspack_import_2_default().dirname(androidPkgJson), 'bin', 'scrcpy-server');
+             }
+             getFfmpegPath() {
++                const configuredPath = process.env.MIDSCENE_FFMPEG_PATH;
++                if (configuredPath) return configuredPath;
+                 try {
+                     const dynamicRequire = (0, node_module__rspack_import_1.createRequire)(__rslib_import_meta_url__);
+                     const ffmpegInstaller = dynamicRequire('@ffmpeg-installer/ffmpeg');
+diff --git a/dist/lib/index.js b/dist/lib/index.js
+index 9f1370de2389712b153ecca1e6a1912b4a075be0..3545e3d3772908aae23efcca6bbc61866e6bb2f2 100644
+--- a/dist/lib/index.js
++++ b/dist/lib/index.js
+@@ -164,10 +164,14 @@ var __webpack_modules__ = {
+                 return output.filter((line)=>'string' == typeof line);
+             }
+             resolveServerBinPath() {
++                const configuredPath = process.env.MIDSCENE_SCRCPY_SERVER_PATH;
++                if (configuredPath) return configuredPath;
+                 const androidPkgJson = (0, node_module__rspack_import_1.createRequire)(__rslib_import_meta_url__).resolve('@midscene/android/package.json');
+                 return node_path__rspack_import_2_default().join(node_path__rspack_import_2_default().dirname(androidPkgJson), 'bin', 'scrcpy-server');
+             }
+             getFfmpegPath() {
++                const configuredPath = process.env.MIDSCENE_FFMPEG_PATH;
++                if (configuredPath) return configuredPath;
+                 try {
+                     const dynamicRequire = (0, node_module__rspack_import_1.createRequire)(__rslib_import_meta_url__);
+                     const ffmpegInstaller = dynamicRequire('@ffmpeg-installer/ffmpeg');

@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { SERVER_PORT } from "./config";
 import { ensurePortFree } from "./port";
 import { registerRoutes } from "./routes";
+import { configureBundledRuntimeAssets } from "./runtime-assets";
 import { registerStatic } from "./static";
 import { addWsClient, removeWsClient } from "./ws";
 
@@ -14,6 +15,8 @@ function isPackaged() {
 
 const app = new Hono();
 const { upgradeWebSocket, websocket } = createBunWebSocket();
+
+configureBundledRuntimeAssets();
 
 app.get("/api/health", (c) => c.json({ ok: true }));
 
