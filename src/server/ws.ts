@@ -11,6 +11,10 @@ export function removeWsClient(ws: WSContext) {
   wsClients.delete(ws);
 }
 
+export function hasWsClients() {
+  return wsClients.size > 0;
+}
+
 export function broadcast(payload: unknown) {
   const text = JSON.stringify(payload);
   for (const ws of wsClients) {

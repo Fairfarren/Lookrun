@@ -8,6 +8,7 @@
 import { $ } from "bun";
 import { mkdirSync, existsSync, cpSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
+import { installPlatformTools } from "./platform-tools";
 
 const targetArg = process.argv.find((arg) => arg.startsWith("--target="));
 const target = targetArg?.split("=")[1];
@@ -124,4 +125,7 @@ async function downloadAndExtract(pkg: string, ver: string, dstDir: string) {
 }
 
 await copySharpNative();
-console.log(`完成：${outDir}/（exe + node_modules/@img/ sharp native）`);
+await installPlatformTools(outDir, platformKey());
+console.log(
+	`完成：${outDir}/（exe + sharp native + Android Platform Tools）`,
+);

@@ -1,4 +1,5 @@
 import { PuppeteerAgent } from "@midscene/web/puppeteer";
+import { AndroidAgent, AndroidDevice } from "@midscene/android";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import puppeteer from "puppeteer-core";
@@ -7,6 +8,7 @@ import type { Database } from "bun:sqlite";
 import type { ModelConfig, RunRecord, RunStepRecord } from "../shared/types";
 import { formatErrorMessage, formatStepError } from "./ai-error";
 import { extractLastAiResult } from "./ai-result";
+import { startAndroidLivePreview } from "./android-preview";
 import { detectChrome } from "./chrome";
 import { REPORT_DIR, RUN_KEEP_COUNT, SCREENSHOT_DIR } from "./config";
 import {
@@ -33,8 +35,13 @@ import {
 	markClickOnScreenshot,
 } from "./screenshot-marker";
 import { startScreencast } from "./screencast";
-import { broadcast } from "./ws";
+import { broadcast, hasWsClients } from "./ws";
 import { parseScript, type FlowStep, type ParsedScript } from "./yamlflow";
+import {
+	androidAdbPath,
+	checkAndroidDevice,
+	createDeviceAndroidAppLauncher,
+} from "./android-service";
 
 // Midscene 自己的 HTML 报告也落到数据目录下，方便需要时翻看
 process.env.MIDSCENE_RUN_DIR ??= REPORT_DIR;
@@ -75,13 +82,16 @@ interface FlatStep {
 	step: FlowStep;
 }
 
-type AgentInstance = InstanceType<typeof PuppeteerAgent>;
+type AgentInstance = InstanceType<typeof PuppeteerAgent> | AndroidAgent;
 type AgentPage = ConstructorParameters<typeof PuppeteerAgent>[0];
+type CaptureScreenshot = () => Promise<string>;
+type LaunchAndroidApp = (target: string) => Promise<void>;
 
 export class Runner {
 	private state: RunningState | null = null;
 	private stopRequested = false;
 	private browser: Browser | null = null;
+	private activeCleanup: (() => Promise<void>) | null = null;
 
 	constructor(private db: Database) {}
 
@@ -106,16 +116,21 @@ export class Runner {
 			throw new ScriptInvalidError([`模型 ${input.modelId} 不存在`]);
 		}
 		// 「自由指令」需要模型带 family（Midscene 用它解析规划坐标），没有 family 的模型必然在第 1 步失败，提前拦截
-		const usesAiAct = parseResult.script.tasks.some((task) =>
-			task.flow.some((step) => step.action === "ai"),
+		const requiresModelFamily = parseResult.script.tasks.some((task) =>
+			task.flow.some((step) =>
+				parseResult.script.target.type === "android"
+					? step.action !== "launch" && step.action !== "sleep"
+					: step.action === "ai",
+			),
 		);
-		if (usesAiAct && !model.family) {
+		if (requiresModelFamily && !model.family) {
 			throw new ScriptInvalidError([
 				`任务包含「自由指令」步骤，需要模型配置 family；模型「${model.name}」没有 family，请改用 kimi，或把该步骤改成具体动作（点击/输入/断言等）`,
 			]);
 		}
-		const chrome = detectChrome();
-		if (!chrome.path) {
+		const chromePath =
+			parseResult.script.target.type === "web" ? detectChrome().path : null;
+		if (parseResult.script.target.type === "web" && !chromePath) {
 			throw new ScriptInvalidError([
 				"未检测到系统 Chrome，请先安装 Google Chrome 浏览器",
 			]);
@@ -138,7 +153,7 @@ export class Runner {
 			taskName: input.taskName,
 			script: parseResult.script,
 			model,
-			chromePath: chrome.path,
+			chromePath,
 		});
 		return { queued: false as const, runId };
 	}
@@ -154,11 +169,19 @@ export class Runner {
 		}
 		const task = getTask(this.db, next.taskId);
 		const model = getModelById(loadModels(), next.modelId);
-		const chrome = detectChrome();
 		const parseResult = task
 			? parseScript(task.yaml, listVariables(this.db))
 			: null;
-		if (!task || !model || !chrome.path || !parseResult?.ok) {
+		const chromePath =
+			parseResult?.ok && parseResult.script.target.type === "web"
+				? detectChrome().path
+				: null;
+		if (
+			!task ||
+			!model ||
+			!parseResult?.ok ||
+			(parseResult.script.target.type === "web" && !chromePath)
+		) {
 			setQueueStatus(this.db, next.id, "cancelled");
 			broadcast({ type: "queue", items: listQueue(this.db) });
 			this.scheduleNext();
@@ -169,7 +192,7 @@ export class Runner {
 			taskName: next.taskName,
 			script: parseResult.script,
 			model,
-			chromePath: chrome.path,
+			chromePath,
 			queueItemId: next.id,
 		});
 	}
@@ -185,7 +208,7 @@ export class Runner {
 		taskName: string;
 		script: ParsedScript;
 		model: ModelConfig;
-		chromePath: string;
+		chromePath: string | null;
 		queueItemId?: number;
 	}) {
 		const { id: runId } = insertRun(this.db, {
@@ -224,14 +247,17 @@ export class Runner {
 		}
 		this.stopRequested = true;
 		// 关闭浏览器让进行中的 AI 调用立即中断，由执行循环收尾标记 stopped
-		await this.browser?.close().catch(() => {});
+		await Promise.all([
+			this.browser?.close().catch(() => {}),
+			this.activeCleanup?.().catch(() => {}),
+		]);
 	}
 
 	private async execute(
 		runId: number,
 		script: ParsedScript,
 		modelConfig: Record<string, string>,
-		chromePath: string,
+		chromePath: string | null,
 		queueItemId?: number,
 	) {
 		const startedAt = Date.now();
@@ -240,41 +266,109 @@ export class Runner {
 		let totalOutput = 0;
 
 		try {
-			this.browser = await puppeteer.launch({
-				executablePath: chromePath,
-				headless: true,
-				args: ["--no-first-run", "--no-default-browser-check", "--mute-audio"],
-			});
-			const page = await this.browser.newPage();
-			const viewport = {
-				width: script.viewportWidth ?? DEFAULT_VIEWPORT.width,
-				height: script.viewportHeight ?? DEFAULT_VIEWPORT.height,
+			let agent: AgentInstance | null;
+			let captureScreenshot: CaptureScreenshot;
+			let currentLocation: () => Promise<string | null>;
+			let launchAndroidApp: LaunchAndroidApp | null = null;
+			const onLLMUsage = (usage: Record<string, number | undefined>) => {
+				totalInput += usage.prompt_tokens ?? 0;
+				totalOutput += usage.completion_tokens ?? 0;
 			};
-			await page.setViewport({
-				...viewport,
-				isMobile: true,
-				hasTouch: true,
-				deviceScaleFactor: MOBILE_SCALE_FACTOR,
-			});
-			stopScreencast = await startScreencast(page);
 
-			const agent = MOCK_AI
-				? null
-				: new PuppeteerAgent(
-						page as unknown as AgentPage,
-						{
-							modelConfig,
-							onLLMUsage: (usage: Record<string, number | undefined>) => {
-								totalInput += usage.prompt_tokens ?? 0;
-								totalOutput += usage.completion_tokens ?? 0;
-							},
-						} as ConstructorParameters<typeof PuppeteerAgent>[1],
+			if (script.target.type === "web") {
+				if (!chromePath) {
+					throw new Error("未检测到系统 Chrome，请先安装 Google Chrome 浏览器");
+				}
+				this.browser = await puppeteer.launch({
+					executablePath: chromePath,
+					headless: true,
+					args: ["--no-first-run", "--no-default-browser-check", "--mute-audio"],
+				});
+				const page = await this.browser.newPage();
+				await page.setViewport({
+					width: script.target.viewportWidth ?? DEFAULT_VIEWPORT.width,
+					height: script.target.viewportHeight ?? DEFAULT_VIEWPORT.height,
+					isMobile: true,
+					hasTouch: true,
+					deviceScaleFactor: MOBILE_SCALE_FACTOR,
+				});
+				stopScreencast = await startScreencast(page);
+				agent = MOCK_AI
+					? null
+					: new PuppeteerAgent(
+							page as unknown as AgentPage,
+							{
+								modelConfig,
+								onLLMUsage,
+							} as ConstructorParameters<typeof PuppeteerAgent>[1],
+						);
+				await page.goto(script.target.url, {
+					waitUntil: "networkidle2",
+					timeout: PAGE_LOAD_TIMEOUT_MS,
+				});
+				captureScreenshot = async () =>
+					String(
+						await page.screenshot({
+							encoding: "base64",
+							type: "jpeg",
+							quality: SCREENSHOT_QUALITY,
+						}),
 					);
-
-			await page.goto(script.target, {
-				waitUntil: "networkidle2",
-				timeout: PAGE_LOAD_TIMEOUT_MS,
-			});
+				currentLocation = async () => page.url();
+			} else {
+				const checkResult = await checkAndroidDevice(script.target.deviceId);
+				if (!checkResult.ok) {
+					throw new Error(checkResult.message);
+				}
+				const device = new AndroidDevice(script.target.deviceId, {
+					androidAdbPath: androidAdbPath(),
+					scrcpyConfig: { enabled: true },
+				});
+				await device.connect();
+				const androidAgent = new AndroidAgent(device, {
+					modelConfig,
+					onLLMUsage,
+				});
+				agent = androidAgent;
+				launchAndroidApp = createDeviceAndroidAppLauncher({
+					deviceId: script.target.deviceId,
+					directLaunch: (target) => androidAgent.launch(target),
+				});
+				let stopLivePreview: (() => Promise<void>) | null = null;
+				try {
+					const frameSource = await device.openFrameSource?.();
+					if (frameSource) {
+						stopLivePreview = startAndroidLivePreview({
+							source: frameSource,
+							hasViewer: hasWsClients,
+							publish: (data) => broadcast({ type: "frame", data }),
+							onError: (error) => {
+								console.warn(
+									`Android 实时预览帧解码失败：${formatErrorMessage(error)}`,
+								);
+							},
+						});
+					}
+				} catch (error) {
+					console.warn(
+						`Android 实时预览启动失败，继续使用步骤截图：${formatErrorMessage(error)}`,
+					);
+				}
+				let cleaned = false;
+				this.activeCleanup = async () => {
+					if (cleaned) {
+						return;
+					}
+					cleaned = true;
+					try {
+						await stopLivePreview?.();
+					} finally {
+						await androidAgent.destroy();
+					}
+				};
+				captureScreenshot = () => device.screenshotBase64();
+				currentLocation = () => device.url().then((url) => url || null);
+			}
 
 			const steps = flattenSteps(script);
 			if (this.state) {
@@ -309,7 +403,7 @@ export class Runner {
 				const stepDir = path.join(SCREENSHOT_DIR, String(runId));
 				mkdirSync(stepDir, { recursive: true });
 				const shotBefore = await takeScreenshot(
-					page,
+					captureScreenshot,
 					stepDir,
 					`${index}-before.jpg`,
 				);
@@ -318,9 +412,14 @@ export class Runner {
 				const outputBefore = totalOutput;
 				const stepStart = Date.now();
 				try {
-					const dispatched = await dispatchStep(agent, step, index);
+					const dispatched = await dispatchStep(
+						agent,
+						step,
+						index,
+						launchAndroidApp,
+					);
 					const shotAfter = await takeScreenshot(
-						page,
+						captureScreenshot,
 						stepDir,
 						`${index}-after.jpg`,
 					);
@@ -336,7 +435,7 @@ export class Runner {
 							clickTarget,
 						);
 					}
-					this.recordStep(runId, index, taskName, step, page.url(), {
+					this.recordStep(runId, index, taskName, step, await currentLocation(), {
 						status: "success",
 						error: null,
 						aiResult: aiResult ? JSON.stringify(aiResult) : null,
@@ -348,12 +447,12 @@ export class Runner {
 					});
 				} catch (error) {
 					const shotAfter = await takeScreenshot(
-						page,
+						captureScreenshot,
 						stepDir,
 						`${index}-after.jpg`,
 					).catch(() => null);
 					const message = formatStepError(error, step);
-					this.recordStep(runId, index, taskName, step, page.url(), {
+					this.recordStep(runId, index, taskName, step, await currentLocation(), {
 						status: "failed",
 						error: message,
 						aiResult: null,
@@ -399,7 +498,9 @@ export class Runner {
 		} finally {
 			await stopScreencast?.().catch(() => {});
 			await this.browser?.close().catch(() => {});
+			await this.activeCleanup?.().catch(() => {});
 			this.browser = null;
+			this.activeCleanup = null;
 			this.state = null;
 			if (queueItemId) {
 				setQueueStatus(this.db, queueItemId, "done");
@@ -416,7 +517,7 @@ export class Runner {
 		stepIndex: number,
 		taskName: string,
 		step: FlowStep,
-		url: string,
+		url: string | null,
 		result: {
 			status: RunStepRecord["status"];
 			error: string | null;
@@ -494,12 +595,13 @@ function stepPrompt(step: FlowStep): string | null {
 	return JSON.stringify(step.params);
 }
 
-async function takeScreenshot(page: Page, dir: string, fileName: string) {
-	const base64 = await page.screenshot({
-		encoding: "base64",
-		type: "jpeg",
-		quality: SCREENSHOT_QUALITY,
-	});
+async function takeScreenshot(
+	capture: CaptureScreenshot,
+	dir: string,
+	fileName: string,
+) {
+	const base64 = (await capture()).replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
+	broadcast({ type: "frame", data: base64 });
 	await Bun.write(path.join(dir, fileName), Buffer.from(base64, "base64"));
 	return `${path.basename(dir)}/${fileName}`;
 }
@@ -518,11 +620,23 @@ async function markStoredScreenshots(
 }
 
 // 执行单步。返回 AI 结果摘要；返回 null 时由调用方从 Midscene dump 提取
-async function dispatchStep(
+export async function dispatchStep(
 	agent: AgentInstance | null,
 	step: FlowStep,
 	stepIndex: number,
+	launchAndroidApp?: LaunchAndroidApp | null,
 ): Promise<unknown> {
+	if (step.action === "launch") {
+		if (!agent || !("launch" in agent)) {
+			throw new Error("打开 App 步骤只能由 Android 任务执行");
+		}
+		if (launchAndroidApp) {
+			await launchAndroidApp(String(step.params));
+		} else {
+			await agent.launch(String(step.params));
+		}
+		return { launched: step.params };
+	}
 	if (MOCK_AI) {
 		if (stepIndex === MOCK_FAIL_AT) {
 			throw new Error("MOCK 模拟的步骤失败");

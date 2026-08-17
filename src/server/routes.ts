@@ -34,6 +34,11 @@ import pkg from "../../package.json";
 import { getSetting, setSetting } from "./db";
 import type { SystemInfo } from "../shared/types";
 import { parseScript } from "./yamlflow";
+import {
+	checkAndroidDevice,
+	listAndroidDevices,
+} from "./android-service";
+import { detectAdbPath } from "./android";
 
 const SELECTED_MODEL_KEY = "selectedModelId";
 
@@ -315,10 +320,30 @@ export function registerRoutes(app: Hono) {
 	);
 
 	// ---------- 系统信息 ----------
+	app.get("/api/system/android-devices", async (c) => {
+		try {
+			return c.json({ devices: await listAndroidDevices() });
+		} catch (error) {
+			return c.json(
+				{ error: error instanceof Error ? error.message : String(error) },
+				500,
+			);
+		}
+	});
+
+	app.post("/api/system/android-devices/check", async (c) => {
+		const body = await c.req.json<{ deviceId?: string }>();
+		if (!body.deviceId?.trim()) {
+			return c.json({ error: "请选择要检查的设备" }, 400);
+		}
+		return c.json(await checkAndroidDevice(body.deviceId.trim()));
+	});
+
 	app.get("/api/system", (c) => {
 		const chrome = detectChrome();
 		const info: SystemInfo = {
 			chromePath: chrome.path,
+			adbPath: detectAdbPath(),
 			chromeSource: chrome.source,
 			dataDir: DB_PATH.replace(/\/app\.db$/, ""),
 			version: pkg.version,

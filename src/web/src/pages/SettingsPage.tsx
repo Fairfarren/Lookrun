@@ -328,6 +328,21 @@ export default function SettingsPage() {
 								/>
 							)}
 						</Descriptions.Item>
+						<Descriptions.Item label="Android ADB">
+							{system.adbPath ? (
+								<Space>
+									<Tag color="success">已检测到</Tag>
+									<Typography.Text copyable={{ text: system.adbPath }}>
+										{system.adbPath}
+									</Typography.Text>
+								</Space>
+							) : (
+								<Alert
+									type="error"
+									title="未检测到 ADB，请使用包含 platform-tools 的完整程序包"
+								/>
+							)}
+						</Descriptions.Item>
 						<Descriptions.Item label="数据目录">
 							{system.dataDir}
 						</Descriptions.Item>

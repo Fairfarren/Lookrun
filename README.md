@@ -1,20 +1,22 @@
 # test-web-use-ai
 
-基于 [Midscene.js](https://midscenejs.com) 的 AI 自动化测试工具：用自然语言编写 YAML 测试脚本，AI 视觉模型驱动系统 Chrome 执行，Web 页面实时查看自动化画面与每步日志。
+基于 [Midscene.js](https://midscenejs.com) 的 AI 自动化测试工具：用自然语言编写 YAML 测试脚本，AI 视觉模型驱动系统 Chrome 或 Android 真机执行，Web 页面实时查看自动化画面与每步日志。
 
 ## 功能
 
-- **任务编辑**：YAML 格式定义 URL + 测试步骤，编辑器实时校验，支持 `{{变量}}` 占位符（账号密码不明文入库）
-- **实时画面**：运行时在 Web 页面通过 CDP screencast 观看浏览器自动化过程
+- **任务编辑**：选择网页 URL 或 Android 设备，定义测试步骤，编辑器实时校验，支持 `{{变量}}` 占位符（账号密码不明文入库）
+- **Android 真机**：自动发现并检查已连接设备，支持打开 App 后继续执行 AI 点击、输入、等待和断言
+- **实时画面**：网页任务通过 CDP screencast、Android 任务通过 scrcpy 以约 100 毫秒间隔推送最新画面
 - **完整日志**：每一步记录当时 URL、目标、AI 识别结果、执行前后截图、耗时、Token 用量；失败即停止
 - **历史记录**：最近 100 次运行可随时回看（含截图）
 - **模型自检**：一键验证所选模型的视觉定位能力是否可用于 UI 自动化
-- **单文件分发**：打包为 Windows / macOS 可执行文件，双击即用，数据写在程序同级 `data/` 目录
+- **完整程序包**：打包为 Windows / macOS 可执行程序，附带 sharp native 文件与 Android Platform Tools，数据写在程序同级 `data/` 目录
 
 ## 环境要求
 
 - 运行时：[Bun](https://bun.sh)
 - 被控浏览器：系统安装的 Google Chrome（程序自动探测）
+- Android：设备已开启 USB 调试并授权当前电脑；正式程序包自带 ADB
 - AI 模型：远程 Ollama 服务器（OpenAI 兼容接口 + API Key），需具备视觉能力
 
 ## 开发
@@ -52,7 +54,7 @@ bun run build:exe
 bun scripts/build-exe.ts --target=bun-windows-x64
 ```
 
-产物双击后自动启动服务并打开浏览器（`http://localhost:3877`），任务、运行记录、截图都写在程序同级的 `data/` 目录。
+产物双击后自动启动服务并打开浏览器（`http://localhost:3877`），任务、运行记录、截图都写在程序同级的 `data/` 目录。请分发完整的 `dist-mac/` 或 `dist-win/` 目录，不能只复制其中的可执行文件。
 
 > macOS 未签名：首次打开需在「访达」中右键 → 打开；Windows SmartScreen 选择「仍要运行」。
 > 运行时也可用 `data/models.json` 覆盖内置模型配置，无需重新打包。
@@ -85,6 +87,24 @@ tasks:
 
 支持的动作：`ai`（自由指令）、`aiTap`、`aiHover`、`aiRightClick`、`aiInput`、`aiAssert`、`aiWaitFor`、`aiQuery`、`aiKeyboardPress`、`aiScroll`、`sleep`（毫秒）。任意步骤可加 `name:` 命名；变量在「设置-变量」中维护。
 
+Android 任务使用设备号并可在步骤中打开 App：
+
+```yaml
+android:
+  deviceId: <adb devices 返回的设备号>
+
+tasks:
+  - name: 打开 App 并检查页面
+    flow:
+      - launch: com.example.app
+      - aiWaitFor: 首页加载完成
+        timeout: 15000
+      - aiTap: VIP
+      - aiAssert: 当前已经进入 VIP 页面
+```
+
+`launch` 仅用于 Android 任务，参数可以是包名或 `包名/.Activity`。
+
 ## 技术栈
 
-Bun + Hono（API/WebSocket）+ bun:sqlite + puppeteer-core（驱动系统 Chrome）+ @midscene/web（AI 执行）+ React/Vite/antd（前端）+ CodeMirror（YAML 编辑）
+Bun + Hono（API/WebSocket）+ bun:sqlite + puppeteer-core（驱动系统 Chrome）+ @midscene/web / @midscene/android（AI 执行）+ React/Vite/antd（前端）+ CodeMirror（YAML 编辑）

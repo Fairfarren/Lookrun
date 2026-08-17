@@ -1,14 +1,18 @@
 import { describe, expect, test } from "bun:test";
 import {
+	ACTION_OPTIONS,
 	formToYaml,
 	yamlToForm,
 	type FormScript,
 } from "../src/shared/yaml-form";
 
 const fullForm: FormScript = {
-	target: "https://example.com",
-	viewportWidth: 1280,
-	viewportHeight: 800,
+	target: {
+		type: "web",
+		url: "https://example.com",
+		viewportWidth: 1280,
+		viewportHeight: 800,
+	},
 	tasks: [
 		{
 			id: "t1",
@@ -54,6 +58,17 @@ const fullForm: FormScript = {
 };
 
 describe("formToYaml", () => {
+	test("打开 App 字段提示支持应用名称和包名", () => {
+		const launchField = ACTION_OPTIONS.find(
+			(option) => option.action === "launch",
+		)?.fields[0];
+
+		expect(launchField).toMatchObject({
+			label: "App 名称或包名",
+			placeholder: "如：ctest 或 com.example.app",
+		});
+	});
+
 	test("完整表单生成合法 YAML", () => {
 		const yaml = formToYaml(fullForm);
 		expect(yaml).toContain("target: https://example.com");
@@ -72,8 +87,10 @@ describe("formToYaml", () => {
 	test("视口留空时不生成视口字段", () => {
 		const yaml = formToYaml({
 			...fullForm,
-			viewportWidth: undefined,
-			viewportHeight: undefined,
+			target: {
+				type: "web",
+				url: "https://example.com",
+			},
 		});
 		expect(yaml).not.toContain("viewportWidth");
 		expect(yaml).not.toContain("viewportHeight");
@@ -81,7 +98,7 @@ describe("formToYaml", () => {
 
 	test("特殊字符（冒号、引号、#）被正确转义", () => {
 		const form: FormScript = {
-			target: "https://a.com",
+			target: { type: "web", url: "https://a.com" },
 			tasks: [
 				{
 					id: "t",
@@ -104,6 +121,34 @@ describe("formToYaml", () => {
 			);
 		}
 	});
+
+	test("Android 表单生成设备号和打开 App 步骤", () => {
+		const yaml = formToYaml({
+			target: { type: "android", deviceId: "test-device" },
+			tasks: [
+				{
+					id: "t",
+					name: "进入 VIP",
+					steps: [
+						{
+							id: "s1",
+							action: "launch",
+							params: { target: "com.come123.game" },
+						},
+						{
+							id: "s2",
+							action: "aiTap",
+							params: { locate: "VIP" },
+						},
+					],
+				},
+			],
+		});
+
+		expect(yaml).toContain("deviceId: test-device");
+		expect(yaml).toContain("launch: com.come123.game");
+		expect(yaml).not.toContain("target: https://");
+	});
 });
 
 describe("yamlToForm", () => {
@@ -112,8 +157,12 @@ describe("yamlToForm", () => {
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		const form = result.form;
-		expect(form.target).toBe("https://example.com");
-		expect(form.viewportWidth).toBe(1280);
+		expect(form.target).toEqual({
+			type: "web",
+			url: "https://example.com",
+			viewportWidth: 1280,
+			viewportHeight: 800,
+		});
 		expect(form.tasks).toHaveLength(2);
 		expect(form.tasks[0].name).toBe("登录");
 		expect(form.tasks[0].steps[1]).toMatchObject({
@@ -130,6 +179,28 @@ describe("yamlToForm", () => {
 			distance: 300,
 		});
 		expect(form.tasks[1].steps[3].params).toEqual({ ms: 500 });
+	});
+
+	test("Android YAML 可以无损解析回表单", () => {
+		const result = yamlToForm(`android:
+  deviceId: test-device
+tasks:
+  - name: 进入 VIP
+    flow:
+      - launch: com.come123.game
+      - aiTap: VIP
+`);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.form.target).toEqual({
+			type: "android",
+			deviceId: "test-device",
+		});
+		expect(result.form.tasks[0].steps[0]).toMatchObject({
+			action: "launch",
+			params: { target: "com.come123.game" },
+		});
 	});
 
 	test("兼容手写格式的 aiTap 字符串与 aiScroll 嵌套对象", () => {
