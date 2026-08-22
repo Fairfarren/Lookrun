@@ -174,6 +174,46 @@ tasks:
     expect(result.script.tasks[0].flow[0].aux?.name).toBe('点登录');
   });
 
+  test('步骤组支持独立 url', () => {
+    const result = parseScript(
+      'target: https://h5.example.com\ntasks:\n  - name: 后台接码\n    url: https://admin.example.com/sms\n    flow:\n      - aiQuery: 最新验证码\n',
+      {},
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.script.tasks[0].url).toBe('https://admin.example.com/sms');
+  });
+
+  test('步骤组 url 不是 http(s) 时报错', () => {
+    const result = parseScript(
+      'target: https://a.com\ntasks:\n  - name: a\n    url: ftp://a.com\n    flow:\n      - aiTap: 按钮\n',
+      {},
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.join('\n')).toContain('url 必须是 http(s) 地址');
+  });
+
+  test('Android 任务不能写步骤组 url', () => {
+    const result = parseScript(
+      'android:\n  deviceId: test-device\ntasks:\n  - name: a\n    url: https://a.com\n    flow:\n      - aiTap: 按钮\n',
+      {},
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.join('\n')).toContain('url 只能用于网页任务');
+  });
+
+  test('单个步骤写 url 时报错并提示写到步骤组', () => {
+    const result = parseScript(
+      'target: https://a.com\ntasks:\n  - name: a\n    flow:\n      - aiTap: 按钮\n        url: https://admin.example.com\n',
+      {},
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.join('\n')).toContain('url 应写在步骤组上');
+  });
+
   test('sleep 不是正数报错', () => {
     const result = parseScript('target: https://a.com\ntasks:\n  - name: a\n    flow:\n      - sleep: -1\n', {});
     expect(result.ok).toBe(false);

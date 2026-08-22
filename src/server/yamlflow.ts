@@ -28,6 +28,8 @@ export interface FlowStep {
 
 export interface FlowTask {
   name: string;
+  // 步骤组页面地址：相同地址复用已打开的页面，适合 H5 发码后再去后台接码
+  url?: string;
   flow: FlowStep[];
 }
 
@@ -73,7 +75,10 @@ function validateStep(
     return;
   }
   const keys = Object.keys(step);
-  const actionKeys = keys.filter((key) => key !== 'name' && key !== 'timeout');
+  if ('url' in step) {
+    errors.push(`${prefix}：url 应写在步骤组上，不要写在单个步骤里`);
+  }
+  const actionKeys = keys.filter((key) => key !== 'name' && key !== 'timeout' && key !== 'url');
   if (actionKeys.length !== 1) {
     errors.push(`${prefix}：一个步骤只能写一个动作，当前写了 ${actionKeys.length} 个（${actionKeys.join('、')}）`);
     return;
@@ -208,6 +213,18 @@ export function parseScript(yamlText: string, variables: Record<string, string>)
     if (typeof task.name !== 'string' || task.name === '') {
       errors.push(`${taskPrefix}：缺少 name 字段（步骤组名称）`);
     }
+    let taskUrl: string | undefined;
+    if (task.url !== undefined) {
+      if (target.type !== 'web') {
+        errors.push(`${taskPrefix}：url 只能用于网页任务`);
+      } else if (typeof task.url !== 'string' || task.url.trim() === '') {
+        errors.push(`${taskPrefix}：url 必须是非空字符串`);
+      } else if (!/^https?:\/\//.test(task.url.trim())) {
+        errors.push(`${taskPrefix}：url 必须是 http(s) 地址，当前是：${task.url}`);
+      } else {
+        taskUrl = task.url.trim();
+      }
+    }
     if (!Array.isArray(task.flow) || task.flow.length === 0) {
       errors.push(`${taskPrefix}：flow 必须是非空数组`);
       return;
@@ -216,7 +233,7 @@ export function parseScript(yamlText: string, variables: Record<string, string>)
     task.flow.forEach((step: unknown, stepIndex: number) => {
       validateStep(stepIndex, step, target.type, errors);
       if (isRecord(step)) {
-        const actionKeys = Object.keys(step).filter((key) => key !== 'name' && key !== 'timeout');
+        const actionKeys = Object.keys(step).filter((key) => key !== 'name' && key !== 'timeout' && key !== 'url');
         const action = actionKeys[0];
         flow.push({
           action,
@@ -228,7 +245,7 @@ export function parseScript(yamlText: string, variables: Record<string, string>)
         });
       }
     });
-    script.tasks.push({ name: String(task.name ?? ''), flow });
+    script.tasks.push({ name: String(task.name ?? ''), url: taskUrl, flow });
   });
 
   if (errors.length > 0) {

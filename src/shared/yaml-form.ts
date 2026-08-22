@@ -15,6 +15,8 @@ export interface FormStep {
 export interface FormTask {
 	id: string;
 	name: string;
+	// 步骤组页面地址，对应 YAML 任务上的 url；相同地址会复用已打开的页面
+	url?: string;
 	steps: FormStep[];
 }
 
@@ -311,10 +313,14 @@ export function formToYaml(form: FormScript) {
 	} else {
 		doc.android = { deviceId: form.target.deviceId };
 	}
-	doc.tasks = form.tasks.map((task) => ({
-		name: task.name,
-		flow: task.steps.map(stepToYamlObject),
-	}));
+	doc.tasks = form.tasks.map((task) => {
+		const item: Record<string, unknown> = { name: task.name };
+		if (form.target.type === "web" && task.url && task.url.trim() !== "") {
+			item.url = task.url.trim();
+		}
+		item.flow = task.steps.map(stepToYamlObject);
+		return item;
+	});
 	return stringify(doc);
 }
 
@@ -470,7 +476,11 @@ export function yamlToForm(yamlText: string): YamlToFormResult {
 			}
 			steps.push(formStep);
 		}
-		tasks.push({ id: createStepId(), name: task.name, steps });
+		const url =
+			typeof task.url === "string" && task.url.trim() !== ""
+				? task.url.trim()
+				: undefined;
+		tasks.push({ id: createStepId(), name: task.name, url, steps });
 	}
 
 	return {

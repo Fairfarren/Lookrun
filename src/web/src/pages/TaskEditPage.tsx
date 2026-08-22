@@ -580,51 +580,56 @@ export default function TaskEditPage() {
 			</Flex>
 
 			{form.target.type === "web" ? (
-				<Flex gap={12} wrap="wrap" align="center">
-				<Typography.Text strong>URL</Typography.Text>
-				<Input
-					style={{ flex: 1, minWidth: 260 }}
-					placeholder="被测页面地址，如 https://example.com"
-					value={form.target.url}
-					onChange={(e) =>
-						setForm((prev) => ({
-							...prev,
-							target:
-								prev.target.type === "web"
-									? { ...prev.target, url: e.target.value }
-									: prev.target,
-						}))
-					}
-				/>
-				<InputNumber
-					placeholder="视口宽(默认390)"
-					min={320}
-					value={form.target.viewportWidth}
-					onChange={(value) =>
-						setForm((prev) => ({
-							...prev,
-							target:
-								prev.target.type === "web"
-									? { ...prev.target, viewportWidth: value ?? undefined }
-									: prev.target,
-						}))
-					}
-				/>
-				<InputNumber
-					placeholder="视口高(默认844)"
-					min={320}
-					value={form.target.viewportHeight}
-					onChange={(value) =>
-						setForm((prev) => ({
-							...prev,
-							target:
-								prev.target.type === "web"
-									? { ...prev.target, viewportHeight: value ?? undefined }
-									: prev.target,
-						}))
-					}
-				/>
-				</Flex>
+				<>
+					<Flex gap={12} wrap="wrap" align="center">
+						<Typography.Text strong>起始页面</Typography.Text>
+						<Input
+							style={{ flex: 1, minWidth: 260 }}
+							placeholder="起始页面地址，如 https://h5.example.com"
+							value={form.target.url}
+							onChange={(e) =>
+								setForm((prev) => ({
+									...prev,
+									target:
+										prev.target.type === "web"
+											? { ...prev.target, url: e.target.value }
+											: prev.target,
+								}))
+							}
+						/>
+						<InputNumber
+							placeholder="视口宽(默认390)"
+							min={320}
+							value={form.target.viewportWidth}
+							onChange={(value) =>
+								setForm((prev) => ({
+									...prev,
+									target:
+										prev.target.type === "web"
+											? { ...prev.target, viewportWidth: value ?? undefined }
+											: prev.target,
+								}))
+							}
+						/>
+						<InputNumber
+							placeholder="视口高(默认844)"
+							min={320}
+							value={form.target.viewportHeight}
+							onChange={(value) =>
+								setForm((prev) => ({
+									...prev,
+									target:
+										prev.target.type === "web"
+											? { ...prev.target, viewportHeight: value ?? undefined }
+											: prev.target,
+								}))
+							}
+						/>
+					</Flex>
+					<Typography.Text type="secondary">
+						每个步骤组可另填页面地址。相同地址会回到已打开的页面，不会新开，适合 H5 发验证码后再去后台接码。
+					</Typography.Text>
+				</>
 			) : (
 				<Flex gap={12} wrap="wrap" align="center">
 					<Typography.Text strong>设备号</Typography.Text>
@@ -688,6 +693,15 @@ export default function TaskEditPage() {
 						}
 					>
 						<Flex vertical gap={8}>
+							{form.target.type === "web" ? (
+								<Input
+									placeholder="本步骤组页面地址（可选，相同则复用）"
+									value={task.url ?? ""}
+									onChange={(e) =>
+										updateTask(taskIndex, { url: e.target.value })
+									}
+								/>
+							) : null}
 							<SortableList
 								ids={task.steps.map((step) => step.id)}
 								onReorder={(activeId, overId) =>
@@ -709,9 +723,14 @@ export default function TaskEditPage() {
 												label: option.label,
 												value: option.action,
 											}))}
-											onChange={(action) =>
-												updateStep(taskIndex, stepIndex, createEmptyStep(action))
-											}
+											onChange={(action) => {
+												const next = createEmptyStep(action);
+												updateStep(taskIndex, stepIndex, {
+													...next,
+													id: step.id,
+													name: step.name,
+												});
+											}}
 										/>
 										{renderStepFields(taskIndex, stepIndex, step)}
 										<Input
@@ -781,7 +800,8 @@ export default function TaskEditPage() {
 			)}
 			<Typography.Paragraph type="secondary">
 				支持动作：ai / aiTap / aiHover / aiRightClick / aiInput / aiAssert /
-				aiWaitFor / aiQuery / aiKeyboardPress / aiScroll / sleep；变量用{" "}
+				aiWaitFor / aiQuery / aiKeyboardPress / aiScroll / sleep；步骤组可加{" "}
+				<code>url</code> 切换页面，相同地址会复用已打开的页面；变量用{" "}
 				{"{{变量名}}"} 引用，在「设置-变量」中配置。
 			</Typography.Paragraph>
 			<CodeMirror

@@ -36,6 +36,7 @@ import {
 } from "./screenshot-marker";
 import { startScreencast } from "./screencast";
 import { broadcast, hasWsClients } from "./ws";
+import { activatePageSession } from "./page-session";
 import { parseScript, type FlowStep, type ParsedScript } from "./yamlflow";
 import {
 	androidAdbPath,
@@ -79,6 +80,7 @@ interface RunningState {
 
 interface FlatStep {
 	taskName: string;
+	taskUrl?: string;
 	step: FlowStep;
 }
 
@@ -270,6 +272,7 @@ export class Runner {
 			let captureScreenshot: CaptureScreenshot;
 			let currentLocation: () => Promise<string | null>;
 			let launchAndroidApp: LaunchAndroidApp | null = null;
+			let activateStepPage: (stepUrl?: string) => Promise<void> = async () => {};
 			const onLLMUsage = (usage: Record<string, number | undefined>) => {
 				totalInput += usage.prompt_tokens ?? 0;
 				totalOutput += usage.completion_tokens ?? 0;
@@ -284,37 +287,75 @@ export class Runner {
 					headless: true,
 					args: ["--no-first-run", "--no-default-browser-check", "--mute-audio"],
 				});
-				const page = await this.browser.newPage();
-				await page.setViewport({
+				const viewport = {
 					width: script.target.viewportWidth ?? DEFAULT_VIEWPORT.width,
 					height: script.target.viewportHeight ?? DEFAULT_VIEWPORT.height,
 					isMobile: true,
 					hasTouch: true,
 					deviceScaleFactor: MOBILE_SCALE_FACTOR,
+				};
+				type WebSession = {
+					page: Page;
+					agent: AgentInstance | null;
+				};
+				const sessions = new Map<string, WebSession>();
+				// 新地址用新标签打开，不能在当前页 goto，否则 H5 发码页会被导航走
+				const openWebPage = async (url: string): Promise<WebSession> => {
+					const page = await this.browser!.newPage();
+					await page.setViewport(viewport);
+					await page.goto(url, {
+						waitUntil: "networkidle2",
+						timeout: PAGE_LOAD_TIMEOUT_MS,
+					});
+					return {
+						page,
+						agent: MOCK_AI
+							? null
+							: new PuppeteerAgent(
+									page as unknown as AgentPage,
+									{
+										modelConfig,
+										onLLMUsage,
+									} as ConstructorParameters<typeof PuppeteerAgent>[1],
+								),
+					};
+				};
+				const initial = await activatePageSession({
+					requestedUrl: script.target.url,
+					currentKey: null,
+					sessions,
+					open: openWebPage,
 				});
-				stopScreencast = await startScreencast(page);
-				agent = MOCK_AI
-					? null
-					: new PuppeteerAgent(
-							page as unknown as AgentPage,
-							{
-								modelConfig,
-								onLLMUsage,
-							} as ConstructorParameters<typeof PuppeteerAgent>[1],
-						);
-				await page.goto(script.target.url, {
-					waitUntil: "networkidle2",
-					timeout: PAGE_LOAD_TIMEOUT_MS,
-				});
+				let currentPageKey = initial.key;
+				let activePage = initial.session.page;
+				agent = initial.session.agent;
+				stopScreencast = await startScreencast(activePage);
+				activateStepPage = async (stepUrl?: string) => {
+					const next = await activatePageSession({
+						requestedUrl: stepUrl,
+						currentKey: currentPageKey,
+						sessions,
+						open: openWebPage,
+					});
+					if (next.key === currentPageKey) {
+						return;
+					}
+					currentPageKey = next.key;
+					activePage = next.session.page;
+					agent = next.session.agent;
+					await stopScreencast?.().catch(() => {});
+					stopScreencast = await startScreencast(activePage);
+					await activePage.bringToFront().catch(() => {});
+				};
 				captureScreenshot = async () =>
 					String(
-						await page.screenshot({
+						await activePage.screenshot({
 							encoding: "base64",
 							type: "jpeg",
 							quality: SCREENSHOT_QUALITY,
 						}),
 					);
-				currentLocation = async () => page.url();
+				currentLocation = async () => activePage.url();
 			} else {
 				const checkResult = await checkAndroidDevice(script.target.deviceId);
 				if (!checkResult.ok) {
@@ -390,7 +431,9 @@ export class Runner {
 				if (this.state) {
 					this.state.currentStepIndex = index;
 				}
-				const { taskName, step } = steps[index];
+				const { taskName, taskUrl, step } = steps[index];
+				// 先切到步骤组指定的页面，再截图和执行，这样回到 H5 时仍是发验证码的那一页
+				await activateStepPage(taskUrl);
 				broadcast({
 					type: "step-start",
 					runId,
@@ -570,7 +613,11 @@ export class Runner {
 
 function flattenSteps(script: ParsedScript): FlatStep[] {
 	return script.tasks.flatMap((task) =>
-		task.flow.map((step) => ({ taskName: task.name, step })),
+		task.flow.map((step) => ({
+			taskName: task.name,
+			taskUrl: task.url,
+			step,
+		})),
 	);
 }
 

@@ -84,6 +84,52 @@ describe("formToYaml", () => {
 		expect(formToYaml(fullForm)).toContain("name: 输账号");
 	});
 
+	test("步骤组独立 url 写在任务上", () => {
+		const yaml = formToYaml({
+			target: { type: "web", url: "https://h5.example.com" },
+			tasks: [
+				{
+					id: "t",
+					name: "后台接码",
+					url: "https://admin.example.com/sms",
+					steps: [
+						{
+							id: "s",
+							action: "aiQuery",
+							params: { prompt: "最新验证码" },
+						},
+					],
+				},
+			],
+		});
+		expect(yaml).toContain("url: https://admin.example.com/sms");
+		expect(yaml).toContain("aiQuery: 最新验证码");
+	});
+
+	test("步骤组 url 留空时不写入 yaml", () => {
+		const yaml = formToYaml({
+			target: { type: "web", url: "https://h5.example.com" },
+			tasks: [
+				{
+					id: "t",
+					name: "登录",
+					url: "  ",
+					steps: [
+						{
+							id: "s",
+							action: "aiTap",
+							params: { locate: "登录按钮" },
+						},
+					],
+				},
+			],
+		});
+		expect(yaml).not.toContain("admin.example.com");
+		expect(yaml.split("\n").some((line) => line.trim().startsWith("url:"))).toBe(
+			false,
+		);
+	});
+
 	test("视口留空时不生成视口字段", () => {
 		const yaml = formToYaml({
 			...fullForm,
@@ -120,6 +166,27 @@ describe("formToYaml", () => {
 				'标题是 "A: #1"',
 			);
 		}
+	});
+
+	test("Android 表单不输出步骤组 url", () => {
+		const yaml = formToYaml({
+			target: { type: "android", deviceId: "test-device" },
+			tasks: [
+				{
+					id: "t",
+					name: "进入 VIP",
+					url: "https://admin.example.com",
+					steps: [
+						{
+							id: "s1",
+							action: "launch",
+							params: { target: "com.come123.game" },
+						},
+					],
+				},
+			],
+		});
+		expect(yaml).not.toContain("https://admin.example.com");
 	});
 
 	test("Android 表单生成设备号和打开 App 步骤", () => {
@@ -170,6 +237,7 @@ describe("yamlToForm", () => {
 			params: { locate: "登录按钮" },
 		});
 		expect(form.tasks[0].steps[0].name).toBe("输账号");
+		expect(form.tasks[0].url).toBeUndefined();
 		expect(form.tasks[0].steps[2].params).toMatchObject({
 			prompt: "跳转到首页",
 			timeout: 10000,
@@ -219,6 +287,23 @@ tasks:
 		expect(result.form.tasks[0].steps[0].params).toEqual({ locate: "按钮" });
 		expect(result.form.tasks[0].steps[1].params).toEqual({ direction: "up" });
 		expect(result.form.tasks[0].steps[2].params).toEqual({ key: "Enter" });
+	});
+
+	test("带步骤组 url 的 YAML 可以解析回表单", () => {
+		const result = yamlToForm(`target: https://h5.example.com
+tasks:
+  - name: 后台接码
+    url: https://admin.example.com/sms
+    flow:
+      - aiQuery: 最新验证码
+`);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.form.tasks[0].url).toBe("https://admin.example.com/sms");
+		expect(result.form.tasks[0].steps[0]).toMatchObject({
+			action: "aiQuery",
+			params: { prompt: "最新验证码" },
+		});
 	});
 
 	test("包含表单不支持的字段时返回失败", () => {
