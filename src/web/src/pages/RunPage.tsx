@@ -24,6 +24,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { RunStepRecord, TaskRecord } from '../../../shared/types';
 import { api, type CurrentRunState, type ModelBrief, type QueueItem } from '../api';
 import { RunStatusTag, formatDuration } from '../components';
+import { RUN_FRAME_COL, RUN_LOG_COL } from '../layout';
+import { runProgressText } from '../run-progress';
 import { useWebSocket, type WsMessage } from '../hooks';
 
 interface LiveStep {
@@ -204,7 +206,7 @@ export default function RunPage() {
 
     return (
         <Row gutter={16}>
-            <Col span={10}>
+            <Col {...RUN_FRAME_COL}>
                 <Card
                     title='实时画面'
                     extra={
@@ -253,7 +255,7 @@ export default function RunPage() {
                     )}
                 </Card>
             </Col>
-            <Col span={14}>
+            <Col {...RUN_LOG_COL}>
                 <Space orientation='vertical' size={16} style={{ width: '100%' }}>
                     <Card
                         title={`任务队列${pendingItems.length > 0 ? `（${pendingItems.length} 个待执行）` : ''}`}
@@ -354,9 +356,12 @@ export default function RunPage() {
                             <Space>
                                 步骤日志
                                 {current.run && (
-                                    <Typography.Text type='secondary'>
-                                        {current.run.taskName}（{current.run.currentStepIndex + 1}/
-                                        {current.run.totalSteps || '?'}）
+                                    <Typography.Text type='secondary' data-testid='run-progress'>
+                                        {runProgressText({
+                                            taskName: current.run.taskName,
+                                            currentStepIndex: current.run.currentStepIndex,
+                                            totalSteps: current.run.totalSteps,
+                                        })}
                                     </Typography.Text>
                                 )}
                             </Space>
