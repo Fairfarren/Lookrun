@@ -31,3 +31,17 @@ export function queueSaveItemsError(count: number) {
     }
     return null;
 }
+
+export type QueueSavePayload = {
+    name: string;
+    items: { taskId: number; modelId: string }[];
+};
+
+export async function createQueueThenSaveItems(input: {
+    payload: QueueSavePayload;
+    create: (name: string) => Promise<{ id: number }>;
+    update: (id: number, payload: QueueSavePayload) => Promise<unknown>;
+}) {
+    const created = await input.create(input.payload.name);
+    return input.update(created.id, input.payload);
+}

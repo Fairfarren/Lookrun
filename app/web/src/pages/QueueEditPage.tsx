@@ -23,6 +23,7 @@ import { reorderById } from '../utils/sortable-items';
 import { errorText } from '../utils/error-text';
 import { draggingItemStyle } from '../utils/sortable-style';
 import {
+    createQueueThenSaveItems,
     isNewQueueRoute,
     queueEditTitle,
     queueSaveItemsError,
@@ -190,13 +191,11 @@ export default function QueueEditPage() {
         name: string;
         items: { taskId: number; modelId: string }[];
     }) => {
-        await api.createQueue(payload.name);
-        const created = await api.listQueues();
-        const queue = created.items[0];
-        if (!queue) {
-            return;
-        }
-        await api.updateQueue(queue.id, payload);
+        await createQueueThenSaveItems({
+            payload,
+            create: api.createQueue,
+            update: api.updateQueue,
+        });
     };
 
     const saveValidQueue = async () => {
