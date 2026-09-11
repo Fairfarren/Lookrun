@@ -112,6 +112,68 @@ describe('collectFunctions', () => {
         expect(fn?.cc).toBe(2);
     });
 
+    test('可选链 catch 不是 catch 决策点', () => {
+        const source = `
+      export async function closeIt(browser: { close?: () => Promise<void> } | null) {
+        if (!browser) return;
+        await browser.close?.catch(() => {});
+      }
+    `;
+        const fn = collectFunctions(source, 'optional-catch.ts').find(
+            (item) => item.name === 'closeIt',
+        );
+        expect(fn?.cc).toBe(2);
+    });
+
+    test('对象返回类型不算函数体', () => {
+        const source = `
+      export function parseBboxJson(content: string): { ok: true } | { ok: false } {
+        if (!content) return { ok: false };
+        try {
+          return { ok: true };
+        } catch {
+          return { ok: false };
+        }
+      }
+    `;
+        const fns = collectFunctions(source, 'bbox.ts');
+        const fn = fns.find((item) => item.name === 'parseBboxJson');
+        expect(fns.map((item) => item.name)).toEqual(['parseBboxJson']);
+        expect(fn?.cc).toBe(3);
+        expect(fn?.endLine).toBeGreaterThan(fn?.startLine ?? 0);
+    });
+
+    test('Promise 对象返回类型仍计入函数体', () => {
+        const source = `
+      export async function checkModelVision(): Promise<{ ok: boolean; message: string }> {
+        if (!true) return { ok: false, message: '' };
+        return { ok: true, message: '' };
+      }
+    `;
+        const fn = collectFunctions(source, 'vision.ts').find(
+            (item) => item.name === 'checkModelVision',
+        );
+        expect(fn?.cc).toBe(2);
+        expect(fn?.endLine).toBeGreaterThan(fn?.startLine ?? 0);
+    });
+
+    test('泛型函数声明计入外层', () => {
+        const source = `
+      export async function activatePageSession<T>(input: { x: T }) {
+        if (!input) return;
+      }
+      export function reorderById<T extends { id: string }>(items: T[]) {
+        if (!items.length) return items;
+        return items;
+      }
+    `;
+        const fns = collectFunctions(source, 'generic.ts');
+        const activate = fns.find((item) => item.name === 'activatePageSession');
+        const reorder = fns.find((item) => item.name === 'reorderById');
+        expect(activate?.cc).toBe(2);
+        expect(reorder?.cc).toBe(2);
+    });
+
     test('catch 和空值合并计入 CC', () => {
         const source = `
       export function read(value: string | null) {

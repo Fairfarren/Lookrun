@@ -186,7 +186,7 @@ function isDecision(token: Token, prev: Token | undefined, next: Token | undefin
     if (token.kind !== 'ident') {
         return false;
     }
-    if (token.text === 'catch' && prev?.text === '.') {
+    if (token.text === 'catch' && (prev?.text === '.' || prev?.text === '?.')) {
         return false;
     }
     return (
@@ -230,6 +230,40 @@ export function collectFunctions(source: string, fileName: string) {
         skipBalanced('(', ')');
     }
 
+    function skipGeneric() {
+        skipBalanced('<', '>');
+    }
+
+    function paramOpenIndex(nameIndex: number) {
+        const next = tokens[nameIndex + 1];
+        if (next?.text === '(') {
+            return nameIndex + 1;
+        }
+        if (next?.text !== '<') {
+            return null;
+        }
+        let depth = 0;
+        for (let index = nameIndex + 1; index < tokens.length; index++) {
+            const text = tokens[index].text;
+            if (text === '<') {
+                depth += 1;
+            }
+            if (text === '>') {
+                depth -= 1;
+                if (depth === 0) {
+                    if (tokens[index + 1]?.text === '(') {
+                        return index + 1;
+                    }
+                    return null;
+                }
+            }
+            if (depth === 1 && (text === ';' || text === '=')) {
+                return null;
+            }
+        }
+        return null;
+    }
+
     function looksLikeFunction(): boolean {
         const token = at();
         if (!token) {
@@ -238,27 +272,32 @@ export function collectFunctions(source: string, fileName: string) {
         if (token.text === 'function' || token.text === 'async') {
             return true;
         }
-        if (token.kind === 'ident' && !CONTROL_NAMES.has(token.text) && peek(1)?.text === '(') {
-            const prev = tokens[cursor - 1]?.text;
-            // 方法调用、三元里的调用不是函数声明
-            if (prev === '.' || prev === '?.' || prev === '?') {
-                return false;
+        if (token.kind !== 'ident' || CONTROL_NAMES.has(token.text)) {
+            return false;
+        }
+        const prev = tokens[cursor - 1]?.text;
+        // 方法调用、三元里的调用不是函数声明
+        if (prev === '.' || prev === '?.' || prev === '?') {
+            return false;
+        }
+        const paramsIndex = paramOpenIndex(cursor);
+        if (paramsIndex == null) {
+            return false;
+        }
+        let index = paramsIndex;
+        let depth = 0;
+        while (index < tokens.length) {
+            const current = tokens[index];
+            if (current.text === '(') {
+                depth += 1;
             }
-            let index = cursor + 1;
-            let depth = 0;
-            while (index < tokens.length) {
-                const current = tokens[index];
-                if (current.text === '(') {
-                    depth += 1;
+            if (current.text === ')') {
+                depth -= 1;
+                if (depth === 0) {
+                    return isFunctionBody(index + 1);
                 }
-                if (current.text === ')') {
-                    depth -= 1;
-                    if (depth === 0) {
-                        return isFunctionBody(index + 1);
-                    }
-                }
-                index += 1;
             }
+            index += 1;
         }
         return false;
     }
@@ -407,14 +446,47 @@ export function collectFunctions(source: string, fileName: string) {
         functions.push({ name, file: fileName, startLine, endLine, cc: decisions + 1 });
     }
 
-    function skipReturnType() {
+    function isTypeObjectStart(prev: string | undefined) {
+        return (
+            prev === ':' ||
+            prev === '|' ||
+            prev === '&' ||
+            prev === '(' ||
+            prev === '<' ||
+            prev === ',' ||
+            prev === '=' ||
+            prev === 'extends' ||
+            prev === 'as' ||
+            prev === 'satisfies' ||
+            prev === 'infer'
+        );
+    }
+
+    function skipReturnType(allowArrow: boolean) {
         if (at()?.text !== ':') {
             return;
         }
-        while (at() && at().text !== '{' && at().text !== '=>') {
-            if (at().text === '(') {
-                skipParams();
+        let depth = 0;
+        take();
+        while (at()) {
+            const text = at().text;
+            if (depth === 0 && text === '{') {
+                if (!isTypeObjectStart(tokens[cursor - 1]?.text)) {
+                    return;
+                }
+                depth += 1;
+                take();
                 continue;
+            }
+            if (allowArrow && depth === 0 && text === '=>') {
+                return;
+            }
+            if (text === '{' || text === '(' || text === '[' || text === '<') {
+                depth += 1;
+            } else if (text === '}' || text === ')' || text === ']' || text === '>') {
+                if (depth > 0) {
+                    depth -= 1;
+                }
             }
             take();
         }
@@ -431,17 +503,19 @@ export function collectFunctions(source: string, fileName: string) {
             if (at()?.kind === 'ident') {
                 name = take().text;
             }
+            skipGeneric();
             skipParams();
-            skipReturnType();
+            skipReturnType(false);
             if (at()?.text === '{') {
                 parseBlock(name, startLine);
             }
             return;
         }
-        if (at()?.kind === 'ident' && peek(1)?.text === '(') {
+        if (at()?.kind === 'ident' && (peek(1)?.text === '(' || peek(1)?.text === '<')) {
             name = take().text;
+            skipGeneric();
             skipParams();
-            skipReturnType();
+            skipReturnType(true);
             if (at()?.text === '{') {
                 parseBlock(name, startLine);
             } else if (at()?.text === '=>') {
@@ -456,7 +530,7 @@ export function collectFunctions(source: string, fileName: string) {
         }
         if (at()?.text === '(') {
             skipParams();
-            skipReturnType();
+            skipReturnType(true);
         }
         if (at()?.text === '=>') {
             take();
