@@ -250,48 +250,44 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 // ---------- 表单 → YAML ----------
 
-function stepToYamlObject(step: FormStep) {
-    const params = step.params;
-    let body: Record<string, unknown>;
-    switch (step.action) {
-        case 'launch':
-            body = { launch: params.target ?? '' };
-            break;
-        case 'aiInput':
-            body = {
-                aiInput: { locate: params.locate ?? '', value: params.value ?? '' },
-            };
-            break;
-        case 'aiScroll': {
-            const scroll: Record<string, unknown> = {
-                direction: params.direction ?? 'down',
-            };
-            if (params.distance !== undefined && params.distance !== '') {
-                scroll.distance = Number(params.distance);
-            }
-            body = { aiScroll: scroll };
-            break;
-        }
-        case 'sleep':
-            body = { sleep: Number(params.ms ?? 0) };
-            break;
-        case 'aiWaitFor':
-            body = { aiWaitFor: params.prompt ?? '' };
-            if (params.timeout !== undefined && params.timeout !== '') {
-                body.timeout = Number(params.timeout);
-            }
-            break;
-        case 'aiTap':
-        case 'aiHover':
-        case 'aiRightClick':
-            body = { [step.action]: params.locate ?? '' };
-            break;
-        case 'aiKeyboardPress':
-            body = { aiKeyboardPress: params.key ?? 'Enter' };
-            break;
-        default:
-            body = { [step.action]: params.prompt ?? '' };
+function yamlScrollBody(params: FormStep['params']) {
+    const scroll: Record<string, unknown> = {
+        direction: params.direction ?? 'down',
+    };
+    if (params.distance !== undefined && params.distance !== '') {
+        scroll.distance = Number(params.distance);
     }
+    return { aiScroll: scroll };
+}
+
+function yamlWaitForBody(params: FormStep['params']) {
+    const body: Record<string, unknown> = { aiWaitFor: params.prompt ?? '' };
+    if (params.timeout !== undefined && params.timeout !== '') {
+        body.timeout = Number(params.timeout);
+    }
+    return body;
+}
+
+function yamlActionBody(step: FormStep) {
+    const builders: Record<string, (params: FormStep['params']) => Record<string, unknown>> = {
+        launch: (params) => ({ launch: params.target ?? '' }),
+        aiInput: (params) => ({
+            aiInput: { locate: params.locate ?? '', value: params.value ?? '' },
+        }),
+        aiScroll: yamlScrollBody,
+        sleep: (params) => ({ sleep: Number(params.ms ?? 0) }),
+        aiWaitFor: yamlWaitForBody,
+        aiTap: (params) => ({ aiTap: params.locate ?? '' }),
+        aiHover: (params) => ({ aiHover: params.locate ?? '' }),
+        aiRightClick: (params) => ({ aiRightClick: params.locate ?? '' }),
+        aiKeyboardPress: (params) => ({ aiKeyboardPress: params.key ?? 'Enter' }),
+    };
+    const build = builders[step.action];
+    return build ? build(step.params) : { [step.action]: step.params.prompt ?? '' };
+}
+
+function stepToYamlObject(step: FormStep) {
+    const body = yamlActionBody(step);
     if (step.name && step.name.trim() !== '') {
         body.name = step.name.trim();
     }
@@ -327,152 +323,223 @@ export function formToYaml(form: FormScript) {
 export type YamlToFormResult = { ok: true; form: FormScript } | { ok: false };
 
 // 把 YAML 步骤解析为表单步骤，遇到表单无法表达的内容返回 null
+function asText(value: unknown) {
+    return typeof value === 'string' ? value : null;
+}
+
+function makeFormStep(
+    action: string,
+    name: string | undefined,
+    params: FormStep['params'],
+): FormStep {
+    return { id: createStepId(), action, name, params };
+}
+
+function keyboardKey(raw: unknown) {
+    if (typeof raw === 'string') {
+        return raw;
+    }
+    if (isRecord(raw) && typeof raw.key === 'string') {
+        return raw.key;
+    }
+    return null;
+}
+
+function yamlInputParams(raw: unknown) {
+    if (!isRecord(raw) || typeof raw.locate !== 'string') {
+        return null;
+    }
+    if (typeof raw.value !== 'string' && typeof raw.value !== 'number') {
+        return null;
+    }
+    return { locate: raw.locate, value: String(raw.value) };
+}
+
+function yamlScrollParams(raw: unknown) {
+    if (!isRecord(raw) || !['up', 'down', 'left', 'right'].includes(String(raw.direction))) {
+        return null;
+    }
+    const params: FormStep['params'] = { direction: String(raw.direction) };
+    if (typeof raw.distance === 'number') {
+        params.distance = raw.distance;
+    }
+    return params;
+}
+
+function yamlPromptParams(action: string, raw: unknown, timeout: number | undefined) {
+    const prompt = asText(raw);
+    if (prompt === null) {
+        return null;
+    }
+    const params: FormStep['params'] = { prompt };
+    if (action === 'aiWaitFor' && timeout !== undefined) {
+        params.timeout = timeout;
+    }
+    return params;
+}
+
+function yamlLocateParams(raw: unknown) {
+    const locate = asText(raw);
+    return locate === null ? null : { locate };
+}
+
+function yamlStepParams(action: string, raw: unknown, timeout: number | undefined) {
+    const parsers: Record<string, () => FormStep['params'] | null> = {
+        launch: () => {
+            const target = asText(raw);
+            return target === null ? null : { target };
+        },
+        ai: () => yamlPromptParams(action, raw, timeout),
+        aiAssert: () => yamlPromptParams(action, raw, timeout),
+        aiQuery: () => yamlPromptParams(action, raw, timeout),
+        aiWaitFor: () => yamlPromptParams(action, raw, timeout),
+        aiTap: () => yamlLocateParams(raw),
+        aiHover: () => yamlLocateParams(raw),
+        aiRightClick: () => yamlLocateParams(raw),
+        aiKeyboardPress: () => {
+            const key = keyboardKey(raw);
+            return key === null ? null : { key };
+        },
+        aiInput: () => yamlInputParams(raw),
+        aiScroll: () => yamlScrollParams(raw),
+        sleep: () => (typeof raw === 'number' ? { ms: raw } : null),
+    };
+    const parseParams = parsers[action];
+    if (!parseParams) {
+        return null;
+    }
+    return parseParams();
+}
+
+function androidDeviceId(android: unknown) {
+    if (!isRecord(android) || typeof android.deviceId !== 'string' || android.deviceId === '') {
+        return null;
+    }
+    return android.deviceId;
+}
+
+function parseFormTarget(doc: Record<string, unknown>): FormTarget | null {
+    const hasWebTarget = typeof doc.target === 'string';
+    const hasAndroidTarget = isRecord(doc.android);
+    if (hasWebTarget === hasAndroidTarget) {
+        return null;
+    }
+    if (hasWebTarget) {
+        return {
+            type: 'web',
+            url: String(doc.target),
+            viewportWidth: optionalNumber(doc.viewportWidth),
+            viewportHeight: optionalNumber(doc.viewportHeight),
+        };
+    }
+    const deviceId = androidDeviceId(doc.android);
+    if (!deviceId) {
+        return null;
+    }
+    return { type: 'android', deviceId };
+}
+
+function optionalString(value: unknown) {
+    return typeof value === 'string' ? value : undefined;
+}
+
+function optionalNumber(value: unknown) {
+    return typeof value === 'number' ? value : undefined;
+}
+
+function optionalTrimmed(value: unknown) {
+    if (typeof value !== 'string' || value.trim() === '') {
+        return undefined;
+    }
+    return value.trim();
+}
+
+function parseFormSteps(flow: unknown[], targetType: FormTarget['type']) {
+    const steps: FormStep[] = [];
+    for (const step of flow) {
+        const formStep = yamlStepToForm(step, targetType);
+        if (!formStep) {
+            return null;
+        }
+        steps.push(formStep);
+    }
+    return steps;
+}
+
+function parseFormTask(task: unknown, targetType: FormTarget['type']): FormTask | null {
+    if (!isRecord(task) || typeof task.name !== 'string' || !Array.isArray(task.flow)) {
+        return null;
+    }
+    const steps = parseFormSteps(task.flow, targetType);
+    if (!steps) {
+        return null;
+    }
+    return { id: createStepId(), name: task.name, url: optionalTrimmed(task.url), steps };
+}
+
+function stepActionKeys(step: Record<string, unknown>) {
+    return Object.keys(step).filter((key) => key !== 'name' && key !== 'timeout');
+}
+
+function actionAllowedOnTarget(action: string, targetType: FormTarget['type']) {
+    const option = ACTION_OPTIONS.find((item) => item.action === action);
+    if (!option?.platforms) {
+        return true;
+    }
+    return option.platforms.includes(targetType);
+}
+
 function yamlStepToForm(step: unknown, targetType: FormTarget['type']): FormStep | null {
     if (!isRecord(step)) {
         return null;
     }
-    const keys = Object.keys(step);
-    const name = typeof step.name === 'string' ? step.name : undefined;
-    const timeout = typeof step.timeout === 'number' ? step.timeout : undefined;
-    const actionKeys = keys.filter((key) => key !== 'name' && key !== 'timeout');
-    // 除 name/timeout 之外的键都必须是唯一动作，否则是表单不支持的高级参数
+    const actionKeys = stepActionKeys(step);
     if (actionKeys.length !== 1 || !SUPPORTED_FORM_ACTIONS.includes(actionKeys[0])) {
         return null;
     }
     const action = actionKeys[0];
-    const option = ACTION_OPTIONS.find((item) => item.action === action);
-    if (option?.platforms && !option.platforms.includes(targetType)) {
+    if (!actionAllowedOnTarget(action, targetType)) {
         return null;
     }
-    const raw = step[action];
+    const params = yamlStepParams(action, step[action], optionalNumber(step.timeout));
+    if (!params) {
+        return null;
+    }
+    return makeFormStep(action, optionalString(step.name), params);
+}
 
-    const text = (value: unknown) => (typeof value === 'string' ? value : null);
-    const formStep = (params: FormStep['params']): FormStep => ({
-        id: createStepId(),
-        action,
-        name,
-        params,
-    });
-
-    switch (action) {
-        case 'launch': {
-            const target = text(raw);
-            return target === null ? null : formStep({ target });
-        }
-        case 'ai':
-        case 'aiAssert':
-        case 'aiQuery':
-        case 'aiWaitFor': {
-            const prompt = text(raw);
-            if (prompt === null) return null;
-            const params: FormStep['params'] = { prompt };
-            if (action === 'aiWaitFor' && timeout !== undefined) {
-                params.timeout = timeout;
-            }
-            return formStep(params);
-        }
-        case 'aiTap':
-        case 'aiHover':
-        case 'aiRightClick': {
-            const locate = text(raw);
-            return locate === null ? null : formStep({ locate });
-        }
-        case 'aiKeyboardPress': {
-            const key =
-                typeof raw === 'string'
-                    ? raw
-                    : isRecord(raw) && typeof raw.key === 'string'
-                      ? raw.key
-                      : null;
-            return key === null ? null : formStep({ key });
-        }
-        case 'aiInput': {
-            if (
-                !isRecord(raw) ||
-                typeof raw.locate !== 'string' ||
-                (typeof raw.value !== 'string' && typeof raw.value !== 'number')
-            ) {
-                return null;
-            }
-            return formStep({ locate: raw.locate, value: String(raw.value) });
-        }
-        case 'aiScroll': {
-            if (
-                !isRecord(raw) ||
-                !['up', 'down', 'left', 'right'].includes(String(raw.direction))
-            ) {
-                return null;
-            }
-            const params: FormStep['params'] = { direction: String(raw.direction) };
-            if (typeof raw.distance === 'number') {
-                params.distance = raw.distance;
-            }
-            return formStep(params);
-        }
-        case 'sleep':
-            return typeof raw === 'number' ? formStep({ ms: raw }) : null;
-        default:
-            return null;
+function parseYamlDoc(yamlText: string) {
+    try {
+        return parse(yamlText);
+    } catch {
+        return null;
     }
 }
 
-export function yamlToForm(yamlText: string): YamlToFormResult {
-    let doc: unknown;
-    try {
-        doc = parse(yamlText);
-    } catch {
-        return { ok: false };
+function parseFormTasks(tasks: unknown[], targetType: FormTarget['type']) {
+    const result: FormTask[] = [];
+    for (const task of tasks) {
+        const parsed = parseFormTask(task, targetType);
+        if (!parsed) {
+            return null;
+        }
+        result.push(parsed);
     }
+    return result;
+}
+
+export function yamlToForm(yamlText: string): YamlToFormResult {
+    const doc = parseYamlDoc(yamlText);
     if (!isRecord(doc) || !Array.isArray(doc.tasks) || doc.tasks.length === 0) {
         return { ok: false };
     }
-    const hasWebTarget = typeof doc.target === 'string';
-    const hasAndroidTarget = isRecord(doc.android);
-    if (hasWebTarget === hasAndroidTarget) {
+    const target = parseFormTarget(doc);
+    if (!target) {
         return { ok: false };
     }
-    const target: FormTarget = hasWebTarget
-        ? {
-              type: 'web',
-              url: String(doc.target),
-              viewportWidth: typeof doc.viewportWidth === 'number' ? doc.viewportWidth : undefined,
-              viewportHeight:
-                  typeof doc.viewportHeight === 'number' ? doc.viewportHeight : undefined,
-          }
-        : {
-              type: 'android',
-              deviceId:
-                  isRecord(doc.android) && typeof doc.android.deviceId === 'string'
-                      ? doc.android.deviceId
-                      : '',
-          };
-    if (target.type === 'android' && target.deviceId === '') {
+    const tasks = parseFormTasks(doc.tasks, target.type);
+    if (!tasks) {
         return { ok: false };
     }
-
-    const tasks: FormTask[] = [];
-    for (const task of doc.tasks) {
-        if (!isRecord(task) || typeof task.name !== 'string' || !Array.isArray(task.flow)) {
-            return { ok: false };
-        }
-        const steps: FormStep[] = [];
-        for (const step of task.flow) {
-            const formStep = yamlStepToForm(step, target.type);
-            if (!formStep) {
-                return { ok: false };
-            }
-            steps.push(formStep);
-        }
-        const url =
-            typeof task.url === 'string' && task.url.trim() !== '' ? task.url.trim() : undefined;
-        tasks.push({ id: createStepId(), name: task.name, url, steps });
-    }
-
-    return {
-        ok: true,
-        form: {
-            target,
-            tasks,
-        },
-    };
+    return { ok: true, form: { target, tasks } };
 }

@@ -262,6 +262,24 @@ tasks:
         expect(result.ok).toBe(false);
     });
 
+    test('aiScroll 合法方向解析成功', () => {
+        const result = parseScript(
+            'target: https://a.com\ntasks:\n  - name: a\n    flow:\n      - aiScroll:\n          direction: down\n',
+            {},
+        );
+        expect(result.ok).toBe(true);
+    });
+
+    test('aiScroll 方向非法时报错', () => {
+        const result = parseScript(
+            'target: https://a.com\ntasks:\n  - name: a\n    flow:\n      - aiScroll:\n          direction: diagonal\n',
+            {},
+        );
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        expect(result.errors.join('\n')).toContain('direction 必须是 up/down/left/right 之一');
+    });
+
     test('YAML 语法错误给出可读错误', () => {
         const result = parseScript('target: [unclosed', {});
         expect(result.ok).toBe(false);

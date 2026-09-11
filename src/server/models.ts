@@ -15,49 +15,68 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function requireText(value: unknown, message: string) {
+    if (typeof value !== 'string' || value === '') {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function requireModelList(value: unknown) {
+    if (!Array.isArray(value) || value.length === 0) {
+        throw new Error('模型配置的 models 必须是非空数组');
+    }
+    return value;
+}
+
 // 解析模型配置文件：顶层的 baseUrl/apiKey 平铺到每个模型上
 export function parseModelsConfig(json: unknown): ModelConfig[] {
     if (!isRecord(json)) {
         throw new Error('模型配置必须是一个对象');
     }
-    if (typeof json.baseUrl !== 'string' || json.baseUrl === '') {
-        throw new Error('模型配置缺少 baseUrl');
+    requireText(json.baseUrl, '模型配置缺少 baseUrl');
+    requireText(json.apiKey, '模型配置缺少 apiKey');
+    return requireModelList(json.models).map((item, index) => parseModelEntry(item, index, json));
+}
+
+function optionalText(value: unknown) {
+    return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+function parseModelEntry(item: unknown, index: number, json: Record<string, unknown>): ModelConfig {
+    if (!isRecord(item) || typeof item.id !== 'string' || item.id === '') {
+        throw new Error(`第 ${index + 1} 个模型缺少 id`);
     }
-    if (typeof json.apiKey !== 'string' || json.apiKey === '') {
-        throw new Error('模型配置缺少 apiKey');
+    if (typeof item.model !== 'string' || item.model === '') {
+        throw new Error(`第 ${index + 1} 个模型缺少 model 字段`);
     }
-    if (!Array.isArray(json.models) || json.models.length === 0) {
-        throw new Error('模型配置的 models 必须是非空数组');
-    }
-    return json.models.map((item, index) => {
-        if (!isRecord(item) || typeof item.id !== 'string' || item.id === '') {
-            throw new Error(`第 ${index + 1} 个模型缺少 id`);
-        }
-        if (typeof item.model !== 'string' || item.model === '') {
-            throw new Error(`第 ${index + 1} 个模型缺少 model 字段`);
-        }
-        return {
-            id: item.id,
-            name: typeof item.name === 'string' && item.name !== '' ? item.name : item.model,
-            model: item.model,
-            baseUrl: json.baseUrl as string,
-            apiKey: json.apiKey as string,
-            family: typeof item.family === 'string' && item.family !== '' ? item.family : undefined,
-        };
-    });
+    return {
+        id: item.id,
+        name: optionalText(item.name) ?? item.model,
+        model: item.model,
+        baseUrl: json.baseUrl as string,
+        apiKey: json.apiKey as string,
+        family: optionalText(item.family),
+    };
 }
 
 // 加载模型列表：优先 data/models.json（运行时覆盖），否则用构建时内置的配置
+function errorMessage(error: unknown) {
+    return error instanceof Error ? error.message : String(error);
+}
+
+function readOverrideModels(overridePath: string) {
+    try {
+        return parseModelsConfig(JSON.parse(readFileSync(overridePath, 'utf8')));
+    } catch (error) {
+        throw new Error(`运行时模型配置 ${overridePath} 解析失败：${errorMessage(error)}`);
+    }
+}
+
 export function loadModels() {
     const overridePath = path.join(DATA_DIR, 'models.json');
     if (existsSync(overridePath)) {
-        try {
-            return parseModelsConfig(JSON.parse(readFileSync(overridePath, 'utf8')));
-        } catch (error) {
-            throw new Error(
-                `运行时模型配置 ${overridePath} 解析失败：${error instanceof Error ? error.message : String(error)}`,
-            );
-        }
+        return readOverrideModels(overridePath);
     }
     return parseModelsConfig(embeddedModelsJson);
 }
@@ -110,58 +129,82 @@ function containsCenter(bbox: number[]) {
 // 从模型回复里提取 bbox JSON 并校验。
 // 两种坐标系都接受：绝对像素（在图片范围内）或 qwen 系 0-1000 归一化坐标
 // （gemma/minimax/kimi 走 Ollama 时都是归一化格式，参考 test-game/step2-v2 的生产验证）
-export function parseVisionCheckResponse(content: string): VisionCheckResult {
+function parseBboxJson(
+    content: string,
+): { ok: true; bbox: number[] } | { ok: false; reason: string } {
     const jsonMatch = content.match(/\{[^{}]*"bbox"[^{}]*\}/);
     if (!jsonMatch) {
         return { ok: false, reason: '回复中没有找到 bbox JSON' };
     }
-    let parsed: unknown;
     try {
-        parsed = JSON.parse(jsonMatch[0]);
+        const parsed: unknown = JSON.parse(jsonMatch[0]);
+        if (!isRecord(parsed) || !Array.isArray(parsed.bbox) || parsed.bbox.length !== 4) {
+            return { ok: false, reason: 'bbox 必须是 4 个数字的数组' };
+        }
+        const bbox = parsed.bbox;
+        if (!bbox.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+            return { ok: false, reason: 'bbox 必须是 4 个数字的数组' };
+        }
+        const [x1, y1, x2, y2] = bbox;
+        if (x2 <= x1 || y2 <= y1) {
+            return { ok: false, reason: 'bbox 面积为零' };
+        }
+        return { ok: true, bbox };
     } catch {
         return { ok: false, reason: 'bbox JSON 无法解析' };
     }
-    if (!isRecord(parsed) || !Array.isArray(parsed.bbox) || parsed.bbox.length !== 4) {
-        return { ok: false, reason: 'bbox 必须是 4 个数字的数组' };
+}
+
+function absoluteVisionResult(bbox: number[]): VisionCheckResult | null {
+    if (!isPlausibleBBox(bbox)) {
+        return null;
     }
-    const bbox = parsed.bbox;
-    if (!bbox.every((n) => typeof n === 'number' && Number.isFinite(n))) {
-        return { ok: false, reason: 'bbox 必须是 4 个数字的数组' };
+    if (!containsCenter(bbox)) {
+        return {
+            ok: false,
+            reason: `定位偏差过大：bbox [${bbox.join(', ')}] 未覆盖画面中心的按钮`,
+        };
+    }
+    return { ok: true, bbox, coordinateSystem: 'absolute' };
+}
+
+function normalizedVisionResult(bbox: number[]): VisionCheckResult | null {
+    if (!bbox.every((n) => n >= 0 && n <= NORMALIZED_COORD_MAX)) {
+        return null;
     }
     const [x1, y1, x2, y2] = bbox;
-    if (x2 <= x1 || y2 <= y1) {
-        return { ok: false, reason: 'bbox 面积为零' };
+    const rescaled = [
+        (x1 * VISION_CHECK_WIDTH) / NORMALIZED_COORD_MAX,
+        (y1 * VISION_CHECK_HEIGHT) / NORMALIZED_COORD_MAX,
+        (x2 * VISION_CHECK_WIDTH) / NORMALIZED_COORD_MAX,
+        (y2 * VISION_CHECK_HEIGHT) / NORMALIZED_COORD_MAX,
+    ];
+    if (isPlausibleBBox(rescaled) && containsCenter(rescaled)) {
+        return {
+            ok: true,
+            bbox: rescaled.map(Math.round),
+            coordinateSystem: 'normalized',
+        };
     }
+    return null;
+}
 
-    // 绝对像素：直接落在图片范围内
-    if (isPlausibleBBox(bbox)) {
-        if (!containsCenter(bbox)) {
-            return {
-                ok: false,
-                reason: `定位偏差过大：bbox [${bbox.join(', ')}] 未覆盖画面中心的按钮`,
-            };
-        }
-        return { ok: true, bbox, coordinateSystem: 'absolute' };
+export function parseVisionCheckResponse(content: string): VisionCheckResult {
+    const parsed = parseBboxJson(content);
+    if (!parsed.ok) {
+        return parsed;
     }
-    // 0-1000 归一化：全部值在 [0,1000]，换算回图片尺寸后是合法框
-    if (bbox.every((n) => n >= 0 && n <= NORMALIZED_COORD_MAX)) {
-        const rescaled = [
-            (x1 * VISION_CHECK_WIDTH) / NORMALIZED_COORD_MAX,
-            (y1 * VISION_CHECK_HEIGHT) / NORMALIZED_COORD_MAX,
-            (x2 * VISION_CHECK_WIDTH) / NORMALIZED_COORD_MAX,
-            (y2 * VISION_CHECK_HEIGHT) / NORMALIZED_COORD_MAX,
-        ];
-        if (isPlausibleBBox(rescaled) && containsCenter(rescaled)) {
-            return {
-                ok: true,
-                bbox: rescaled.map(Math.round),
-                coordinateSystem: 'normalized',
-            };
-        }
+    const absolute = absoluteVisionResult(parsed.bbox);
+    if (absolute) {
+        return absolute;
+    }
+    const normalized = normalizedVisionResult(parsed.bbox);
+    if (normalized) {
+        return normalized;
     }
     return {
         ok: false,
-        reason: `bbox 既不是合法像素坐标也不是 0-1000 归一化坐标：[${bbox.join(', ')}]`,
+        reason: `bbox 既不是合法像素坐标也不是 0-1000 归一化坐标：[${parsed.bbox.join(', ')}]`,
     };
 }
 

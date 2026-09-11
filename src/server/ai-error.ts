@@ -15,23 +15,24 @@ export function formatErrorMessage(error: unknown) {
         : message;
 }
 
+const AI_FAILURE_PREFIX: Record<string, string> = {
+    aiAssert: '模型执行页面断言失败',
+    aiWaitFor: '模型等待页面条件时执行失败',
+};
+
+function chineseAiFailure(action: string, goal: string) {
+    if (LOCATE_ACTIONS.has(action)) {
+        return `模型未能在当前页面中找到目标元素${goal}`;
+    }
+    return `${AI_FAILURE_PREFIX[action] ?? '模型执行失败'}${goal}`;
+}
+
 export function formatStepError(error: unknown, step: FlowStep) {
     const message = formatErrorMessage(error);
     if (!step.action.startsWith('ai') || isPredominantlyChinese(message)) {
         return message;
     }
-
-    const goal = chineseGoal(step);
-    if (LOCATE_ACTIONS.has(step.action)) {
-        return `模型未能在当前页面中找到目标元素${goal}`;
-    }
-    if (step.action === 'aiAssert') {
-        return `模型执行页面断言失败${goal}`;
-    }
-    if (step.action === 'aiWaitFor') {
-        return `模型等待页面条件时执行失败${goal}`;
-    }
-    return `模型执行失败${goal}`;
+    return chineseAiFailure(step.action, chineseGoal(step));
 }
 
 export function formatRunHistory(run: RunRecord, steps: RunStepRecord[]) {

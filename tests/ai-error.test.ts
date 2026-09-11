@@ -26,6 +26,22 @@ describe('formatStepError', () => {
         expect(result).toBe('模型未找到登录按钮，请确认页面是否加载完成');
     });
 
+    test('aiInput 用 locate 作为中文目标', () => {
+        const result = formatStepError(new Error('cannot find input'), {
+            action: 'aiInput',
+            params: { locate: '用户名输入框', value: 'alice' },
+        });
+        expect(result).toBe('模型未能在当前页面中找到目标元素：用户名输入框');
+    });
+
+    test('aiAssert 英文错误转成中文断言失败', () => {
+        const result = formatStepError(new Error('assert failed'), {
+            action: 'aiAssert',
+            params: '页面出现欢迎语',
+        });
+        expect(result).toBe('模型执行页面断言失败：页面出现欢迎语');
+    });
+
     test('非 AI 步骤错误保持原文', () => {
         const error = new Error('sleep failed');
 
