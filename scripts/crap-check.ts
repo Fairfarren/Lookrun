@@ -3,7 +3,10 @@ import { formatCrapReport, scoreFromLcov, type SourceFile } from './crap/report'
 
 const LCOV_PATH = 'coverage/lcov.info';
 const SOURCE_GLOB = 'src/**/*.{ts,tsx}';
-const IO_ORCHESTRATION_FILES = new Set([
+// 编排型代码：圈复杂度来自 I/O/路由/进程胶水，不是业务规则。纳入前要先拆函数或补测试。
+const SKIP_FILES = new Set([
+    'src/server/index.ts',
+    'src/server/routes.ts',
     'src/server/runner.ts',
     'src/server/android-preview.ts',
     'src/server/android-service.ts',
@@ -13,13 +16,18 @@ const IO_ORCHESTRATION_FILES = new Set([
     'src/server/ws.ts',
     'src/server/screencast.ts',
     'src/server/runtime-assets.ts',
+    'src/web/src/App.tsx',
 ]);
 
 function shouldSkip(file: string) {
-    if (file.endsWith('.d.ts') || file.includes('/gen/') || file.startsWith('src/web/src/pages/')) {
+    if (file.endsWith('.d.ts') || file.includes('/gen/')) {
         return true;
     }
-    if (IO_ORCHESTRATION_FILES.has(file)) {
+    // 页面没有单测，不进覆盖率报告；整目录先豁免，避免按 cov=0 误杀。
+    if (file.startsWith('src/web/src/pages/')) {
+        return true;
+    }
+    if (SKIP_FILES.has(file)) {
         return true;
     }
     return file.endsWith('.test.ts') || file.endsWith('.test.tsx');
@@ -57,5 +65,5 @@ export async function runCrapCheck() {
 if (import.meta.main) {
     const report = await runCrapCheck();
     process.stdout.write(report.text);
-    process.exit(report.failed.length === 0 ? 0 : 1);
+    process.exit(report.passed ? 0 : 1);
 }

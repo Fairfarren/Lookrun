@@ -33,9 +33,6 @@ export function scoreSources(sources: SourceFile[], coverage: FileHits) {
     const results: CrapResult[] = [];
     for (const item of sources) {
         const hits = coverage.get(item.file);
-        if (!hits) {
-            continue;
-        }
         for (const fn of collectFunctions(item.source, item.file)) {
             results.push(scoreFunction(fn, hits));
         }
@@ -49,6 +46,8 @@ export function scoreFromLcov(sources: SourceFile[], lcovText: string) {
 
 export function formatCrapReport(results: CrapResult[]) {
     const failed = results.filter((item) => !item.passed);
+    const empty = results.length === 0;
+    const passed = !empty && failed.length === 0;
     const lines = [
         '## CRAP 检查',
         '',
@@ -69,6 +68,9 @@ export function formatCrapReport(results: CrapResult[]) {
             );
         }
     }
-    lines.push('', `**结论**: ${failed.length === 0 ? '通过' : '不通过'}`);
-    return { text: `${lines.join('\n')}\n`, failed };
+    if (empty) {
+        lines.push('', '没有检查到任何函数：覆盖率报告为空或路径对不上。');
+    }
+    lines.push('', `**结论**: ${passed ? '通过' : '不通过'}`);
+    return { text: `${lines.join('\n')}\n`, failed, passed };
 }

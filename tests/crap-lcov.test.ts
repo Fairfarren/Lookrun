@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { coverageInRange, parseLcov } from '../scripts/crap/lcov';
-import { scoreFromLcov } from '../scripts/crap/report';
+import { formatCrapReport, scoreFromLcov } from '../scripts/crap/report';
 
 describe('parseLcov', () => {
     test('解析文件行命中次数', () => {
@@ -49,9 +49,14 @@ describe('scoreFromLcov', () => {
         expect(result.passed).toBe(true);
     });
 
-    test('覆盖率报告没有该文件时不打分', () => {
+    test('覆盖率报告没有该文件时按 cov=0 打分', () => {
         const source = 'export function ping() { return 1; }';
-        expect(scoreFromLcov([{ file: 'missing.ts', source }], '')).toEqual([]);
+        const [result] = scoreFromLcov([{ file: 'missing.ts', source }], '');
+
+        expect(result.cc).toBe(1);
+        expect(result.cov).toBe(0);
+        expect(result.crap).toBe(2);
+        expect(result.passed).toBe(true);
     });
 
     test('文件在覆盖率报告中但行未命中时按 cov=0 打分', () => {
@@ -70,5 +75,30 @@ describe('scoreFromLcov', () => {
         expect(result.cov).toBe(0);
         expect(result.crap).toBe(12);
         expect(result.passed).toBe(false);
+    });
+});
+
+describe('formatCrapReport', () => {
+    test('没有检查到函数时不通过', () => {
+        const report = formatCrapReport([]);
+
+        expect(report.passed).toBe(false);
+        expect(report.text).toContain('没有检查到任何函数');
+    });
+
+    test('全部低于门槛时通过', () => {
+        const report = formatCrapReport([
+            {
+                name: 'ping',
+                file: 'ping.ts',
+                cc: 1,
+                cov: 1,
+                crap: 1,
+                passed: true,
+            },
+        ]);
+
+        expect(report.passed).toBe(true);
+        expect(report.failed).toEqual([]);
     });
 });
