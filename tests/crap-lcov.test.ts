@@ -49,7 +49,12 @@ describe('scoreFromLcov', () => {
         expect(result.passed).toBe(true);
     });
 
-    test('没有覆盖率记录时按 cov=0 打分', () => {
+    test('覆盖率报告没有该文件时不打分', () => {
+        const source = 'export function ping() { return 1; }';
+        expect(scoreFromLcov([{ file: 'missing.ts', source }], '')).toEqual([]);
+    });
+
+    test('文件在覆盖率报告中但行未命中时按 cov=0 打分', () => {
         const source = `
       export function branchy(x: number) {
         if (x === 1) return 1;
@@ -57,8 +62,9 @@ describe('scoreFromLcov', () => {
         return 3;
       }
     `;
+        const lcov = ['SF:branchy.ts', 'DA:2,0', 'DA:3,0', 'DA:4,0', 'end_of_record'].join('\n');
 
-        const [result] = scoreFromLcov([{ file: 'missing.ts', source }], '');
+        const [result] = scoreFromLcov([{ file: 'branchy.ts', source }], lcov);
 
         expect(result.cc).toBe(3);
         expect(result.cov).toBe(0);

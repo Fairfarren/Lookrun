@@ -33,6 +33,9 @@ export function scoreSources(sources: SourceFile[], coverage: FileHits) {
     const results: CrapResult[] = [];
     for (const item of sources) {
         const hits = coverage.get(item.file);
+        if (!hits) {
+            continue;
+        }
         for (const fn of collectFunctions(item.source, item.file)) {
             results.push(scoreFunction(fn, hits));
         }

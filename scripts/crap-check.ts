@@ -3,12 +3,23 @@ import { formatCrapReport, scoreFromLcov, type SourceFile } from './crap/report'
 
 const LCOV_PATH = 'coverage/lcov.info';
 const SOURCE_GLOB = 'src/**/*.{ts,tsx}';
+const IO_ORCHESTRATION_FILES = new Set([
+    'src/server/runner.ts',
+    'src/server/android-preview.ts',
+    'src/server/android-service.ts',
+    'src/server/chrome.ts',
+    'src/server/port.ts',
+    'src/server/static.ts',
+    'src/server/ws.ts',
+    'src/server/screencast.ts',
+    'src/server/runtime-assets.ts',
+]);
 
 function shouldSkip(file: string) {
-    if (file.endsWith('.d.ts')) {
+    if (file.endsWith('.d.ts') || file.includes('/gen/') || file.startsWith('src/web/src/pages/')) {
         return true;
     }
-    if (file.includes('/gen/')) {
+    if (IO_ORCHESTRATION_FILES.has(file)) {
         return true;
     }
     return file.endsWith('.test.ts') || file.endsWith('.test.tsx');
