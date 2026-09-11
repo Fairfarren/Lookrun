@@ -28,7 +28,7 @@ import {
     SIDER_STYLE,
     SIDER_WIDTH,
     siderCollapsed,
-} from './layout';
+} from './styles/layout';
 import HistoryPage from './pages/HistoryPage';
 import QueueEditPage from './pages/QueueEditPage';
 import QueuesPage from './pages/QueuesPage';
@@ -38,7 +38,7 @@ import SettingsPage from './pages/SettingsPage';
 import TaskEditPage from './pages/TaskEditPage';
 import TasksPage from './pages/TasksPage';
 import { getStoredTheme, setStoredTheme, type ThemeMode } from './theme';
-import { ThemeModeContext } from './theme-context';
+import { ThemeModeContext } from './theme/context';
 
 const { Sider, Header, Content } = Layout;
 

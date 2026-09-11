@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { reorderById } from '../src/sortable-items';
+import { reorderById } from '../src/utils/sortable-items';
 
 const items = [
     { id: 'a', taskId: 1 },

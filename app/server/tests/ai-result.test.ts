@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { extractLastAiResult } from '../src/ai-result';
+import { extractLastAiResult } from '../src/lib/ai-result';
 
 const dumpJson = JSON.stringify({
     groupName: '测试',

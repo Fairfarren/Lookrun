@@ -2,11 +2,11 @@ import path from 'node:path';
 import { createBunWebSocket } from 'hono/bun';
 import { Hono } from 'hono';
 import { SERVER_PORT } from './config';
-import { ensurePortFree } from './port';
+import { ensurePortFree } from './lib/port';
 import { registerRoutes } from './routes';
-import { configureBundledRuntimeAssets } from './runtime-assets';
-import { registerStatic } from './static';
-import { addWsClient, removeWsClient } from './ws';
+import { configureBundledRuntimeAssets } from './lib/runtime-assets';
+import { registerStatic } from './lib/static';
+import { addWsClient, removeWsClient } from './lib/ws';
 
 // 打包产物才加载编译期生成的内嵌资源；开发态由 Vite 提供前端页面
 function isPackaged() {

@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { parseWindowsRegOutput, parseMdfindOutput, parseWhichOutput } from '../src/chrome';
+import { parseWindowsRegOutput, parseMdfindOutput, parseWhichOutput } from '../src/services/chrome';
 
 // Windows 注册表 reg query 输出：取 REG_SZ 后面的路径
 test('parseWindowsRegOutput 从注册表输出中提取 chrome 路径', () => {

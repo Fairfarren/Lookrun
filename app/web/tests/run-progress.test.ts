@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { runProgressText } from '../src/run-progress';
+import { runProgressText } from '../src/utils/run-progress';
 
 describe('runProgressText', () => {
     test('总步数为 0 时显示准备中而不是 0/?', () => {

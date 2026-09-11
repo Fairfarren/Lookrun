@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { activatePageSession, pageSessionKey, resolvePageSessionAction } from '../src/page-session';
+import {
+    activatePageSession,
+    pageSessionKey,
+    resolvePageSessionAction,
+} from '../src/lib/page-session';
 
 describe('pageSessionKey', () => {
     test('去掉首尾空格后作为页面身份', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import sharp from 'sharp';
-import { clickTargetForStep, markClickOnScreenshot } from '../src/screenshot-marker';
+import { clickTargetForStep, markClickOnScreenshot } from '../src/lib/screenshot-marker';
 
 const locatedElement = {
     action: 'Tap - 登录按钮',

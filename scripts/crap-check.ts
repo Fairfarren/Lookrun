@@ -6,16 +6,16 @@ const SOURCE_GLOBS = ['app/**/*.{ts,tsx}', 'packages/**/*.{ts,tsx}'];
 // 编排型代码：圈复杂度来自 I/O/路由/进程胶水，不是业务规则。纳入前要先拆函数或补测试。
 const SKIP_FILES = new Set([
     'app/server/src/index.ts',
-    'app/server/src/routes.ts',
-    'app/server/src/runner.ts',
-    'app/server/src/android-preview.ts',
-    'app/server/src/android-service.ts',
-    'app/server/src/chrome.ts',
-    'app/server/src/port.ts',
-    'app/server/src/static.ts',
-    'app/server/src/ws.ts',
-    'app/server/src/screencast.ts',
-    'app/server/src/runtime-assets.ts',
+    'app/server/src/routes/index.ts',
+    'app/server/src/services/runner.ts',
+    'app/server/src/services/android-preview.ts',
+    'app/server/src/services/android-service.ts',
+    'app/server/src/services/chrome.ts',
+    'app/server/src/lib/port.ts',
+    'app/server/src/lib/static.ts',
+    'app/server/src/lib/ws.ts',
+    'app/server/src/services/screencast.ts',
+    'app/server/src/lib/runtime-assets.ts',
     'app/web/src/App.tsx',
 ]);
 

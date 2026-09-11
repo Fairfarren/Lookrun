@@ -1,5 +1,5 @@
 import type { Page } from 'puppeteer-core';
-import { broadcast } from './ws';
+import { broadcast } from '../lib/ws';
 
 // screencast 参数：质量与尺寸按实时预览需求压低，减少编码和传输开销
 const SCREENCAST_QUALITY = 60;

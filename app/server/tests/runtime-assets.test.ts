@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { ffmpegPackageForPlatform } from '../../../scripts/runtime-assets';
-import { resolveBundledRuntimeAssets } from '../src/runtime-assets';
+import { resolveBundledRuntimeAssets } from '../src/lib/runtime-assets';
 
 describe('ffmpegPackageForPlatform', () => {
     test('Windows x64 使用对应的 FFmpeg 可执行文件', () => {

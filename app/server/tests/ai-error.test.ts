@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { formatRunHistory, formatStepError } from '../src/ai-error';
+import { formatRunHistory, formatStepError } from '../src/lib/ai-error';
 
 describe('formatStepError', () => {
     test('英文模型定位错误转换为中文失败原因', () => {

@@ -19,7 +19,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { TaskRecord } from '@lookrun/shared';
 import { api, type ModelBrief, type QueueDefWithItems } from '../api';
-import { reorderById } from '../sortable-items';
+import { reorderById } from '../utils/sortable-items';
 
 interface EditItem {
     id: string;

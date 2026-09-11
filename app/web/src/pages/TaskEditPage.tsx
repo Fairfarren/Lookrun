@@ -45,12 +45,12 @@ import {
     type FormTask,
 } from '@lookrun/shared';
 import { api } from '../api';
-import { createAndroidAppOptions } from '../android-app-options';
-import { reorderById } from '../sortable-items';
-import { useThemeMode } from '../theme-context';
-import { CARD_ACTIONS_STYLE, CARD_HEADER_WRAP_STYLE } from '../layout';
-import { scriptValidationBanner } from '../script-validation';
-import { createValidationErrorKey } from '../validation-errors';
+import { createAndroidAppOptions } from '../utils/android-app-options';
+import { reorderById } from '../utils/sortable-items';
+import { useThemeMode } from '../theme/context';
+import { CARD_ACTIONS_STYLE, CARD_HEADER_WRAP_STYLE } from '../styles/layout';
+import { scriptValidationBanner } from '../utils/script-validation';
+import { createValidationErrorKey } from '../utils/validation-errors';
 
 const VALIDATE_DEBOUNCE_MS = 800;
 

@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { ANDROID_PREVIEW_INTERVAL_MS, createLatestFramePump } from '../src/android-preview';
+import {
+    ANDROID_PREVIEW_INTERVAL_MS,
+    createLatestFramePump,
+} from '../src/services/android-preview';
 
 function deferred<T>() {
     let resolve!: (value: T) => void;

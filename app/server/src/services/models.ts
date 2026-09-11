@@ -1,11 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { ModelConfig } from '@lookrun/shared';
-import { DATA_DIR } from './config';
+import { DATA_DIR } from '../config';
 // 构建时内置的模型列表；运行时可用 data/models.json 覆盖
-import embeddedModelsJson from '../../../resources/models.json';
+import embeddedModelsJson from '../../../../resources/models.json';
 // 视觉自检测试图，bun build --compile 时随二进制内嵌
-import visionCheckPngPath from '../../../resources/vision-check.png' with { type: 'file' };
+import visionCheckPngPath from '../../../../resources/vision-check.png' with { type: 'file' };
 
 // 自检测试图的尺寸，生成 resources/vision-check.png 时使用的视口
 export const VISION_CHECK_WIDTH = 640;

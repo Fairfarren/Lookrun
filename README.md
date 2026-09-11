@@ -24,7 +24,17 @@
 Bun workspaces，请在仓库根目录执行命令：
 
 - `app/web`：前端（React / Vite），独立启动
+  - `src/pages` 页面
+  - `src/components` 公共组件
+  - `src/api` 接口
+  - `src/hooks` 自定义 hooks
+  - `src/theme` 主题
+  - `src/styles` 布局样式
+  - `src/utils` 工具函数
 - `app/server`：后端（Hono / Bun），独立启动
+  - `src/routes` HTTP 路由
+  - `src/services` 业务服务（执行、队列、设备、模型、存储）
+  - `src/lib` 工具与基础设施
 - `packages/shared`：前后端共享类型和 YAML 表单转换，不独立启动
 
 ## 开发

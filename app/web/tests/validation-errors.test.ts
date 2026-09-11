@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { createValidationErrorKey } from '../src/validation-errors';
+import { createValidationErrorKey } from '../src/utils/validation-errors';
 
 test('重复校验文案仍生成不同列表标识', () => {
     const error = '第 1 步（aiTap）：缺少指令内容';

@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { countRuns, createDb, insertRun, insertStep, listRuns } from '../src/db';
-import { cleanupOldRuns } from '../src/retention';
+import { cleanupOldRuns } from '../src/services/retention';
 
 let db: Database;
 let tempDir: string;
