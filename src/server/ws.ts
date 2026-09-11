@@ -4,24 +4,24 @@ import type { WSContext } from 'hono/ws';
 const wsClients = new Set<WSContext>();
 
 export function addWsClient(ws: WSContext) {
-  wsClients.add(ws);
+    wsClients.add(ws);
 }
 
 export function removeWsClient(ws: WSContext) {
-  wsClients.delete(ws);
+    wsClients.delete(ws);
 }
 
 export function hasWsClients() {
-  return wsClients.size > 0;
+    return wsClients.size > 0;
 }
 
 export function broadcast(payload: unknown) {
-  const text = JSON.stringify(payload);
-  for (const ws of wsClients) {
-    try {
-      ws.send(text);
-    } catch {
-      wsClients.delete(ws);
+    const text = JSON.stringify(payload);
+    for (const ws of wsClients) {
+        try {
+            ws.send(text);
+        } catch {
+            wsClients.delete(ws);
+        }
     }
-  }
 }

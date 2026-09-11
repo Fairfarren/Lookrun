@@ -5,21 +5,23 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 // dist-web 不存在（未执行 build:web）时生成空表，保证开发态也能编译
 const files: string[] = [];
 if (existsSync('dist-web')) {
-  for await (const file of new Glob('**/*').scan({ cwd: 'dist-web', onlyFiles: true })) {
-    files.push(file);
-  }
+    for await (const file of new Glob('**/*').scan({ cwd: 'dist-web', onlyFiles: true })) {
+        files.push(file);
+    }
 }
 files.sort();
 
 const lines = [
-  '// 由 scripts/gen-assets.ts 自动生成，请勿手改',
-  '// @ts-nocheck',
-  ...files.map((file, index) => `import f${index} from '../../../dist-web/${file}' with { type: 'file' };`),
-  '',
-  'export const embeddedAssets: Record<string, string> = {',
-  ...files.map((file, index) => `  '/${file}': f${index},`),
-  '};',
-  '',
+    '// 由 scripts/gen-assets.ts 自动生成，请勿手改',
+    '// @ts-nocheck',
+    ...files.map(
+        (file, index) => `import f${index} from '../../../dist-web/${file}' with { type: 'file' };`,
+    ),
+    '',
+    'export const embeddedAssets: Record<string, string> = {',
+    ...files.map((file, index) => `  '/${file}': f${index},`),
+    '};',
+    '',
 ];
 
 mkdirSync('src/server/gen', { recursive: true });

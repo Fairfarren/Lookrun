@@ -37,9 +37,20 @@ MOCK_AI=1 MOCK_FAIL_AT=2 bun run dev   # 模拟第 2 步失败，验证失败即
 
 ```bash
 bun test               # 单元测试
+bun run lint           # oxlint（警告视为失败）
+bun run format         # oxfmt 写入（4 空格、单引号）
+bun run format:check   # oxfmt 只检查不改文件
+bun run crap           # CRAP 检查（bun 覆盖率 + 圈复杂度，门槛 ≤ 8）
+bun run mutate         # 变异测试（Stryker + bun test，仅已有单测的纯函数）
 bun run typecheck      # 前后端 TypeScript 检查
 bun scripts/e2e-smoke.ts   # E2E 冒烟：完整跑通 / 手动停止 / 失败即停
 ```
+
+指向 `master` 的 Pull Request 会跑 GitHub Action：检查、lint、format、tsc、CRAP、变异测试。没有 PR 的分支不跑。
+
+`bun run crap` 门槛是 CRAP ≤ 8。待检文件不在覆盖率报告里时按 cov=0 打分；一个函数都没扫到则失败。页面、应用壳、进程入口、HTTP 路由和设备/浏览器 I/O 编排文件暂不进门槛。
+
+`bun run mutate` 用 Stryker 官方 command runner 跑 `bun test`，分数低于 50% 时失败。本仓库的 TypeScript 7 不必降级：Stryker 按 5.x API 改写 tsconfig 会失败，所以配置了 `inPlace`。当前改写范围是已有单测的纯函数，以及 YAML / 模型解析。
 
 ## 打包
 

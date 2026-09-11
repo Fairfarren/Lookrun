@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist*/**",
+    "**/coverage/**",
+    "**/reports/**",
+    "**/data/**",
+    "**/midscene_run/**",
+    "**/.stryker-tmp/**",
+    "**/src/server/gen/**"
+  ]
+}
