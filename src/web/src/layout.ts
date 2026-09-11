@@ -28,3 +28,26 @@ export const CONTENT_STYLE = {
     minHeight: 0,
     overflowY: 'auto',
 } satisfies CSSProperties;
+
+export const SIDER_COLLAPSE_BELOW = 768;
+export const SIDER_WIDTH = 220;
+export const SIDER_COLLAPSED_WIDTH = 64;
+
+export function siderCollapsed(viewportWidth: number) {
+    return viewportWidth < SIDER_COLLAPSE_BELOW;
+}
+
+export const CARD_HEADER_WRAP_STYLE = {
+    flexWrap: 'wrap',
+    rowGap: 8,
+} satisfies CSSProperties;
+
+export const CARD_ACTIONS_STYLE = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'flex-end',
+} satisfies CSSProperties;
+
+export const RUN_FRAME_COL = { xs: 24, lg: 10 };
+export const RUN_LOG_COL = { xs: 24, lg: 14 };

@@ -24,7 +24,10 @@ import {
     CONTENT_STYLE,
     HEADER_STYLE,
     MAIN_LAYOUT_STYLE,
+    SIDER_COLLAPSED_WIDTH,
     SIDER_STYLE,
+    SIDER_WIDTH,
+    siderCollapsed,
 } from './layout';
 import HistoryPage from './pages/HistoryPage';
 import QueueEditPage from './pages/QueueEditPage';
@@ -84,14 +87,30 @@ function AppContent({
 }) {
     const location = useLocation();
     const { token } = antdTheme.useToken();
+    const [collapsed, setCollapsed] = useState(() => siderCollapsed(window.innerWidth));
     const selectedKey =
         menuItems.find((item) => location.pathname.startsWith(item.key))?.key ?? '/tasks';
+
+    useEffect(() => {
+        const onResize = () => setCollapsed(siderCollapsed(window.innerWidth));
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
 
     return (
         <ThemeModeContext.Provider value={themeMode}>
             <AntApp>
                 <Layout style={APP_SHELL_STYLE}>
-                    <Sider data-testid='app-sidebar' style={SIDER_STYLE} theme={themeMode}>
+                    <Sider
+                        data-testid='app-sidebar'
+                        style={SIDER_STYLE}
+                        theme={themeMode}
+                        width={SIDER_WIDTH}
+                        collapsedWidth={SIDER_COLLAPSED_WIDTH}
+                        collapsed={collapsed}
+                        collapsible
+                        onCollapse={setCollapsed}
+                    >
                         <div style={{ padding: 16, fontWeight: 'bold', fontSize: 16 }}>
                             AI 自动化测试
                         </div>
