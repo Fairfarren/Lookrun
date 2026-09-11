@@ -2,8 +2,8 @@
 import { Glob } from 'bun';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 
-const WEB_DIST = 'packages/web/dist';
-const GEN_DIR = 'packages/server/src/gen';
+const WEB_DIST = 'app/web/dist';
+const GEN_DIR = 'app/server/src/gen';
 const ASSET_IMPORT_PREFIX = '../../../web/dist';
 
 const files: string[] = [];

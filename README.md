@@ -23,9 +23,9 @@
 
 Bun workspaces，请在仓库根目录执行命令：
 
-- `packages/web`：前端（React / Vite）
-- `packages/server`：后端（Hono / Bun）
-- `packages/shared`：前后端共享类型和 YAML 表单转换
+- `app/web`：前端（React / Vite），独立启动
+- `app/server`：后端（Hono / Bun），独立启动
+- `packages/shared`：前后端共享类型和 YAML 表单转换，不独立启动
 
 ## 开发
 
@@ -126,4 +126,4 @@ tasks:
 
 ## 技术栈
 
-Bun workspaces（packages/web、packages/server、packages/shared）+ Hono（API/WebSocket）+ bun:sqlite + puppeteer-core（驱动系统 Chrome）+ @midscene/web / @midscene/android（AI 执行）+ React/Vite/antd（前端）+ CodeMirror（YAML 编辑）
+Bun workspaces（app/web、app/server、packages/shared）+ Hono（API/WebSocket）+ bun:sqlite + puppeteer-core（驱动系统 Chrome）+ @midscene/web / @midscene/android（AI 执行）+ React/Vite/antd（前端）+ CodeMirror（YAML 编辑）

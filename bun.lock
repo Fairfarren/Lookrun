@@ -13,7 +13,7 @@
         "typescript": "^7.0.2",
       },
     },
-    "packages/server": {
+    "app/server": {
       "name": "@lookrun/server",
       "version": "0.1.0",
       "dependencies": {
@@ -28,14 +28,7 @@
         "yaml": "^2.9.0",
       },
     },
-    "packages/shared": {
-      "name": "@lookrun/shared",
-      "version": "0.1.0",
-      "dependencies": {
-        "yaml": "^2.9.0",
-      },
-    },
-    "packages/web": {
+    "app/web": {
       "name": "@lookrun/web",
       "version": "0.1.0",
       "dependencies": {
@@ -57,6 +50,13 @@
         "@types/react-dom": "^19.2.3",
         "@vitejs/plugin-react": "^6.0.3",
         "vite": "^8.1.5",
+      },
+    },
+    "packages/shared": {
+      "name": "@lookrun/shared",
+      "version": "0.1.0",
+      "dependencies": {
+        "yaml": "^2.9.0",
       },
     },
   },
@@ -322,11 +322,11 @@
 
     "@lezer/yaml": ["@lezer/yaml@1.0.4", "", { "dependencies": { "@lezer/common": "^1.2.0", "@lezer/highlight": "^1.0.0", "@lezer/lr": "^1.4.0" } }, "sha512-2lrrHqxalACEbxIbsjhqGpSW8kWpUKuY6RHgnSAFZa6qK62wvnPxA8hGOwOoDbwHcOFs5M4o27mjGu+P7TvBmw=="],
 
-    "@lookrun/server": ["@lookrun/server@workspace:packages/server"],
+    "@lookrun/server": ["@lookrun/server@workspace:app/server"],
 
     "@lookrun/shared": ["@lookrun/shared@workspace:packages/shared"],
 
-    "@lookrun/web": ["@lookrun/web@workspace:packages/web"],
+    "@lookrun/web": ["@lookrun/web@workspace:app/web"],
 
     "@marijn/find-cluster-break": ["@marijn/find-cluster-break@1.0.3", "", {}, "sha512-FY+MKLBoTsLNJF/eLWaOsXGdz6uh3Iu1axjPf6TUq92IYumcTcXWHoS747JARLkcdlJ/Waiaxc5wQfFO8jC6NA=="],
 

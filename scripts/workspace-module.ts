@@ -3,7 +3,7 @@ import path from 'node:path';
 
 // Bun workspace 把 optional native 包挂在依赖自己的解析树里，不能写死 node_modules 相对路径
 
-export const SERVER_PACKAGE_JSON = path.resolve('packages/server/package.json');
+export const SERVER_PACKAGE_JSON = path.resolve('app/server/package.json');
 
 export function resolveFromPackage(fromFile: string, moduleId: string) {
     return createRequire(fromFile).resolve(moduleId);

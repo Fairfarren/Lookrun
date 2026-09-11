@@ -37,7 +37,7 @@ const ext = outDir === 'dist-win' ? '.exe' : '';
 const outFile = `${outDir}/test-web-use-ai${ext}`;
 mkdirSync(outDir, { recursive: true });
 
-const args = ['bun', 'build', 'packages/server/src/index.ts', '--compile', '--outfile', outFile];
+const args = ['bun', 'build', 'app/server/src/index.ts', '--compile', '--outfile', outFile];
 if (target) {
     args.push('--target', target);
 }

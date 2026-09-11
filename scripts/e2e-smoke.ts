@@ -65,7 +65,7 @@ function connectWs(events: unknown[]) {
 
 async function startServer(env: Record<string, string>): Promise<Subprocess> {
     const server = spawn({
-        cmd: ['bun', 'packages/server/src/index.ts'],
+        cmd: ['bun', 'app/server/src/index.ts'],
         env: {
             ...process.env,
             MOCK_AI: '1',
