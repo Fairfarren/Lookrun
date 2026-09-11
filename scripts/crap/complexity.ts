@@ -159,18 +159,34 @@ function tokenize(source: string) {
             index = next;
             continue;
         }
+        if (char >= '0' && char <= '9') {
+            let next = index + 1;
+            while (
+                next < end &&
+                ((source[next] >= '0' && source[next] <= '9') || source[next] === '.')
+            ) {
+                next += 1;
+            }
+            push('ident', source.slice(index, next));
+            index = next;
+            continue;
+        }
         index += 1;
     }
     return tokens;
 }
 
-function isDecision(token: Token) {
+function isDecision(token: Token, prev: Token | undefined, next: Token | undefined) {
     if (token.kind === 'punct') {
-        return (
-            token.text === '&&' || token.text === '||' || token.text === '??' || token.text === '?'
-        );
+        if (token.text === '?') {
+            return next?.text !== ':';
+        }
+        return token.text === '&&' || token.text === '||' || token.text === '??';
     }
     if (token.kind !== 'ident') {
+        return false;
+    }
+    if (token.text === 'catch' && prev?.text === '.') {
         return false;
     }
     return (
@@ -223,8 +239,9 @@ export function collectFunctions(source: string, fileName: string) {
             return true;
         }
         if (token.kind === 'ident' && !CONTROL_NAMES.has(token.text) && peek(1)?.text === '(') {
-            // `cond ? fn() : other` 的冒号不是返回类型
-            if (tokens[cursor - 1]?.text === '?') {
+            const prev = tokens[cursor - 1]?.text;
+            // 方法调用、三元里的调用不是函数声明
+            if (prev === '.' || prev === '?.' || prev === '?') {
                 return false;
             }
             let index = cursor + 1;
@@ -237,12 +254,66 @@ export function collectFunctions(source: string, fileName: string) {
                 if (current.text === ')') {
                     depth -= 1;
                     if (depth === 0) {
-                        const after = tokens[index + 1];
-                        return after?.text === '{' || after?.text === ':';
+                        return isFunctionBody(index + 1);
                     }
                 }
                 index += 1;
             }
+        }
+        return false;
+    }
+
+    function isFunctionBody(start: number) {
+        const after = tokens[start];
+        if (!after) {
+            return false;
+        }
+        if (after.text === '{' || after.text === '=>') {
+            return true;
+        }
+        if (after.text !== ':') {
+            return false;
+        }
+        let index = start + 1;
+        let depth = 0;
+        let started = false;
+        while (index < tokens.length) {
+            const current = tokens[index];
+            if (!started && current.text === '{') {
+                depth = 1;
+                index += 1;
+                started = true;
+                while (index < tokens.length && depth > 0) {
+                    if (tokens[index].text === '{') {
+                        depth += 1;
+                    }
+                    if (tokens[index].text === '}') {
+                        depth -= 1;
+                    }
+                    index += 1;
+                }
+                continue;
+            }
+            started = true;
+            if (depth === 0 && (current.text === '{' || current.text === '=>')) {
+                return true;
+            }
+            if (
+                depth === 0 &&
+                (current.text === ',' ||
+                    current.text === ';' ||
+                    current.text === ')' ||
+                    current.text === '}')
+            ) {
+                return false;
+            }
+            if (current.text === '<' || current.text === '(' || current.text === '[') {
+                depth += 1;
+            }
+            if (current.text === '>' || current.text === ')' || current.text === ']') {
+                depth -= 1;
+            }
+            index += 1;
         }
         return false;
     }
@@ -295,7 +366,7 @@ export function collectFunctions(source: string, fileName: string) {
                 }
                 depth -= 1;
             }
-            if (isDecision(token)) {
+            if (isDecision(token, tokens[cursor - 1], tokens[cursor + 1])) {
                 decisions += 1;
             }
             take();
@@ -327,7 +398,7 @@ export function collectFunctions(source: string, fileName: string) {
                 take();
                 continue;
             }
-            if (isDecision(token)) {
+            if (isDecision(token, tokens[cursor - 1], tokens[cursor + 1])) {
                 decisions += 1;
             }
             take();

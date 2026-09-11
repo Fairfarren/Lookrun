@@ -39,6 +39,7 @@ import TaskEditPage from './pages/TaskEditPage';
 import TasksPage from './pages/TasksPage';
 import { getStoredTheme, setStoredTheme, type ThemeMode } from './theme';
 import { ThemeModeContext } from './theme/context';
+import { selectedMenuKey, themeFromSwitch, themeSwitchTitle } from './utils/menu-key';
 
 const { Sider, Header, Content } = Layout;
 
@@ -88,8 +89,7 @@ function AppContent({
     const location = useLocation();
     const { token } = antdTheme.useToken();
     const [collapsed, setCollapsed] = useState(() => siderCollapsed(window.innerWidth));
-    const selectedKey =
-        menuItems.find((item) => location.pathname.startsWith(item.key))?.key ?? '/tasks';
+    const selectedKey = selectedMenuKey(location.pathname);
 
     useEffect(() => {
         const onResize = () => setCollapsed(siderCollapsed(window.innerWidth));
@@ -129,18 +129,14 @@ function AppContent({
                         >
                             <Flex justify='space-between' align='center'>
                                 {PAGE_TITLES[selectedKey]}
-                                <Tooltip
-                                    title={
-                                        themeMode === 'dark' ? '切换到亮色模式' : '切换到黑夜模式'
-                                    }
-                                >
+                                <Tooltip title={themeSwitchTitle(themeMode)}>
                                     <Switch
                                         aria-label='黑夜模式'
                                         checked={themeMode === 'dark'}
                                         checkedChildren={<MoonOutlined />}
                                         unCheckedChildren={<BulbOutlined />}
                                         onChange={(checked) =>
-                                            onThemeChange(checked ? 'dark' : 'light')
+                                            onThemeChange(themeFromSwitch(checked))
                                         }
                                     />
                                 </Tooltip>
@@ -168,6 +164,13 @@ function AppContent({
     );
 }
 
+function themeAlgorithm(themeMode: ThemeMode) {
+    if (themeMode === 'dark') {
+        return antdTheme.darkAlgorithm;
+    }
+    return antdTheme.defaultAlgorithm;
+}
+
 export default function App() {
     const [themeMode, setThemeMode] = useState(() => getStoredTheme(window.localStorage));
 
@@ -183,8 +186,7 @@ export default function App() {
     return (
         <ConfigProvider
             theme={{
-                algorithm:
-                    themeMode === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+                algorithm: themeAlgorithm(themeMode),
             }}
         >
             <AppContent themeMode={themeMode} onThemeChange={changeTheme} />

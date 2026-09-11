@@ -7,25 +7,41 @@ export interface ChromeDetection {
     source: 'env' | 'detected' | 'registry' | 'spotlight' | 'which' | 'none';
 }
 
-function candidatePaths(): string[] {
-    if (process.platform === 'darwin') {
+export function chromeCandidatePaths(input: {
+    platform: string;
+    env: Record<string, string | undefined>;
+}) {
+    if (input.platform === 'darwin') {
         return [
             '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
             path.join(
-                process.env.HOME ?? '',
+                input.env.HOME ?? '',
                 'Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
             ),
         ];
     }
-    if (process.platform === 'win32') {
+    if (input.platform === 'win32') {
         const prefixes = [
-            process.env.PROGRAMFILES,
-            process.env['PROGRAMFILES(X86)'],
-            process.env.LOCALAPPDATA,
-        ].filter((p): p is string => Boolean(p));
-        return prefixes.map((p) => path.join(p, 'Google/Chrome/Application/chrome.exe'));
+            input.env.PROGRAMFILES,
+            input.env['PROGRAMFILES(X86)'],
+            input.env.LOCALAPPDATA,
+        ].filter((item): item is string => Boolean(item));
+        return prefixes.map((prefix) => path.join(prefix, 'Google/Chrome/Application/chrome.exe'));
     }
     return ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium-browser'];
+}
+
+function candidatePaths() {
+    return chromeCandidatePaths({ platform: process.platform, env: process.env });
+}
+
+export function firstExistingPath(paths: string[], exists: (filePath: string) => boolean) {
+    for (const filePath of paths) {
+        if (exists(filePath)) {
+            return filePath;
+        }
+    }
+    return null;
 }
 
 // 解析 Windows `reg query ... /ve` 输出，提取 REG_SZ 后面的 chrome.exe 路径
@@ -65,62 +81,104 @@ export function parseWhichOutput(output: string): string | null {
 // 固定路径都没命中时，回退到系统命令查询（注册表/Spotlight/which）
 // 用 spawnSync 同步执行，探测只在启动/运行任务时各一次，阻塞几十毫秒可接受，
 // 保持 detectChrome 同步签名，避免改动三处调用方
-function queryBySystem(): ChromeDetection {
-    try {
-        if (process.platform === 'win32') {
-            // 三处可能的注册表位置：64位 HKLM、32位重定向 HKLM、当前用户 HKCU
-            const keys = [
-                'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe',
-                'HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe',
-                'HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe',
-            ];
-            for (const key of keys) {
-                const r = Bun.spawnSync(['reg', 'query', key, '/ve']);
-                const out = r.stdout?.toString() ?? '';
-                const p = parseWindowsRegOutput(out);
-                if (p && existsSync(p)) {
-                    return { path: p, source: 'registry' };
-                }
-            }
-            return { path: null, source: 'none' };
+export function queryChromeWindows(input: {
+    run: (argv: string[]) => string;
+    exists: (filePath: string) => boolean;
+}) {
+    const keys = [
+        'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe',
+        'HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe',
+        'HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe',
+    ];
+    for (const key of keys) {
+        const parsed = parseWindowsRegOutput(input.run(['reg', 'query', key, '/ve']));
+        if (parsed && input.exists(parsed)) {
+            return { path: parsed, source: 'registry' as const };
         }
-        if (process.platform === 'darwin') {
-            const r = Bun.spawnSync(['mdfind', "kMDItemFSName == 'Google Chrome.app'"]);
-            const out = r.stdout?.toString() ?? '';
-            const p = parseMdfindOutput(out);
-            if (p && existsSync(p)) {
-                return { path: p, source: 'spotlight' };
-            }
-            return { path: null, source: 'none' };
-        }
-        // Linux：which 一次查多个候选名，取第一个存在的
-        const r = Bun.spawnSync([
+    }
+    return { path: null, source: 'none' as const };
+}
+
+export function queryChromeMac(input: {
+    run: (argv: string[]) => string;
+    exists: (filePath: string) => boolean;
+}) {
+    const parsed = parseMdfindOutput(input.run(['mdfind', "kMDItemFSName == 'Google Chrome.app'"]));
+    if (parsed && input.exists(parsed)) {
+        return { path: parsed, source: 'spotlight' as const };
+    }
+    return { path: null, source: 'none' as const };
+}
+
+export function queryChromeLinux(input: {
+    run: (argv: string[]) => string;
+    exists: (filePath: string) => boolean;
+}) {
+    const parsed = parseWhichOutput(
+        input.run([
             'sh',
             '-c',
             'which google-chrome google-chrome-stable chromium chromium-browser 2>/dev/null',
-        ]);
-        const out = r.stdout?.toString() ?? '';
-        const p = parseWhichOutput(out);
-        if (p && existsSync(p)) {
-            return { path: p, source: 'which' };
+        ]),
+    );
+    if (parsed && input.exists(parsed)) {
+        return { path: parsed, source: 'which' as const };
+    }
+    return { path: null, source: 'none' as const };
+}
+
+export function queryChromeBySystem(input: {
+    platform: string;
+    run: (argv: string[]) => string;
+    exists: (filePath: string) => boolean;
+}): ChromeDetection {
+    try {
+        if (input.platform === 'win32') {
+            return queryChromeWindows(input);
         }
-        return { path: null, source: 'none' };
+        if (input.platform === 'darwin') {
+            return queryChromeMac(input);
+        }
+        return queryChromeLinux(input);
     } catch {
         return { path: null, source: 'none' };
     }
 }
 
+function spawnOutput(argv: string[]) {
+    return Bun.spawnSync(argv).stdout?.toString() ?? '';
+}
+
+function queryBySystem() {
+    return queryChromeBySystem({
+        platform: process.platform,
+        run: spawnOutput,
+        exists: existsSync,
+    });
+}
+
+export function detectChromeWith(input: {
+    envPath: string | undefined;
+    exists: (filePath: string) => boolean;
+    candidates: string[];
+    queryBySystem: () => ChromeDetection;
+}): ChromeDetection {
+    if (input.envPath && input.exists(input.envPath)) {
+        return { path: input.envPath, source: 'env' };
+    }
+    const detected = firstExistingPath(input.candidates, input.exists);
+    if (detected) {
+        return { path: detected, source: 'detected' };
+    }
+    return input.queryBySystem();
+}
+
 // 探测系统 Chrome：环境变量 → 固定安装路径 → 系统命令查询（注册表/Spotlight/which）
-// 三级回退，标准安装路径找不到时也能自动发现，无需运营手动配置
 export function detectChrome(): ChromeDetection {
-    const envPath = process.env.CHROME_PATH ?? process.env.MIDSCENE_CHROME_PATH;
-    if (envPath && existsSync(envPath)) {
-        return { path: envPath, source: 'env' };
-    }
-    for (const p of candidatePaths()) {
-        if (existsSync(p)) {
-            return { path: p, source: 'detected' };
-        }
-    }
-    return queryBySystem();
+    return detectChromeWith({
+        envPath: process.env.CHROME_PATH ?? process.env.MIDSCENE_CHROME_PATH,
+        exists: existsSync,
+        candidates: candidatePaths(),
+        queryBySystem,
+    });
 }

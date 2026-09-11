@@ -21,20 +21,130 @@ import {
 import { useEffect, useState } from 'react';
 import type { SystemInfo } from '@lookrun/shared';
 import { api, type ModelBrief, type StorageStats } from '../api';
+import { errorText } from '../utils/error-text';
+import { formatBytes } from '../utils/format-bytes';
+import {
+    checkAlertType,
+    checkResultFromError,
+    defaultModelId,
+    emptyVariableName,
+    emptyVariableRow,
+    variablesFromRecord,
+    variablesToRecord,
+} from '../utils/settings-view';
 
 interface VariableRow {
     key: string;
     value: string;
 }
 
-function formatBytes(bytes: number) {
-    if (bytes >= 1024 * 1024) {
-        return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+function CheckingHint({ checking }: { checking: boolean }) {
+    if (!checking) {
+        return null;
     }
-    if (bytes >= 1024) {
-        return `${(bytes / 1024).toFixed(0)} KB`;
+    return (
+        <Space>
+            <Spin size='small' />
+            <Typography.Text type='secondary'>
+                正在向模型发送测试截图，验证能否返回元素坐标，可能需要几十秒...
+            </Typography.Text>
+        </Space>
+    );
+}
+
+function CheckResultIcon({ ok }: { ok: boolean }) {
+    if (ok) {
+        return <CheckCircleOutlined />;
     }
-    return `${bytes} B`;
+    return <CloseCircleOutlined />;
+}
+
+function CheckResultAlert({
+    checkResult,
+}: {
+    checkResult: { ok: boolean; message: string } | null;
+}) {
+    if (!checkResult) {
+        return null;
+    }
+    return (
+        <Alert
+            type={checkAlertType(checkResult.ok)}
+            title={
+                <Space>
+                    <CheckResultIcon ok={checkResult.ok} />
+                    {checkResult.message}
+                </Space>
+            }
+            showIcon={false}
+        />
+    );
+}
+
+function EmptyVariablesHint({ count }: { count: number }) {
+    if (count > 0) {
+        return null;
+    }
+    return <Typography.Text type='secondary'>还没有变量</Typography.Text>;
+}
+
+function StorageBody({ storage }: { storage: StorageStats | null }) {
+    if (!storage) {
+        return <Spin size='small' />;
+    }
+    return (
+        <Descriptions column={2}>
+            <Descriptions.Item label='步骤截图'>
+                {formatBytes(storage.screenshotsBytes)}
+            </Descriptions.Item>
+            <Descriptions.Item label='Midscene 报告'>
+                {formatBytes(storage.reportsBytes)}
+            </Descriptions.Item>
+            <Descriptions.Item label='数据库'>
+                {formatBytes(storage.databaseBytes)}
+            </Descriptions.Item>
+            <Descriptions.Item label='总计'>
+                <Typography.Text strong>{formatBytes(storage.totalBytes)}</Typography.Text>
+                <Typography.Text type='secondary'> （{storage.runCount} 次运行）</Typography.Text>
+            </Descriptions.Item>
+        </Descriptions>
+    );
+}
+
+function DetectedPath({ path, missingTitle }: { path: string | null; missingTitle: string }) {
+    if (!path) {
+        return <Alert type='error' title={missingTitle} />;
+    }
+    return (
+        <Space>
+            <Tag color='success'>已检测到</Tag>
+            <Typography.Text copyable={{ text: path }}>{path}</Typography.Text>
+        </Space>
+    );
+}
+
+function SystemBody({ system }: { system: SystemInfo | null }) {
+    if (!system) {
+        return <Spin size='small' />;
+    }
+    return (
+        <Descriptions column={1}>
+            <Descriptions.Item label='Chrome 浏览器'>
+                <DetectedPath
+                    path={system.chromePath}
+                    missingTitle='未检测到系统 Chrome，请先安装 Google Chrome：https://www.google.com/chrome/'
+                />
+            </Descriptions.Item>
+            <Descriptions.Item label='Android ADB'>
+                <DetectedPath
+                    path={system.adbPath}
+                    missingTitle='未检测到 ADB，请使用包含 platform-tools 的完整程序包'
+                />
+            </Descriptions.Item>
+            <Descriptions.Item label='数据目录'>{system.dataDir}</Descriptions.Item>
+            <Descriptions.Item label='版本'>{system.version}</Descriptions.Item>
+        </Descriptions>
+    );
 }
 
 export default function SettingsPage() {
@@ -62,13 +172,11 @@ export default function SettingsPage() {
         api.listModels()
             .then((result) => {
                 setModels(result.models);
-                setSelectedModel(result.selected ?? result.models[0]?.id);
+                setSelectedModel(defaultModelId(result.selected, result.models[0]?.id));
             })
             .catch((error: Error) => message.error(error.message));
         api.getVariables()
-            .then((vars) =>
-                setVariables(Object.entries(vars).map(([key, value]) => ({ key, value }))),
-            )
+            .then((vars) => setVariables(variablesFromRecord(vars)))
             .catch((error: Error) => message.error(error.message));
         api.systemInfo()
             .then(setSystem)
@@ -92,7 +200,7 @@ export default function SettingsPage() {
                     );
                     loadStorage();
                 } catch (error) {
-                    message.error(error instanceof Error ? error.message : String(error));
+                    message.error(errorText(error));
                 } finally {
                     setCleaning(false);
                 }
@@ -107,7 +215,17 @@ export default function SettingsPage() {
             await api.selectModel(id);
             message.success('默认模型已更新');
         } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
+            message.error(errorText(error));
+        }
+    };
+
+    const runModelCheck = async () => {
+        try {
+            setCheckResult(await api.checkModel(selectedModel!));
+        } catch (error) {
+            setCheckResult(checkResultFromError(error));
+        } finally {
+            setChecking(false);
         }
     };
 
@@ -117,35 +235,27 @@ export default function SettingsPage() {
         }
         setChecking(true);
         setCheckResult(null);
+        await runModelCheck();
+    };
+
+    const persistVariables = async () => {
         try {
-            setCheckResult(await api.checkModel(selectedModel));
+            await api.saveVariables(variablesToRecord(variables));
+            message.success('变量已保存');
         } catch (error) {
-            setCheckResult({
-                ok: false,
-                message: error instanceof Error ? error.message : String(error),
-            });
+            message.error(errorText(error));
         } finally {
-            setChecking(false);
+            setSavingVariables(false);
         }
     };
 
     const saveVariables = async () => {
-        const invalid = variables.some((row) => row.key.trim() === '');
-        if (invalid) {
+        if (emptyVariableName(variables)) {
             message.warning('变量名不能为空');
             return;
         }
         setSavingVariables(true);
-        try {
-            await api.saveVariables(
-                Object.fromEntries(variables.map((row) => [row.key.trim(), row.value])),
-            );
-            message.success('变量已保存');
-        } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
-        } finally {
-            setSavingVariables(false);
-        }
+        await persistVariables();
     };
 
     const updateRow = (index: number, patch: Partial<VariableRow>) => {
@@ -175,30 +285,8 @@ export default function SettingsPage() {
                             视觉自检
                         </Button>
                     </Space>
-                    {checking && (
-                        <Space>
-                            <Spin size='small' />
-                            <Typography.Text type='secondary'>
-                                正在向模型发送测试截图，验证能否返回元素坐标，可能需要几十秒...
-                            </Typography.Text>
-                        </Space>
-                    )}
-                    {checkResult && (
-                        <Alert
-                            type={checkResult.ok ? 'success' : 'error'}
-                            title={
-                                <Space>
-                                    {checkResult.ok ? (
-                                        <CheckCircleOutlined />
-                                    ) : (
-                                        <CloseCircleOutlined />
-                                    )}
-                                    {checkResult.message}
-                                </Space>
-                            }
-                            showIcon={false}
-                        />
-                    )}
+                    <CheckingHint checking={checking} />
+                    <CheckResultAlert checkResult={checkResult} />
                     <Typography.Text type='secondary'>
                         模型列表在打包时内置（resources/models.json），修改后需重新打包；运行时用
                         data/models.json 可覆盖。 自检不通过的模型不要用于 UI
@@ -214,9 +302,7 @@ export default function SettingsPage() {
                     <Space>
                         <Button
                             icon={<PlusOutlined />}
-                            onClick={() =>
-                                setVariables((prev) => [...prev, { key: '', value: '' }])
-                            }
+                            onClick={() => setVariables((prev) => [...prev, emptyVariableRow()])}
                         >
                             添加变量
                         </Button>
@@ -231,9 +317,7 @@ export default function SettingsPage() {
                     PASSWORD），避免明文写在任务里。
                 </Typography.Paragraph>
                 <Space orientation='vertical' style={{ width: '100%' }}>
-                    {variables.length === 0 && (
-                        <Typography.Text type='secondary'>暂无变量</Typography.Text>
-                    )}
+                    <EmptyVariablesHint count={variables.length} />
                     {variables.map((row, index) => (
                         <Space key={index}>
                             <Input
@@ -268,74 +352,14 @@ export default function SettingsPage() {
                     </Button>
                 }
             >
-                {storage ? (
-                    <Descriptions column={2}>
-                        <Descriptions.Item label='步骤截图'>
-                            {formatBytes(storage.screenshotsBytes)}
-                        </Descriptions.Item>
-                        <Descriptions.Item label='Midscene 报告'>
-                            {formatBytes(storage.reportsBytes)}
-                        </Descriptions.Item>
-                        <Descriptions.Item label='数据库'>
-                            {formatBytes(storage.databaseBytes)}
-                        </Descriptions.Item>
-                        <Descriptions.Item label='总计'>
-                            <Typography.Text strong>
-                                {formatBytes(storage.totalBytes)}
-                            </Typography.Text>
-                            <Typography.Text type='secondary'>
-                                {' '}
-                                （{storage.runCount} 次运行）
-                            </Typography.Text>
-                        </Descriptions.Item>
-                    </Descriptions>
-                ) : (
-                    <Spin size='small' />
-                )}
+                <StorageBody storage={storage} />
                 <Typography.Text type='secondary'>
                     系统会自动保留最近 100 次运行并清理更早的；也可以手动清空全部历史。
                 </Typography.Text>
             </Card>
 
             <Card title='系统状态'>
-                {system ? (
-                    <Descriptions column={1}>
-                        <Descriptions.Item label='Chrome 浏览器'>
-                            {system.chromePath ? (
-                                <Space>
-                                    <Tag color='success'>已检测到</Tag>
-                                    <Typography.Text copyable={{ text: system.chromePath }}>
-                                        {system.chromePath}
-                                    </Typography.Text>
-                                </Space>
-                            ) : (
-                                <Alert
-                                    type='error'
-                                    title='未检测到系统 Chrome，请先安装 Google Chrome：https://www.google.com/chrome/'
-                                />
-                            )}
-                        </Descriptions.Item>
-                        <Descriptions.Item label='Android ADB'>
-                            {system.adbPath ? (
-                                <Space>
-                                    <Tag color='success'>已检测到</Tag>
-                                    <Typography.Text copyable={{ text: system.adbPath }}>
-                                        {system.adbPath}
-                                    </Typography.Text>
-                                </Space>
-                            ) : (
-                                <Alert
-                                    type='error'
-                                    title='未检测到 ADB，请使用包含 platform-tools 的完整程序包'
-                                />
-                            )}
-                        </Descriptions.Item>
-                        <Descriptions.Item label='数据目录'>{system.dataDir}</Descriptions.Item>
-                        <Descriptions.Item label='版本'>{system.version}</Descriptions.Item>
-                    </Descriptions>
-                ) : (
-                    <Spin size='small' />
-                )}
+                <SystemBody system={system} />
             </Card>
         </Space>
     );

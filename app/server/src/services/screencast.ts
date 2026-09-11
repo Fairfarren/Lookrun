@@ -7,6 +7,30 @@ const SCREENCAST_MAX_WIDTH = 840;
 const SCREENCAST_MAX_HEIGHT = 1800;
 const FRAME_MIN_INTERVAL_MS = 100;
 
+export function shouldSendScreencastFrame(input: {
+    now: number;
+    lastFrameAt: number;
+    minInterval: number;
+}) {
+    return input.now - input.lastFrameAt >= input.minInterval;
+}
+
+export function handleScreencastFrame(input: {
+    now: number;
+    lastFrameAt: number;
+    minInterval: number;
+    data: string;
+    publish: (data: string) => void;
+    markSent: (sentAt: number) => void;
+}) {
+    if (!shouldSendScreencastFrame(input)) {
+        return false;
+    }
+    input.markSent(input.now);
+    input.publish(input.data);
+    return true;
+}
+
 // 启动 CDP screencast，把浏览器画面帧经 WebSocket 推给前端
 // 返回停止函数
 export async function startScreencast(page: Page) {
@@ -14,11 +38,16 @@ export async function startScreencast(page: Page) {
     let lastFrameAt = 0;
 
     cdp.on('Page.screencastFrame', (event: { data: string; sessionId: number }) => {
-        const now = Date.now();
-        if (now - lastFrameAt >= FRAME_MIN_INTERVAL_MS) {
-            lastFrameAt = now;
-            broadcast({ type: 'frame', data: event.data });
-        }
+        handleScreencastFrame({
+            now: Date.now(),
+            lastFrameAt,
+            minInterval: FRAME_MIN_INTERVAL_MS,
+            data: event.data,
+            publish: (data) => broadcast({ type: 'frame', data }),
+            markSent: (sentAt) => {
+                lastFrameAt = sentAt;
+            },
+        });
         cdp.send('Page.screencastFrameAck', { sessionId: event.sessionId }).catch(() => {});
     });
 

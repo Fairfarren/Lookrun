@@ -1,5 +1,18 @@
-import type { Hono } from 'hono';
+import type { Context, Hono } from 'hono';
 import { serveStatic } from 'hono/bun';
+import { errorText } from '../lib/error-text';
+import {
+    missingIdError,
+    modelSelectError,
+    moveDirectionError,
+    parseRunListQuery,
+    queueItemsOrEmpty,
+    queueNameError,
+    runStartBodyError,
+    taskWriteError,
+    variablesBodyError,
+} from '../lib/route-input';
+import { namedQueueUnavailable, startNamedQueueItems } from './queue-start';
 import { formatRunHistory } from '../lib/ai-error';
 import { detectChrome } from '../services/chrome';
 import { DB_PATH, REPORT_DIR, SCREENSHOT_DIR } from '../config';
@@ -43,6 +56,112 @@ import { detectAdbPath } from '../services/android';
 
 const SELECTED_MODEL_KEY = 'selectedModelId';
 
+function yamlText(yaml: string | undefined) {
+    return yaml ?? '';
+}
+
+function yamlValidateResponse(
+    c: Context,
+    result: { ok: true; errors?: string[] } | { ok: false; errors: string[] },
+) {
+    if (result.ok) {
+        return c.json({ ok: true, errors: [] });
+    }
+    return c.json({ ok: false, errors: result.errors });
+}
+
+function jsonError(c: Context, error: string, status: 400 | 404 | 500) {
+    return c.json({ error }, status);
+}
+
+function respondScriptInvalid(c: Context, error: unknown) {
+    if (error instanceof ScriptInvalidError) {
+        return c.json({ error: '脚本校验失败', errors: error.errors }, 400);
+    }
+    throw error;
+}
+
+async function writeExistingTask(c: Context, db: ReturnType<typeof createDb>, id: number) {
+    const body = await c.req.json<{ name?: string; yaml?: string }>();
+    const error = taskWriteError(body);
+    if (error) {
+        return jsonError(c, error, 400);
+    }
+    updateTask(db, id, { name: body.name!.trim(), yaml: body.yaml! });
+    return c.json(getTask(db, id));
+}
+
+function hasModel(id: string | undefined) {
+    if (!id) {
+        return false;
+    }
+    return Boolean(getModelById(loadModels(), id));
+}
+
+function selectModel(c: Context, db: ReturnType<typeof createDb>, id: string | undefined) {
+    const error = modelSelectError(id, hasModel(id));
+    if (error) {
+        return jsonError(c, error, 400);
+    }
+    setSetting(db, SELECTED_MODEL_KEY, id!);
+    return c.json({ ok: true });
+}
+
+async function writeExistingQueue(c: Context, db: ReturnType<typeof createDb>, id: number) {
+    const body = await c.req.json<{
+        name?: string;
+        items?: { taskId: number; modelId: string }[];
+    }>();
+    const error = queueNameError(body.name);
+    if (error) {
+        return jsonError(c, error, 400);
+    }
+    updateQueue(db, id, { name: body.name!.trim(), items: queueItemsOrEmpty(body.items) });
+    return c.json(getQueue(db, id));
+}
+
+function startExistingTaskRun(
+    c: Context,
+    db: ReturnType<typeof createDb>,
+    runner: Runner,
+    taskId: number,
+    modelId: string,
+) {
+    const task = getTask(db, taskId);
+    if (!task) {
+        return jsonError(c, '任务不存在', 404);
+    }
+    return startTaskRun(c, runner, task, modelId);
+}
+
+function startTaskRun(
+    c: Context,
+    runner: Runner,
+    task: { id: number; name: string; yaml: string },
+    modelId: string,
+) {
+    try {
+        return c.json(
+            runner.start({
+                taskId: task.id,
+                taskName: task.name,
+                yaml: task.yaml,
+                modelId,
+            }),
+        );
+    } catch (error) {
+        return respondScriptInvalid(c, error);
+    }
+}
+
+async function listAndroidAppsOrError(c: Context, deviceId: string) {
+    try {
+        return c.json({ apps: await listAndroidApps(deviceId) });
+    } catch (error) {
+        return jsonError(c, errorText(error), 500);
+    }
+}
+
 export function registerRoutes(app: Hono) {
     const db = createDb(DB_PATH);
     markStaleRunsStopped(db);
@@ -55,10 +174,11 @@ export function registerRoutes(app: Hono) {
 
     app.post('/api/tasks', async (c) => {
         const body = await c.req.json<{ name?: string; yaml?: string }>();
-        if (!body.name?.trim() || !body.yaml?.trim()) {
-            return c.json({ error: '任务名和 YAML 内容不能为空' }, 400);
+        const error = taskWriteError(body);
+        if (error) {
+            return jsonError(c, error, 400);
         }
-        const { id } = insertTask(db, { name: body.name.trim(), yaml: body.yaml });
+        const { id } = insertTask(db, { name: body.name!.trim(), yaml: body.yaml! });
         return c.json(getTask(db, id), 201);
     });
 
@@ -70,14 +190,9 @@ export function registerRoutes(app: Hono) {
     app.put('/api/tasks/:id', async (c) => {
         const id = Number(c.req.param('id'));
         if (!getTask(db, id)) {
-            return c.json({ error: '任务不存在' }, 404);
+            return jsonError(c, '任务不存在', 404);
         }
-        const body = await c.req.json<{ name?: string; yaml?: string }>();
-        if (!body.name?.trim() || !body.yaml?.trim()) {
-            return c.json({ error: '任务名和 YAML 内容不能为空' }, 400);
-        }
-        updateTask(db, id, { name: body.name.trim(), yaml: body.yaml });
-        return c.json(getTask(db, id));
+        return writeExistingTask(c, db, id);
     });
 
     app.delete('/api/tasks/:id', (c) => {
@@ -92,10 +207,7 @@ export function registerRoutes(app: Hono) {
     // YAML 校验：编辑器实时调用，返回全部错误
     app.post('/api/tasks/validate', async (c) => {
         const body = await c.req.json<{ yaml?: string }>();
-        const result = parseScript(body.yaml ?? '', listVariables(db));
-        return result.ok
-            ? c.json({ ok: true, errors: [] })
-            : c.json({ ok: false, errors: result.errors });
+        return yamlValidateResponse(c, parseScript(yamlText(body.yaml), listVariables(db)));
     });
 
     // ---------- 模型 ----------
@@ -108,17 +220,13 @@ export function registerRoutes(app: Hono) {
             }));
             return c.json({ models, selected: getSetting(db, SELECTED_MODEL_KEY) });
         } catch (error) {
-            return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
+            return jsonError(c, errorText(error), 500);
         }
     });
 
     app.put('/api/models/select', async (c) => {
         const body = await c.req.json<{ id?: string }>();
-        if (!body.id || !getModelById(loadModels(), body.id)) {
-            return c.json({ error: '模型不存在' }, 400);
-        }
-        setSetting(db, SELECTED_MODEL_KEY, body.id);
-        return c.json({ ok: true });
+        return selectModel(c, db, body.id);
     });
 
     // 视觉自检：验证模型能否看图并返回元素坐标
@@ -136,38 +244,22 @@ export function registerRoutes(app: Hono) {
 
     app.put('/api/variables', async (c) => {
         const body = await c.req.json<{ variables?: Record<string, string> }>();
-        if (!body.variables || typeof body.variables !== 'object') {
-            return c.json({ error: 'variables 必须是对象' }, 400);
+        const error = variablesBodyError(body.variables);
+        if (error) {
+            return jsonError(c, error, 400);
         }
-        replaceVariables(db, body.variables);
+        replaceVariables(db, body.variables!);
         return c.json({ ok: true });
     });
 
     // ---------- 运行 ----------
     app.post('/api/runs', async (c) => {
         const body = await c.req.json<{ taskId?: number; modelId?: string }>();
-        if (!body.taskId || !body.modelId) {
-            return c.json({ error: '缺少 taskId 或 modelId' }, 400);
+        const error = runStartBodyError(body.taskId, body.modelId);
+        if (error) {
+            return jsonError(c, error, 400);
         }
-        const task = getTask(db, body.taskId);
-        if (!task) {
-            return c.json({ error: '任务不存在' }, 404);
-        }
-        try {
-            const result = runner.start({
-                taskId: task.id,
-                taskName: task.name,
-                yaml: task.yaml,
-                modelId: body.modelId,
-            });
-            // queued=false 立即执行；queued=true 已入队排队
-            return c.json(result);
-        } catch (error) {
-            if (error instanceof ScriptInvalidError) {
-                return c.json({ error: '脚本校验失败', errors: error.errors }, 400);
-            }
-            throw error;
-        }
+        return startExistingTaskRun(c, db, runner, body.taskId!, body.modelId!);
     });
 
     // ---------- 运行队列 ----------
@@ -176,10 +268,11 @@ export function registerRoutes(app: Hono) {
     // 调整排队顺序：direction = up | down
     app.post('/api/queue/:id/move', async (c) => {
         const body = await c.req.json<{ direction?: 'up' | 'down' }>();
-        if (body.direction !== 'up' && body.direction !== 'down') {
-            return c.json({ error: 'direction 必须是 up 或 down' }, 400);
+        const error = moveDirectionError(body.direction);
+        if (error) {
+            return jsonError(c, error, 400);
         }
-        moveQueueItem(db, Number(c.req.param('id')), body.direction);
+        moveQueueItem(db, Number(c.req.param('id')), body.direction!);
         const items = listQueue(db);
         broadcast({ type: 'queue', items });
         return c.json({ items });
@@ -198,10 +291,11 @@ export function registerRoutes(app: Hono) {
 
     app.post('/api/queues', async (c) => {
         const body = await c.req.json<{ name?: string }>();
-        if (!body.name?.trim()) {
-            return c.json({ error: '队列名不能为空' }, 400);
+        const error = queueNameError(body.name);
+        if (error) {
+            return jsonError(c, error, 400);
         }
-        return c.json(createQueue(db, { name: body.name.trim() }), 201);
+        return c.json(createQueue(db, { name: body.name!.trim() }), 201);
     });
 
     app.get('/api/queues/:id', (c) => {
@@ -212,17 +306,9 @@ export function registerRoutes(app: Hono) {
     app.put('/api/queues/:id', async (c) => {
         const id = Number(c.req.param('id'));
         if (!getQueue(db, id)) {
-            return c.json({ error: '队列不存在' }, 404);
+            return jsonError(c, '队列不存在', 404);
         }
-        const body = await c.req.json<{
-            name?: string;
-            items?: { taskId: number; modelId: string }[];
-        }>();
-        if (!body.name?.trim()) {
-            return c.json({ error: '队列名不能为空' }, 400);
-        }
-        updateQueue(db, id, { name: body.name.trim(), items: body.items ?? [] });
-        return c.json(getQueue(db, id));
+        return writeExistingQueue(c, db, id);
     });
 
     app.delete('/api/queues/:id', (c) => {
@@ -236,46 +322,24 @@ export function registerRoutes(app: Hono) {
 
     // 启动命名队列：按顺序把每个任务交给 runner（第一个立即跑，后续自动入队）
     app.post('/api/queues/:id/start', (c) => {
-        const id = Number(c.req.param('id'));
-        const q = getQueue(db, id);
-        if (!q) {
-            return c.json({ error: '队列不存在' }, 404);
+        const q = getQueue(db, Number(c.req.param('id')));
+        const unavailable = namedQueueUnavailable(q);
+        if (unavailable) {
+            return jsonError(c, unavailable.error, unavailable.status);
         }
-        if (q.items.length === 0) {
-            return c.json({ error: '队列为空，没有可执行的任务' }, 400);
-        }
-        let started = 0;
-        let queued = 0;
-        const errors: string[] = [];
-        for (const item of q.items) {
-            const task = getTask(db, item.taskId);
-            if (!task) {
-                errors.push(`任务 #${item.taskId} 不存在，已跳过`);
-                continue;
-            }
-            try {
-                const result = runner.start({
-                    taskId: task.id,
-                    taskName: task.name,
-                    yaml: task.yaml,
-                    modelId: item.modelId,
-                });
-                if (result.queued) {
-                    queued++;
-                } else {
-                    started++;
-                }
-            } catch (error) {
-                if (error instanceof ScriptInvalidError) {
-                    errors.push(`任务「${task.name}」校验失败：${error.errors.join('；')}`);
-                } else {
-                    errors.push(
-                        `任务「${task.name}」启动失败：${error instanceof Error ? error.message : String(error)}`,
-                    );
-                }
-            }
-        }
-        return c.json({ started, queued, errors });
+        return c.json(
+            startNamedQueueItems({
+                items: q!.items,
+                getTask: (taskId) => getTask(db, taskId),
+                start: (task, modelId) =>
+                    runner.start({
+                        taskId: task.id,
+                        taskName: task.name,
+                        yaml: task.yaml,
+                        modelId,
+                    }),
+            }),
+        );
     });
 
     app.get('/api/runs/current', (c) => {
@@ -289,10 +353,12 @@ export function registerRoutes(app: Hono) {
     });
 
     app.get('/api/runs', (c) => {
-        const limit = Math.min(Number(c.req.query('limit')) || 20, 100);
-        const offset = Number(c.req.query('offset')) || 0;
+        const query = parseRunListQuery({
+            limit: c.req.query('limit'),
+            offset: c.req.query('offset'),
+        });
         return c.json({
-            list: listRuns(db, { limit, offset }),
+            list: listRuns(db, query),
             total: countRuns(db),
         });
     });
@@ -320,28 +386,26 @@ export function registerRoutes(app: Hono) {
         try {
             return c.json({ devices: await listAndroidDevices() });
         } catch (error) {
-            return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
+            return jsonError(c, errorText(error), 500);
         }
     });
 
     app.post('/api/system/android-devices/check', async (c) => {
         const body = await c.req.json<{ deviceId?: string }>();
-        if (!body.deviceId?.trim()) {
-            return c.json({ error: '请选择要检查的设备' }, 400);
+        const error = missingIdError(body.deviceId, '请选择要检查的设备');
+        if (error) {
+            return jsonError(c, error, 400);
         }
-        return c.json(await checkAndroidDevice(body.deviceId.trim()));
+        return c.json(await checkAndroidDevice(body.deviceId!.trim()));
     });
 
     app.get('/api/system/android-apps', async (c) => {
         const deviceId = c.req.query('deviceId')?.trim();
-        if (!deviceId) {
-            return c.json({ error: '请选择要查询应用的设备' }, 400);
+        const error = missingIdError(deviceId, '请选择要查询应用的设备');
+        if (error) {
+            return jsonError(c, error, 400);
         }
-        try {
-            return c.json({ apps: await listAndroidApps(deviceId) });
-        } catch (error) {
-            return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
-        }
+        return listAndroidAppsOrError(c, deviceId!);
     });
 
     app.get('/api/system', (c) => {

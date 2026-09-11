@@ -17,6 +17,31 @@ import { useNavigate } from 'react-router-dom';
 import type { TaskRecord } from '@lookrun/shared';
 import { api, type ModelBrief } from '../api';
 import { formatTime } from '../components';
+import { errorText } from '../utils/error-text';
+import { canStartTask, startTaskSuccess } from '../utils/tasks-run';
+import { defaultModelId } from '../utils/settings-view';
+import { queuesViewState } from '../utils/queues-page';
+
+function TasksLoading({ state }: { state: string }) {
+    if (state !== 'loading') {
+        return null;
+    }
+    return <Spin style={{ display: 'block', margin: '40px auto' }} />;
+}
+
+function TasksEmpty({ state }: { state: string }) {
+    if (state !== 'empty') {
+        return null;
+    }
+    return <Empty description='还没有任务，点击右上角新建一个' />;
+}
+
+function TasksReady({ state, children }: { state: string; children: React.ReactNode }) {
+    if (state !== 'ready') {
+        return null;
+    }
+    return children;
+}
 
 export default function TasksPage() {
     const { message, modal } = AntApp.useApp();
@@ -44,30 +69,38 @@ export default function TasksPage() {
         api.listModels()
             .then((result) => {
                 setModels(result.models);
-                setModelId(result.selected ?? result.models[0]?.id);
+                setModelId(defaultModelId(result.selected, result.models[0]?.id));
             })
             .catch((error: Error) => message.error(error.message));
     };
 
-    const startRun = async () => {
-        if (!runTask || !modelId) {
-            return;
-        }
-        setStarting(true);
+    const submitStartRun = async () => {
         try {
-            const result = await api.startRun({ taskId: runTask.id, modelId });
+            const result = await api.startRun({ taskId: runTask!.id, modelId: modelId! });
             setRunTask(null);
-            if (result.queued) {
-                // 当前有任务在跑，自动入队
-                message.success('已加入队列排队，可到「实时运行」页查看');
-            } else {
-                navigate('/run');
-            }
+            applyStartResult(result.queued);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
+            message.error(errorText(error));
         } finally {
             setStarting(false);
         }
+    };
+
+    const applyStartResult = (queued: boolean) => {
+        const feedback = startTaskSuccess(queued);
+        if (feedback.stay) {
+            message.success(feedback.message);
+            return;
+        }
+        navigate('/run');
+    };
+
+    const startRun = async () => {
+        if (!canStartTask(runTask?.id, modelId)) {
+            return;
+        }
+        setStarting(true);
+        await submitStartRun();
     };
 
     const confirmDelete = (task: TaskRecord) => {
@@ -98,11 +131,9 @@ export default function TasksPage() {
                 </Button>
             }
         >
-            {tasks.length === 0 && !loading ? (
-                <Empty description='还没有任务，点击右上角新建一个' />
-            ) : loading ? (
-                <Spin style={{ display: 'block', margin: '40px auto' }} />
-            ) : (
+            <TasksEmpty state={queuesViewState({ loading, count: tasks.length })} />
+            <TasksLoading state={queuesViewState({ loading, count: tasks.length })} />
+            <TasksReady state={queuesViewState({ loading, count: tasks.length })}>
                 <Flex vertical>
                     {tasks.map((task) => (
                         <Flex
@@ -144,7 +175,7 @@ export default function TasksPage() {
                         </Flex>
                     ))}
                 </Flex>
-            )}
+            </TasksReady>
 
             <Modal
                 title={`运行任务「${runTask?.name}」`}

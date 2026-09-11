@@ -28,10 +28,24 @@ async function runAdbCommand(input: AdbCommandInput) {
         new Response(subprocess.stdout).text(),
         new Response(subprocess.stderr).text(),
     ]);
-    if (exitCode !== 0) {
-        throw new Error(stderr.trim() || stdout.trim() || 'ADB 命令执行失败');
+    return assertAdbSuccess({ exitCode, stdout, stderr });
+}
+
+export function adbFailureMessage(stderr: string, stdout: string) {
+    if (stderr.trim()) {
+        return stderr.trim();
     }
-    return stdout;
+    if (stdout.trim()) {
+        return stdout.trim();
+    }
+    return 'ADB 命令执行失败';
+}
+
+export function assertAdbSuccess(input: { exitCode: number; stdout: string; stderr: string }) {
+    if (input.exitCode !== 0) {
+        throw new Error(adbFailureMessage(input.stderr, input.stdout));
+    }
+    return input.stdout;
 }
 
 export function createDeviceAndroidAppLauncher(input: {

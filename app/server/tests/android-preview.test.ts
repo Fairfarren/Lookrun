@@ -2,6 +2,10 @@ import { describe, expect, test } from 'bun:test';
 import {
     ANDROID_PREVIEW_INTERVAL_MS,
     createLatestFramePump,
+    isDuplicatePreviewFrame,
+    previewPublishData,
+    previewTickBlocked,
+    shouldReportPreviewError,
 } from '../src/services/android-preview';
 
 function deferred<T>() {
@@ -19,6 +23,25 @@ function createFrame(capturedAt: number) {
 describe('Android 实时预览', () => {
     test('目标刷新间隔为 100 毫秒', () => {
         expect(ANDROID_PREVIEW_INTERVAL_MS).toBe(100);
+    });
+
+    test('tick 前置条件', () => {
+        expect(previewTickBlocked({ stopped: true, inFlight: false, hasViewer: true })).toBe(true);
+        expect(previewTickBlocked({ stopped: false, inFlight: true, hasViewer: true })).toBe(true);
+        expect(previewTickBlocked({ stopped: false, inFlight: false, hasViewer: false })).toBe(
+            true,
+        );
+        expect(previewTickBlocked({ stopped: false, inFlight: false, hasViewer: true })).toBe(
+            false,
+        );
+        expect(isDuplicatePreviewFrame(null, 1)).toBe(true);
+        expect(isDuplicatePreviewFrame({ capturedAt: 1 }, 1)).toBe(true);
+        expect(isDuplicatePreviewFrame({ capturedAt: 2 }, 1)).toBe(false);
+        expect(previewPublishData(undefined, false)).toBeNull();
+        expect(previewPublishData('data:image/jpeg;base64,abc', false)).toBe('abc');
+        expect(shouldReportPreviewError(true, false)).toBe(false);
+        expect(shouldReportPreviewError(false, true)).toBe(false);
+        expect(shouldReportPreviewError(false, false)).toBe(true);
     });
 
     test('相同帧只解码并发布一次', async () => {

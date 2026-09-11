@@ -61,6 +61,24 @@ describe('collectFunctions', () => {
         expect(inner?.cc).toBe(2);
     });
 
+    test('方法调用不是函数声明', () => {
+        const source = `
+      export function dump(aiResult: unknown) {
+        return aiResult ? JSON.stringify(aiResult) : null;
+      }
+    `;
+        const fns = collectFunctions(source, 'stringify.ts');
+        expect(fns.map((item) => item.name)).toEqual(['dump']);
+        expect(fns[0].cc).toBe(2);
+    });
+
+    test('带返回类型的函数仍计入', () => {
+        const source = 'export function ping(): number { return 1; }';
+        const [fn] = collectFunctions(source, 'typed.ts');
+        expect(fn.name).toBe('ping');
+        expect(fn.cc).toBe(1);
+    });
+
     test('三元表达式里的函数调用不是函数声明', () => {
         const source = `
       export function pick(parse: (() => number) | null) {
@@ -70,6 +88,28 @@ describe('collectFunctions', () => {
         const fns = collectFunctions(source, 'ternary.ts');
         expect(fns.map((item) => item.name)).toEqual(['pick']);
         expect(fns[0].cc).toBe(2);
+    });
+
+    test('Promise.catch 不是 catch 决策点', () => {
+        const source = `
+      export async function closeIt(browser: { close: () => Promise<void> } | null) {
+        if (!browser) return;
+        await browser.close().catch(() => {});
+      }
+    `;
+        const fn = collectFunctions(source, 'close.ts').find((item) => item.name === 'closeIt');
+        expect(fn?.cc).toBe(2);
+    });
+
+    test('可选属性问号不是三元决策点', () => {
+        const source = `
+      export function read(body: { name?: string }) {
+        if (!body.name) return "";
+        return body.name;
+      }
+    `;
+        const fn = collectFunctions(source, 'opt.ts').find((item) => item.name === 'read');
+        expect(fn?.cc).toBe(2);
     });
 
     test('catch 和空值合并计入 CC', () => {
