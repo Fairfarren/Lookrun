@@ -129,30 +129,48 @@ function containsCenter(bbox: number[]) {
 // 从模型回复里提取 bbox JSON 并校验。
 // 两种坐标系都接受：绝对像素（在图片范围内）或 qwen 系 0-1000 归一化坐标
 // （gemma/minimax/kimi 走 Ollama 时都是归一化格式，参考 test-game/step2-v2 的生产验证）
-function parseBboxJson(
-    content: string,
-): { ok: true; bbox: number[] } | { ok: false; reason: string } {
-    const jsonMatch = content.match(/\{[^{}]*"bbox"[^{}]*\}/);
-    if (!jsonMatch) {
-        return { ok: false, reason: '回复中没有找到 bbox JSON' };
+function bboxJsonSlice(content: string) {
+    return content.match(/\{[^{}]*"bbox"[^{}]*\}/)?.[0] ?? null;
+}
+
+function isFiniteNumberList(values: unknown): values is number[] {
+    if (!Array.isArray(values)) {
+        return false;
     }
+    return values.every((item) => typeof item === 'number' && Number.isFinite(item));
+}
+
+function bboxFromUnknown(
+    parsed: unknown,
+): { ok: true; bbox: number[] } | { ok: false; reason: string } {
+    if (!isRecord(parsed) || !isFiniteNumberList(parsed.bbox) || parsed.bbox.length !== 4) {
+        return { ok: false, reason: 'bbox 必须是 4 个数字的数组' };
+    }
+    const bbox = parsed.bbox;
+    if (bbox[2] <= bbox[0] || bbox[3] <= bbox[1]) {
+        return { ok: false, reason: 'bbox 面积为零' };
+    }
+    return { ok: true, bbox };
+}
+
+function parseBboxJsonSlice(
+    slice: string,
+): { ok: true; bbox: number[] } | { ok: false; reason: string } {
     try {
-        const parsed: unknown = JSON.parse(jsonMatch[0]);
-        if (!isRecord(parsed) || !Array.isArray(parsed.bbox) || parsed.bbox.length !== 4) {
-            return { ok: false, reason: 'bbox 必须是 4 个数字的数组' };
-        }
-        const bbox = parsed.bbox;
-        if (!bbox.every((n) => typeof n === 'number' && Number.isFinite(n))) {
-            return { ok: false, reason: 'bbox 必须是 4 个数字的数组' };
-        }
-        const [x1, y1, x2, y2] = bbox;
-        if (x2 <= x1 || y2 <= y1) {
-            return { ok: false, reason: 'bbox 面积为零' };
-        }
-        return { ok: true, bbox };
+        return bboxFromUnknown(JSON.parse(slice));
     } catch {
         return { ok: false, reason: 'bbox JSON 无法解析' };
     }
+}
+
+function parseBboxJson(
+    content: string,
+): { ok: true; bbox: number[] } | { ok: false; reason: string } {
+    const slice = bboxJsonSlice(content);
+    if (!slice) {
+        return { ok: false, reason: '回复中没有找到 bbox JSON' };
+    }
+    return parseBboxJsonSlice(slice);
 }
 
 function absoluteVisionResult(bbox: number[]): VisionCheckResult | null {
@@ -210,73 +228,97 @@ export function parseVisionCheckResponse(content: string): VisionCheckResult {
 
 const VISION_CHECK_PROMPT =
     '这是一张网页截图，画面中央有一个写着「确定按钮」的蓝色按钮。请定位这个按钮，只回复 JSON，格式：{"bbox": [x1, y1, x2, y2]}，坐标为像素值。';
+const VISION_CHECK_TIMEOUT_MS = 60_000;
 
 async function loadVisionCheckImage() {
     const buffer = await Bun.file(visionCheckPngPath).arrayBuffer();
     return Buffer.from(buffer).toString('base64');
 }
 
-// 视觉自检：给模型发一张带按钮的测试图，验证它能否返回可解析的元素坐标
-// 这是模型能否用于 UI 自动化的分水岭：能看图不代表能返回坐标
-export async function checkModelVision(
-    model: ModelConfig,
-    options: { timeoutMs?: number } = {},
-): Promise<{ ok: boolean; message: string }> {
-    const timeoutMs = options.timeoutMs ?? 60_000;
-    try {
-        const imageBase64 = await loadVisionCheckImage();
-        const response = await fetch(`${model.baseUrl.replace(/\/$/, '')}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${model.apiKey}`,
-            },
-            body: JSON.stringify({
-                model: model.model,
-                temperature: 0,
-                // 推理型模型（如 kimi）会先消耗思考预算，给小了会返回空内容
-                max_tokens: 1500,
-                messages: [
+export function visionTimeoutMs(timeoutMs: number | undefined) {
+    return timeoutMs ?? VISION_CHECK_TIMEOUT_MS;
+}
+
+export function visionChatUrl(baseUrl: string) {
+    return `${baseUrl.replace(/\/$/, '')}/chat/completions`;
+}
+
+export function visionHttpError(status: number, body: string) {
+    return { ok: false as const, message: `接口返回 ${status}：${body.slice(0, 200)}` };
+}
+
+export function visionResponseContent(data: { choices?: { message?: { content?: string } }[] }) {
+    return data.choices?.[0]?.message?.content ?? '';
+}
+
+export function visionOkMessage(result: { coordinateSystem: string; bbox: number[] }) {
+    if (result.coordinateSystem === 'normalized') {
+        return `视觉能力正常（0-1000 归一化坐标），定位坐标 [${result.bbox.join(', ')}]`;
+    }
+    return `视觉能力正常（绝对像素坐标），定位坐标 [${result.bbox.join(', ')}]`;
+}
+
+export function visionCheckOutcome(result: VisionCheckResult) {
+    if (result.ok) {
+        return { ok: true as const, message: visionOkMessage(result) };
+    }
+    return { ok: false as const, message: `模型无法用于 UI 自动化：${result.reason}` };
+}
+
+export function visionRequestError(error: unknown) {
+    if (error instanceof Error) {
+        return { ok: false as const, message: `自检请求失败：${error.message}` };
+    }
+    return { ok: false as const, message: `自检请求失败：${String(error)}` };
+}
+
+function visionCheckBody(model: string, imageBase64: string) {
+    return JSON.stringify({
+        model,
+        temperature: 0,
+        // 推理型模型（如 kimi）会先消耗思考预算，给小了会返回空内容
+        max_tokens: 1500,
+        messages: [
+            {
+                role: 'user',
+                content: [
+                    { type: 'text', text: VISION_CHECK_PROMPT },
                     {
-                        role: 'user',
-                        content: [
-                            { type: 'text', text: VISION_CHECK_PROMPT },
-                            {
-                                type: 'image_url',
-                                image_url: { url: `data:image/png;base64,${imageBase64}` },
-                            },
-                        ],
+                        type: 'image_url',
+                        image_url: { url: `data:image/png;base64,${imageBase64}` },
                     },
                 ],
-            }),
-            signal: AbortSignal.timeout(timeoutMs),
-        });
+            },
+        ],
+    });
+}
 
-        if (!response.ok) {
-            const body = await response.text();
-            return {
-                ok: false,
-                message: `接口返回 ${response.status}：${body.slice(0, 200)}`,
-            };
-        }
-        const data = (await response.json()) as {
-            choices?: { message?: { content?: string } }[];
-        };
-        const content = data.choices?.[0]?.message?.content ?? '';
-        const result = parseVisionCheckResponse(content);
-        if (result.ok) {
-            const systemLabel =
-                result.coordinateSystem === 'normalized' ? '0-1000 归一化坐标' : '绝对像素坐标';
-            return {
-                ok: true,
-                message: `视觉能力正常（${systemLabel}），定位坐标 [${result.bbox.join(', ')}]`,
-            };
-        }
-        return { ok: false, message: `模型无法用于 UI 自动化：${result.reason}` };
+async function runVisionCheck(model: ModelConfig, timeoutMs: number) {
+    const imageBase64 = await loadVisionCheckImage();
+    const response = await fetch(visionChatUrl(model.baseUrl), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${model.apiKey}`,
+        },
+        body: visionCheckBody(model.model, imageBase64),
+        signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!response.ok) {
+        return visionHttpError(response.status, await response.text());
+    }
+    const data = (await response.json()) as {
+        choices?: { message?: { content?: string } }[];
+    };
+    return visionCheckOutcome(parseVisionCheckResponse(visionResponseContent(data)));
+}
+
+// 视觉自检：给模型发一张带按钮的测试图，验证它能否返回可解析的元素坐标
+// 这是模型能否用于 UI 自动化的分水岭：能看图不代表能返回坐标
+export async function checkModelVision(model: ModelConfig, options: { timeoutMs?: number } = {}) {
+    try {
+        return await runVisionCheck(model, visionTimeoutMs(options.timeoutMs));
     } catch (error) {
-        return {
-            ok: false,
-            message: `自检请求失败：${error instanceof Error ? error.message : String(error)}`,
-        };
+        return visionRequestError(error);
     }
 }

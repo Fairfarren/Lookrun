@@ -7,9 +7,26 @@ import type {
     TaskRecord,
 } from '@lookrun/shared';
 
+export function jsonRequestHeaders(hasBody: boolean) {
+    if (!hasBody) {
+        return undefined;
+    }
+    return { 'Content-Type': 'application/json' };
+}
+
+export function requestErrorText(body: { error?: string; errors?: string[] }, status: number) {
+    if (body.errors && body.errors.length > 0) {
+        return body.errors.join('；');
+    }
+    if (body.error) {
+        return body.error;
+    }
+    return `请求失败（${status}）`;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const response = await fetch(path, {
-        headers: options?.body ? { 'Content-Type': 'application/json' } : undefined,
+        headers: jsonRequestHeaders(Boolean(options?.body)),
         ...options,
     });
     const body = (await response.json()) as T & {
@@ -17,8 +34,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
         errors?: string[];
     };
     if (!response.ok) {
-        const detail = body.errors?.length ? body.errors.join('；') : body.error;
-        throw new Error(detail ?? `请求失败（${response.status}）`);
+        throw new Error(requestErrorText(body, response.status));
     }
     return body;
 }
