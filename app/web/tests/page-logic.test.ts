@@ -34,12 +34,15 @@ import {
     type RunViewState,
 } from '../src/utils/run-ws';
 import {
+    createQueueThenSaveItems,
     isNewQueueRoute,
     queueEditTitle,
     queueSaveItemsError,
     queueSaveNameError,
     validQueueItems,
 } from '../src/utils/queue-edit';
+import type { QueueItem } from '../src/api';
+import type { RunRecord, RunStepRecord } from '@lookrun/shared';
 import { hasTokenUsage, stepStatusTag, tokenPairText } from '../src/utils/run-detail';
 import { canStartTask, startTaskSuccess } from '../src/utils/tasks-run';
 import { queuesViewState, startQueueFeedback } from '../src/utils/queues-page';
@@ -58,6 +61,57 @@ const emptyView = (): RunViewState => ({
     current: { status: 'idle', run: null },
     finishedStatus: null,
 });
+
+function pendingQueueItem(): QueueItem {
+    return {
+        id: 1,
+        taskId: 2,
+        taskName: 't',
+        modelId: 'm',
+        model: 'm',
+        status: 'pending',
+        position: 0,
+        runId: null,
+        createdAt: 't',
+    };
+}
+
+function sampleRun(status: RunRecord['status']): RunRecord {
+    return {
+        id: 9,
+        taskId: 1,
+        taskName: '登录',
+        model: 'm',
+        status,
+        error: null,
+        startedAt: 't',
+        finishedAt: status === 'running' ? null : 't2',
+        durationMs: status === 'running' ? null : 1,
+        tokenInput: 0,
+        tokenOutput: 0,
+    };
+}
+
+function sampleStep(status: RunStepRecord['status']): RunStepRecord {
+    return {
+        id: 1,
+        runId: 9,
+        stepIndex: 0,
+        stepName: '点击',
+        action: 'aiTap',
+        url: null,
+        prompt: null,
+        aiResult: null,
+        shotBefore: null,
+        shotAfter: null,
+        durationMs: 1,
+        tokenInput: 0,
+        tokenOutput: 0,
+        status,
+        error: null,
+        createdAt: 't',
+    };
+}
 
 describe('页面逻辑', () => {
     test('错误文案和字节', () => {
@@ -153,6 +207,117 @@ describe('页面逻辑', () => {
         expect(queueCardTitle(2)).toContain('2');
         expect(stepLogPlaceholder(true)).toBe('准备中...');
         expect(stepLogPlaceholder(false)).toBe('暂无步骤');
+    });
+
+    test('frame 后再 queue 仍保留 frame', () => {
+        const withFrame = applyRunWsMessage(emptyView(), { type: 'frame', data: 'x' });
+        const queued = applyRunWsMessage(withFrame, {
+            type: 'queue',
+            items: [pendingQueueItem()],
+        });
+        expect(queued.frame).toBe('x');
+        expect(queued.queueItems).toHaveLength(1);
+    });
+
+    test('run running 写入 current 并清空 steps', () => {
+        const started = applyRunWsMessage(
+            {
+                ...emptyView(),
+                frame: 'x',
+                steps: [
+                    {
+                        stepIndex: 0,
+                        stepName: '旧',
+                        action: 'aiTap',
+                        status: 'success',
+                    },
+                ],
+            },
+            { type: 'run', run: sampleRun('running') },
+        );
+        expect(started.current.status).toBe('running');
+        expect(started.current.run?.runId).toBe(9);
+        expect(started.current.run?.currentStepIndex).toBe(-1);
+        expect(started.steps).toEqual([]);
+        expect(started.frame).toBe('x');
+        expect(started.finishedStatus).toBeNull();
+    });
+
+    test('step-start 在 running 时更新 currentStepIndex', () => {
+        const running = applyRunWsMessage(emptyView(), {
+            type: 'run',
+            run: sampleRun('running'),
+        });
+        const started = applyRunWsMessage(running, {
+            type: 'step-start',
+            runId: 9,
+            stepIndex: 2,
+            stepName: '点击',
+            action: 'aiTap',
+            totalSteps: 4,
+        });
+        expect(started.current.status).toBe('running');
+        expect(started.current.run?.currentStepIndex).toBe(2);
+        expect(started.current.run?.totalSteps).toBe(4);
+        expect(started.steps[0]?.status).toBe('running');
+    });
+
+    test('step 回写 status 和 record', () => {
+        const running = applyRunWsMessage(emptyView(), {
+            type: 'run',
+            run: sampleRun('running'),
+        });
+        const started = applyRunWsMessage(running, {
+            type: 'step-start',
+            runId: 9,
+            stepIndex: 0,
+            stepName: '点击',
+            action: 'aiTap',
+            totalSteps: 1,
+        });
+        const record = sampleStep('success');
+        const updated = applyRunWsMessage(started, { type: 'step', step: record });
+        expect(updated.steps[0]?.status).toBe('success');
+        expect(updated.steps[0]?.record).toEqual(record);
+        expect(updated.current.status).toBe('running');
+    });
+
+    test('run 结束变为 idle 并保留 frame 与 steps', () => {
+        const withFrame = applyRunWsMessage(emptyView(), { type: 'frame', data: 'x' });
+        const running = applyRunWsMessage(withFrame, {
+            type: 'run',
+            run: sampleRun('running'),
+        });
+        const started = applyRunWsMessage(running, {
+            type: 'step-start',
+            runId: 9,
+            stepIndex: 0,
+            stepName: '点击',
+            action: 'aiTap',
+            totalSteps: 1,
+        });
+        const finished = applyRunWsMessage(started, {
+            type: 'run',
+            run: sampleRun('success'),
+        });
+        expect(finished.current.status).toBe('idle');
+        expect(finished.current.run).toBeNull();
+        expect(finished.finishedStatus).toBe('success');
+        expect(finished.frame).toBe('x');
+        expect(finished.steps).toHaveLength(1);
+    });
+
+    test('新建队列用创建结果的 id 更新条目', async () => {
+        const payload = { name: 'q', items: [{ taskId: 1, modelId: 'm' }] };
+        const updated: { id: number; payload: typeof payload }[] = [];
+        await createQueueThenSaveItems({
+            payload,
+            create: async () => ({ id: 7 }),
+            update: async (id, next) => {
+                updated.push({ id, payload: next });
+            },
+        });
+        expect(updated).toEqual([{ id: 7, payload }]);
     });
 
     test('队列与任务页', () => {
