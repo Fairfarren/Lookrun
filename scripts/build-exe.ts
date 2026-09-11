@@ -10,6 +10,7 @@ import { mkdirSync, existsSync, cpSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { installPlatformTools } from './platform-tools';
 import { installRuntimeAssets } from './runtime-assets';
+import { findFromPackage, resolveFromPackage, SERVER_PACKAGE_JSON } from './workspace-module';
 
 const targetArg = process.argv.find((arg) => arg.startsWith('--target='));
 const target = targetArg?.split('=')[1];
@@ -36,7 +37,7 @@ const ext = outDir === 'dist-win' ? '.exe' : '';
 const outFile = `${outDir}/test-web-use-ai${ext}`;
 mkdirSync(outDir, { recursive: true });
 
-const args = ['bun', 'build', 'src/server/index.ts', '--compile', '--outfile', outFile];
+const args = ['bun', 'build', 'packages/server/src/index.ts', '--compile', '--outfile', outFile];
 if (target) {
     args.push('--target', target);
 }
@@ -53,7 +54,9 @@ async function copySharpNative() {
     const libvipsPkgName = `@img/sharp-libvips-${platKey}`;
     const sharpOpt = (() => {
         try {
-            const pkg = JSON.parse(readFileSync('node_modules/sharp/package.json', 'utf8')) as {
+            const pkg = JSON.parse(
+                readFileSync(resolveFromPackage(SERVER_PACKAGE_JSON, 'sharp/package.json'), 'utf8'),
+            ) as {
                 optionalDependencies?: Record<string, string>;
             };
             return pkg.optionalDependencies ?? {};
@@ -83,10 +86,14 @@ async function copySharpNative() {
 
     for (const [pkg, ver] of nativePkgs) {
         const pkgDirName = pkg.replace('@img/', '');
-        const srcDir = path.join('node_modules', '@img', pkgDirName);
+        const srcPkg = findFromPackage(
+            resolveFromPackage(SERVER_PACKAGE_JSON, 'sharp/package.json'),
+            `${pkg}/package.json`,
+        );
+        const srcDir = srcPkg ? path.dirname(srcPkg) : undefined;
         const dstDir = path.join(dstImgDir, pkgDirName);
         rmSync(dstDir, { recursive: true, force: true });
-        if (existsSync(path.join(srcDir, 'lib'))) {
+        if (srcDir && existsSync(path.join(srcDir, 'lib'))) {
             // 本机已装该平台包（如 mac 打 mac 包），直接拷
             cpSync(srcDir, dstDir, { recursive: true });
             console.log(`native 拷贝(本地)：${pkg}@${ver}`);

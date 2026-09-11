@@ -19,6 +19,14 @@
 - Android：设备已开启 USB 调试并授权当前电脑；正式程序包自带 ADB
 - AI 模型：远程 Ollama 服务器（OpenAI 兼容接口 + API Key），需具备视觉能力
 
+## 仓库结构
+
+Bun workspaces，请在仓库根目录执行命令：
+
+- `packages/web`：前端（React / Vite）
+- `packages/server`：后端（Hono / Bun）
+- `packages/shared`：前后端共享类型和 YAML 表单转换
+
 ## 开发
 
 ```bash
@@ -118,4 +126,4 @@ tasks:
 
 ## 技术栈
 
-Bun + Hono（API/WebSocket）+ bun:sqlite + puppeteer-core（驱动系统 Chrome）+ @midscene/web / @midscene/android（AI 执行）+ React/Vite/antd（前端）+ CodeMirror（YAML 编辑）
+Bun workspaces（packages/web、packages/server、packages/shared）+ Hono（API/WebSocket）+ bun:sqlite + puppeteer-core（驱动系统 Chrome）+ @midscene/web / @midscene/android（AI 执行）+ React/Vite/antd（前端）+ CodeMirror（YAML 编辑）

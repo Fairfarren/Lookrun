@@ -12,7 +12,7 @@
     "**/data/**",
     "**/midscene_run/**",
     "**/.stryker-tmp/**",
-    "**/src/server/gen/**",
+    "**/packages/server/src/gen/**",
     "bun.lock",
     "resources/**"
   ]

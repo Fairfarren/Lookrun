@@ -1,0 +1,282 @@
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import type { ModelConfig } from '@lookrun/shared';
+import { DATA_DIR } from './config';
+// 构建时内置的模型列表；运行时可用 data/models.json 覆盖
+import embeddedModelsJson from '../../../resources/models.json';
+// 视觉自检测试图，bun build --compile 时随二进制内嵌
+import visionCheckPngPath from '../../../resources/vision-check.png' with { type: 'file' };
+
+// 自检测试图的尺寸，生成 resources/vision-check.png 时使用的视口
+export const VISION_CHECK_WIDTH = 640;
+export const VISION_CHECK_HEIGHT = 360;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function requireText(value: unknown, message: string) {
+    if (typeof value !== 'string' || value === '') {
+        throw new Error(message);
+    }
+    return value;
+}
+
+function requireModelList(value: unknown) {
+    if (!Array.isArray(value) || value.length === 0) {
+        throw new Error('模型配置的 models 必须是非空数组');
+    }
+    return value;
+}
+
+// 解析模型配置文件：顶层的 baseUrl/apiKey 平铺到每个模型上
+export function parseModelsConfig(json: unknown): ModelConfig[] {
+    if (!isRecord(json)) {
+        throw new Error('模型配置必须是一个对象');
+    }
+    requireText(json.baseUrl, '模型配置缺少 baseUrl');
+    requireText(json.apiKey, '模型配置缺少 apiKey');
+    return requireModelList(json.models).map((item, index) => parseModelEntry(item, index, json));
+}
+
+function optionalText(value: unknown) {
+    return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+function parseModelEntry(item: unknown, index: number, json: Record<string, unknown>): ModelConfig {
+    if (!isRecord(item) || typeof item.id !== 'string' || item.id === '') {
+        throw new Error(`第 ${index + 1} 个模型缺少 id`);
+    }
+    if (typeof item.model !== 'string' || item.model === '') {
+        throw new Error(`第 ${index + 1} 个模型缺少 model 字段`);
+    }
+    return {
+        id: item.id,
+        name: optionalText(item.name) ?? item.model,
+        model: item.model,
+        baseUrl: json.baseUrl as string,
+        apiKey: json.apiKey as string,
+        family: optionalText(item.family),
+    };
+}
+
+// 加载模型列表：优先 data/models.json（运行时覆盖），否则用构建时内置的配置
+function errorMessage(error: unknown) {
+    return error instanceof Error ? error.message : String(error);
+}
+
+function readOverrideModels(overridePath: string) {
+    try {
+        return parseModelsConfig(JSON.parse(readFileSync(overridePath, 'utf8')));
+    } catch (error) {
+        throw new Error(`运行时模型配置 ${overridePath} 解析失败：${errorMessage(error)}`);
+    }
+}
+
+export function loadModels() {
+    const overridePath = path.join(DATA_DIR, 'models.json');
+    if (existsSync(overridePath)) {
+        return readOverrideModels(overridePath);
+    }
+    return parseModelsConfig(embeddedModelsJson);
+}
+
+export function getModelById(models: ModelConfig[], id: string) {
+    return models.find((model) => model.id === id) ?? null;
+}
+
+// 把模型配置转成 Midscene Agent 的 modelConfig 参数
+export function toMidsceneModelConfig(model: ModelConfig) {
+    return {
+        MIDSCENE_MODEL_NAME: model.model,
+        MIDSCENE_MODEL_API_KEY: model.apiKey,
+        MIDSCENE_MODEL_BASE_URL: model.baseUrl,
+        ...(model.family ? { MIDSCENE_MODEL_FAMILY: model.family } : {}),
+    };
+}
+
+// ---------- 视觉自检 ----------
+
+export type VisionCheckResult =
+    | { ok: true; bbox: number[]; coordinateSystem: 'absolute' | 'normalized' }
+    | { ok: false; reason: string };
+
+const NORMALIZED_COORD_MAX = 1000;
+
+function isPlausibleBBox(bbox: number[]) {
+    const [x1, y1, x2, y2] = bbox;
+    return (
+        x1 >= 0 &&
+        y1 >= 0 &&
+        x2 <= VISION_CHECK_WIDTH &&
+        y2 <= VISION_CHECK_HEIGHT &&
+        x2 > x1 &&
+        y2 > y1
+    );
+}
+
+// 测试图的按钮在画面正中央，定位正确的 bbox 必然包含图片中心点
+function containsCenter(bbox: number[]) {
+    const [x1, y1, x2, y2] = bbox;
+    return (
+        x1 <= VISION_CHECK_WIDTH / 2 &&
+        x2 >= VISION_CHECK_WIDTH / 2 &&
+        y1 <= VISION_CHECK_HEIGHT / 2 &&
+        y2 >= VISION_CHECK_HEIGHT / 2
+    );
+}
+
+// 从模型回复里提取 bbox JSON 并校验。
+// 两种坐标系都接受：绝对像素（在图片范围内）或 qwen 系 0-1000 归一化坐标
+// （gemma/minimax/kimi 走 Ollama 时都是归一化格式，参考 test-game/step2-v2 的生产验证）
+function parseBboxJson(
+    content: string,
+): { ok: true; bbox: number[] } | { ok: false; reason: string } {
+    const jsonMatch = content.match(/\{[^{}]*"bbox"[^{}]*\}/);
+    if (!jsonMatch) {
+        return { ok: false, reason: '回复中没有找到 bbox JSON' };
+    }
+    try {
+        const parsed: unknown = JSON.parse(jsonMatch[0]);
+        if (!isRecord(parsed) || !Array.isArray(parsed.bbox) || parsed.bbox.length !== 4) {
+            return { ok: false, reason: 'bbox 必须是 4 个数字的数组' };
+        }
+        const bbox = parsed.bbox;
+        if (!bbox.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+            return { ok: false, reason: 'bbox 必须是 4 个数字的数组' };
+        }
+        const [x1, y1, x2, y2] = bbox;
+        if (x2 <= x1 || y2 <= y1) {
+            return { ok: false, reason: 'bbox 面积为零' };
+        }
+        return { ok: true, bbox };
+    } catch {
+        return { ok: false, reason: 'bbox JSON 无法解析' };
+    }
+}
+
+function absoluteVisionResult(bbox: number[]): VisionCheckResult | null {
+    if (!isPlausibleBBox(bbox)) {
+        return null;
+    }
+    if (!containsCenter(bbox)) {
+        return {
+            ok: false,
+            reason: `定位偏差过大：bbox [${bbox.join(', ')}] 未覆盖画面中心的按钮`,
+        };
+    }
+    return { ok: true, bbox, coordinateSystem: 'absolute' };
+}
+
+function normalizedVisionResult(bbox: number[]): VisionCheckResult | null {
+    if (!bbox.every((n) => n >= 0 && n <= NORMALIZED_COORD_MAX)) {
+        return null;
+    }
+    const [x1, y1, x2, y2] = bbox;
+    const rescaled = [
+        (x1 * VISION_CHECK_WIDTH) / NORMALIZED_COORD_MAX,
+        (y1 * VISION_CHECK_HEIGHT) / NORMALIZED_COORD_MAX,
+        (x2 * VISION_CHECK_WIDTH) / NORMALIZED_COORD_MAX,
+        (y2 * VISION_CHECK_HEIGHT) / NORMALIZED_COORD_MAX,
+    ];
+    if (isPlausibleBBox(rescaled) && containsCenter(rescaled)) {
+        return {
+            ok: true,
+            bbox: rescaled.map(Math.round),
+            coordinateSystem: 'normalized',
+        };
+    }
+    return null;
+}
+
+export function parseVisionCheckResponse(content: string): VisionCheckResult {
+    const parsed = parseBboxJson(content);
+    if (!parsed.ok) {
+        return parsed;
+    }
+    const absolute = absoluteVisionResult(parsed.bbox);
+    if (absolute) {
+        return absolute;
+    }
+    const normalized = normalizedVisionResult(parsed.bbox);
+    if (normalized) {
+        return normalized;
+    }
+    return {
+        ok: false,
+        reason: `bbox 既不是合法像素坐标也不是 0-1000 归一化坐标：[${parsed.bbox.join(', ')}]`,
+    };
+}
+
+const VISION_CHECK_PROMPT =
+    '这是一张网页截图，画面中央有一个写着「确定按钮」的蓝色按钮。请定位这个按钮，只回复 JSON，格式：{"bbox": [x1, y1, x2, y2]}，坐标为像素值。';
+
+async function loadVisionCheckImage() {
+    const buffer = await Bun.file(visionCheckPngPath).arrayBuffer();
+    return Buffer.from(buffer).toString('base64');
+}
+
+// 视觉自检：给模型发一张带按钮的测试图，验证它能否返回可解析的元素坐标
+// 这是模型能否用于 UI 自动化的分水岭：能看图不代表能返回坐标
+export async function checkModelVision(
+    model: ModelConfig,
+    options: { timeoutMs?: number } = {},
+): Promise<{ ok: boolean; message: string }> {
+    const timeoutMs = options.timeoutMs ?? 60_000;
+    try {
+        const imageBase64 = await loadVisionCheckImage();
+        const response = await fetch(`${model.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${model.apiKey}`,
+            },
+            body: JSON.stringify({
+                model: model.model,
+                temperature: 0,
+                // 推理型模型（如 kimi）会先消耗思考预算，给小了会返回空内容
+                max_tokens: 1500,
+                messages: [
+                    {
+                        role: 'user',
+                        content: [
+                            { type: 'text', text: VISION_CHECK_PROMPT },
+                            {
+                                type: 'image_url',
+                                image_url: { url: `data:image/png;base64,${imageBase64}` },
+                            },
+                        ],
+                    },
+                ],
+            }),
+            signal: AbortSignal.timeout(timeoutMs),
+        });
+
+        if (!response.ok) {
+            const body = await response.text();
+            return {
+                ok: false,
+                message: `接口返回 ${response.status}：${body.slice(0, 200)}`,
+            };
+        }
+        const data = (await response.json()) as {
+            choices?: { message?: { content?: string } }[];
+        };
+        const content = data.choices?.[0]?.message?.content ?? '';
+        const result = parseVisionCheckResponse(content);
+        if (result.ok) {
+            const systemLabel =
+                result.coordinateSystem === 'normalized' ? '0-1000 归一化坐标' : '绝对像素坐标';
+            return {
+                ok: true,
+                message: `视觉能力正常（${systemLabel}），定位坐标 [${result.bbox.join(', ')}]`,
+            };
+        }
+        return { ok: false, message: `模型无法用于 UI 自动化：${result.reason}` };
+    } catch (error) {
+        return {
+            ok: false,
+            message: `自检请求失败：${error instanceof Error ? error.message : String(error)}`,
+        };
+    }
+}
