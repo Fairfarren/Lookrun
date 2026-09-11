@@ -11,3 +11,7 @@ data/
 midscene_run/
 resources/models.json
 .error
+coverage/
+reports/
+.stryker-tmp
+stryker.log
