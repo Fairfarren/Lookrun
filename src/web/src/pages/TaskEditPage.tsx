@@ -47,6 +47,8 @@ import { api } from '../api';
 import { createAndroidAppOptions } from '../android-app-options';
 import { reorderById } from '../sortable-items';
 import { useThemeMode } from '../theme-context';
+import { CARD_ACTIONS_STYLE, CARD_HEADER_WRAP_STYLE } from '../layout';
+import { scriptValidationBanner } from '../script-validation';
 import { createValidationErrorKey } from '../validation-errors';
 
 const VALIDATE_DEBOUNCE_MS = 800;
@@ -249,6 +251,7 @@ export default function TaskEditPage() {
     const [errors, setErrors] = useState<string[]>([]);
     const [saving, setSaving] = useState(false);
     const [loaded, setLoaded] = useState(isNew);
+    const [validated, setValidated] = useState(false);
     const [androidDevices, setAndroidDevices] = useState<AndroidDeviceRecord[]>([]);
     const [androidApps, setAndroidApps] = useState<AndroidAppRecord[]>([]);
     const [loadingDevices, setLoadingDevices] = useState(false);
@@ -350,8 +353,14 @@ export default function TaskEditPage() {
         clearTimeout(validateTimer.current);
         validateTimer.current = setTimeout(() => {
             api.validateYaml(currentYaml)
-                .then((result) => setErrors(result.errors))
-                .catch(() => setErrors([]));
+                .then((result) => {
+                    setErrors(result.errors);
+                    setValidated(true);
+                })
+                .catch(() => {
+                    setErrors([]);
+                    setValidated(true);
+                });
         }, VALIDATE_DEBOUNCE_MS);
         return () => clearTimeout(validateTimer.current);
     }, [currentYaml, loaded]);
@@ -787,11 +796,14 @@ export default function TaskEditPage() {
         </>
     );
 
+    const banner = scriptValidationBanner({ validated, errors });
+
     return (
         <Card
             title={isNew ? '新建任务' : '编辑任务'}
+            styles={{ header: CARD_HEADER_WRAP_STYLE }}
             extra={
-                <Space>
+                <Space style={CARD_ACTIONS_STYLE}>
                     <Segmented
                         value={mode}
                         onChange={switchMode}
@@ -818,8 +830,12 @@ export default function TaskEditPage() {
                     />
                 </div>
                 {mode === 'form' ? renderFormEditor() : renderYamlEditor()}
-                {errors.length > 0 && (
+                {banner === 'pending' && (
+                    <Alert data-testid='script-validation-banner' type='info' title='正在校验' />
+                )}
+                {banner === 'error' && (
                     <Alert
+                        data-testid='script-validation-banner'
                         type='error'
                         title='脚本存在问题'
                         description={
@@ -833,8 +849,13 @@ export default function TaskEditPage() {
                         }
                     />
                 )}
-                {errors.length === 0 && loaded && (
-                    <Alert type='success' title='校验通过' showIcon />
+                {banner === 'success' && (
+                    <Alert
+                        data-testid='script-validation-banner'
+                        type='success'
+                        title='校验通过'
+                        showIcon
+                    />
                 )}
             </Space>
         </Card>
