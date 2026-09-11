@@ -1,19 +1,20 @@
 {
     "compilerOptions": {
-        "lib": ["ESNext"],
+        "lib": ["ESNext", "DOM", "DOM.Iterable"],
         "target": "ESNext",
         "module": "ESNext",
         "moduleResolution": "bundler",
         "moduleDetection": "force",
-        "allowImportingTsExtensions": true,
         "verbatimModuleSyntax": true,
         "noEmit": true,
         "strict": true,
         "skipLibCheck": true,
         "esModuleInterop": true,
         "resolveJsonModule": true,
-        "types": ["bun"],
-        "jsx": "react-jsx"
+        "jsx": "react-jsx",
+        "useDefineForClassFields": true,
+        "allowImportingTsExtensions": true,
+        "types": ["bun"]
     },
-    "include": ["scripts", "tests"]
+    "include": ["src", "tests", "vite.config.ts"]
 }

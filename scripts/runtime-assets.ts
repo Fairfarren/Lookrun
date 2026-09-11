@@ -1,13 +1,15 @@
 import { $ } from 'bun';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
-
-const FFMPEG_INSTALLER_PACKAGE_PATH = 'node_modules/@ffmpeg-installer/ffmpeg/package.json';
-const SCRCPY_SERVER_PATH = 'node_modules/@midscene/android/bin/scrcpy-server';
+import { findFromPackage, resolveFromPackage, SERVER_PACKAGE_JSON } from './workspace-module';
 
 export function ffmpegPackageForPlatform(platformKey: string) {
     const packageName = `@ffmpeg-installer/${platformKey}`;
-    const packageJson = JSON.parse(readFileSync(FFMPEG_INSTALLER_PACKAGE_PATH, 'utf8')) as {
+    const ffmpegInstallerPkg = resolveFromPackage(
+        SERVER_PACKAGE_JSON,
+        '@ffmpeg-installer/ffmpeg/package.json',
+    );
+    const packageJson = JSON.parse(readFileSync(ffmpegInstallerPkg, 'utf8')) as {
         optionalDependencies?: Record<string, string>;
     };
     const version = packageJson.optionalDependencies?.[packageName];
@@ -58,16 +60,25 @@ export async function installRuntimeAssets(outDir: string, platformKey: string) 
     rmSync(targetDir, { recursive: true, force: true });
     mkdirSync(targetDir, { recursive: true });
 
-    const localFfmpegPath = path.join(
-        'node_modules',
-        '@ffmpeg-installer',
-        platformKey,
-        packageInfo.binaryName,
+    const ffmpegInstallerPkg = resolveFromPackage(
+        SERVER_PACKAGE_JSON,
+        '@ffmpeg-installer/ffmpeg/package.json',
     );
-    const downloaded = !existsSync(localFfmpegPath);
-    const ffmpegSource = downloaded ? await downloadFfmpeg(outDir, packageInfo) : localFfmpegPath;
+    const localPlatformPkg = findFromPackage(
+        ffmpegInstallerPkg,
+        `${packageInfo.packageName}/package.json`,
+    );
+    const localFfmpegPath = localPlatformPkg
+        ? path.join(path.dirname(localPlatformPkg), packageInfo.binaryName)
+        : undefined;
+    const downloaded = localFfmpegPath === undefined;
+    const ffmpegSource = localFfmpegPath ?? (await downloadFfmpeg(outDir, packageInfo));
     cpSync(ffmpegSource, path.join(targetDir, packageInfo.binaryName));
-    cpSync(SCRCPY_SERVER_PATH, path.join(targetDir, 'scrcpy-server'));
+    const androidPkg = resolveFromPackage(SERVER_PACKAGE_JSON, '@midscene/android/package.json');
+    cpSync(
+        path.join(path.dirname(androidPkg), 'bin', 'scrcpy-server'),
+        path.join(targetDir, 'scrcpy-server'),
+    );
     if (downloaded) {
         rmSync(path.join(outDir, '.runtime-assets-download'), {
             recursive: true,

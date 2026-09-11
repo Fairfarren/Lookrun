@@ -4,6 +4,8 @@ dist-mac/
 dist-win/
 dist-linux/
 dist-web/
+packages/*/dist/
+app/*/dist/
 data/
 *.local
 .DS_Store
