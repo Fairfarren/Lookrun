@@ -24,8 +24,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { RunStepRecord, TaskRecord } from '@lookrun/shared';
 import { api, type CurrentRunState, type ModelBrief, type QueueItem } from '../api';
 import { RunStatusTag, formatDuration } from '../components';
-import { RUN_FRAME_COL, RUN_LOG_COL } from '../layout';
-import { runProgressText } from '../run-progress';
+import { RUN_FRAME_COL, RUN_LOG_COL } from '../styles/layout';
+import { runProgressText } from '../utils/run-progress';
 import { useWebSocket, type WsMessage } from '../hooks';
 
 interface LiveStep {

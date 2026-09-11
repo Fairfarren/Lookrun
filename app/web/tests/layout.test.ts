@@ -11,7 +11,7 @@ import {
     SIDER_COLLAPSE_BELOW,
     SIDER_STYLE,
     siderCollapsed,
-} from '../src/layout';
+} from '../src/styles/layout';
 
 describe('应用布局', () => {
     test('应用壳限制在视口内且不产生全局滚动', () => {

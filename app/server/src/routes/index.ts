@@ -1,8 +1,8 @@
 import type { Hono } from 'hono';
 import { serveStatic } from 'hono/bun';
-import { formatRunHistory } from './ai-error';
-import { detectChrome } from './chrome';
-import { DB_PATH, REPORT_DIR, SCREENSHOT_DIR } from './config';
+import { formatRunHistory } from '../lib/ai-error';
+import { detectChrome } from '../services/chrome';
+import { DB_PATH, REPORT_DIR, SCREENSHOT_DIR } from '../config';
 import {
     countRuns,
     createDb,
@@ -17,19 +17,29 @@ import {
     markStaleRunsStopped,
     replaceVariables,
     updateTask,
-} from './db';
-import { Runner, ScriptInvalidError } from './runner';
-import { cancelQueueItem, listQueue, moveQueueItem } from './queue';
-import { createQueue, deleteQueue, getQueue, listQueues, updateQueue } from './queue-defs';
-import { broadcast } from './ws';
-import { cleanupAllRuns, storageStats } from './storage';
-import { checkModelVision, getModelById, loadModels } from './models';
-import pkg from '../../../package.json';
-import { getSetting, setSetting } from './db';
+} from '../db';
+import { Runner, ScriptInvalidError } from '../services/runner';
+import { cancelQueueItem, listQueue, moveQueueItem } from '../services/queue';
+import {
+    createQueue,
+    deleteQueue,
+    getQueue,
+    listQueues,
+    updateQueue,
+} from '../services/queue-defs';
+import { broadcast } from '../lib/ws';
+import { cleanupAllRuns, storageStats } from '../services/storage';
+import { checkModelVision, getModelById, loadModels } from '../services/models';
+import pkg from '../../../../package.json';
+import { getSetting, setSetting } from '../db';
 import type { SystemInfo } from '@lookrun/shared';
-import { parseScript } from './yamlflow';
-import { checkAndroidDevice, listAndroidApps, listAndroidDevices } from './android-service';
-import { detectAdbPath } from './android';
+import { parseScript } from '../lib/yamlflow';
+import {
+    checkAndroidDevice,
+    listAndroidApps,
+    listAndroidDevices,
+} from '../services/android-service';
+import { detectAdbPath } from '../services/android';
 
 const SELECTED_MODEL_KEY = 'selectedModelId';
 

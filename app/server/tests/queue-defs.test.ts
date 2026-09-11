@@ -4,7 +4,13 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createDb, insertTask } from '../src/db';
-import { createQueue, deleteQueue, getQueue, listQueues, updateQueue } from '../src/queue-defs';
+import {
+    createQueue,
+    deleteQueue,
+    getQueue,
+    listQueues,
+    updateQueue,
+} from '../src/services/queue-defs';
 
 let db: Database;
 let tempDir: string;

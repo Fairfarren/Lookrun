@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { parseScript, substituteVariables } from '../src/yamlflow';
+import { parseScript, substituteVariables } from '../src/lib/yamlflow';
 
 describe('substituteVariables', () => {
     test('替换 {{变量}} 占位符', () => {

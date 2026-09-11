@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { dispatchStep } from '../src/runner';
+import { dispatchStep } from '../src/services/runner';
 
 test('打开 App 步骤交给 Android Agent 执行', async () => {
     let launchedTarget = '';

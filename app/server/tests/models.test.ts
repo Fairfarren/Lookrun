@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { parseModelsConfig, parseVisionCheckResponse } from '../src/models';
+import { parseModelsConfig, parseVisionCheckResponse } from '../src/services/models';
 
 describe('parseModelsConfig', () => {
     test('合法配置：baseUrl 和 apiKey 平铺到每个模型', () => {

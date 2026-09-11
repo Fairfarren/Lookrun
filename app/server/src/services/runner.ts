@@ -6,11 +6,11 @@ import puppeteer from 'puppeteer-core';
 import type { Browser, Page } from 'puppeteer-core';
 import type { Database } from 'bun:sqlite';
 import type { ModelConfig, RunRecord, RunStepRecord } from '@lookrun/shared';
-import { formatErrorMessage, formatStepError } from './ai-error';
-import { extractLastAiResult } from './ai-result';
+import { formatErrorMessage, formatStepError } from '../lib/ai-error';
+import { extractLastAiResult } from '../lib/ai-result';
 import { startAndroidLivePreview } from './android-preview';
 import { detectChrome } from './chrome';
-import { REPORT_DIR, RUN_KEEP_COUNT, SCREENSHOT_DIR } from './config';
+import { REPORT_DIR, RUN_KEEP_COUNT, SCREENSHOT_DIR } from '../config';
 import {
     finishRun,
     getRun,
@@ -19,15 +19,19 @@ import {
     insertStep,
     listRunSteps,
     listVariables,
-} from './db';
+} from '../db';
 import { getModelById, loadModels, toMidsceneModelConfig } from './models';
 import { enqueue, listQueue, nextPending, requeueInterrupted, setQueueStatus } from './queue';
 import { cleanupOldRuns } from './retention';
-import { clickTargetForStep, type ClickTarget, markClickOnScreenshot } from './screenshot-marker';
+import {
+    clickTargetForStep,
+    type ClickTarget,
+    markClickOnScreenshot,
+} from '../lib/screenshot-marker';
 import { startScreencast } from './screencast';
-import { broadcast, hasWsClients } from './ws';
-import { activatePageSession } from './page-session';
-import { parseScript, type FlowStep, type ParsedScript } from './yamlflow';
+import { broadcast, hasWsClients } from '../lib/ws';
+import { activatePageSession } from '../lib/page-session';
+import { parseScript, type FlowStep, type ParsedScript } from '../lib/yamlflow';
 import {
     androidAdbPath,
     checkAndroidDevice,

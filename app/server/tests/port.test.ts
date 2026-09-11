@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { parseLsofPids, parseNetstatPids } from '../src/port';
+import { parseLsofPids, parseNetstatPids } from '../src/lib/port';
 
 // macOS/Linux: lsof -ti :PORT 输出每行一个 PID
 test('parseLsofPids 提取每行的 PID', () => {

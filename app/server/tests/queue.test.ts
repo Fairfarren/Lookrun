@@ -12,7 +12,7 @@ import {
     nextPending,
     requeueInterrupted,
     setQueueStatus,
-} from '../src/queue';
+} from '../src/services/queue';
 
 let db: Database;
 let tempDir: string;
