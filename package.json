@@ -9,6 +9,9 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "concurrently": "^10.0.3",
+    "oxfmt": "^0.67.0",
+    "oxlint": "^1.82.0",
+    "typescript": "^7.0.2",
     "vite": "^8.1.5"
   },
   "dependencies": {
@@ -42,6 +45,10 @@
     "build:exe:all": "bun run build:web && bun run build:assets && bun scripts/build-exe.ts --target=bun-windows-x64 && bun scripts/build-exe.ts --target=bun-darwin-arm64",
     "start": "bun src/server/index.ts",
     "test": "bun test",
+    "lint": "oxlint --deny-warnings .",
+    "lint:fix": "oxlint --fix --deny-warnings .",
+    "format": "oxfmt src tests scripts vite.config.ts",
+    "format:check": "oxfmt --check src tests scripts vite.config.ts",
     "crap": "bun test --coverage --coverage-reporter=lcov && bun scripts/crap-check.ts",
     "mutate": "stryker run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/web/tsconfig.json"

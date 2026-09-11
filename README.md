@@ -37,11 +37,16 @@ MOCK_AI=1 MOCK_FAIL_AT=2 bun run dev   # 模拟第 2 步失败，验证失败即
 
 ```bash
 bun test               # 单元测试
+bun run lint           # oxlint（警告视为失败）
+bun run format         # oxfmt 写入（4 空格、单引号）
+bun run format:check   # oxfmt 只检查不改文件
 bun run crap           # CRAP 检查（bun 覆盖率 + 圈复杂度，门槛 ≤ 8）
 bun run mutate         # 变异测试（Stryker + bun test，仅已有单测的纯函数）
 bun run typecheck      # 前后端 TypeScript 检查
 bun scripts/e2e-smoke.ts   # E2E 冒烟：完整跑通 / 手动停止 / 失败即停
 ```
+
+指向 `master` 的 Pull Request 会跑 GitHub Action：检查、lint、format、tsc、CRAP、变异测试。没有 PR 的分支不跑。
 
 `bun run crap` 目前会失败：仓库里仍有圈复杂度或覆盖率不够的函数，命令会列出清单。先拆函数、补测试变体，再把这条检查接到默认测试里。
 

@@ -5,20 +5,20 @@ import { defineConfig } from 'vite';
 const SERVER_PORT = 3877;
 
 export default defineConfig({
-  root: 'src/web',
-  plugins: [react()],
-  server: {
-    port: 5173,
-    proxy: {
-      '/api': `http://localhost:${SERVER_PORT}`,
-      '/ws': {
-        target: `ws://localhost:${SERVER_PORT}`,
-        ws: true,
-      },
+    root: 'src/web',
+    plugins: [react()],
+    server: {
+        port: 5173,
+        proxy: {
+            '/api': `http://localhost:${SERVER_PORT}`,
+            '/ws': {
+                target: `ws://localhost:${SERVER_PORT}`,
+                ws: true,
+            },
+        },
     },
-  },
-  build: {
-    outDir: '../../dist-web',
-    emptyOutDir: true,
-  },
+    build: {
+        outDir: '../../dist-web',
+        emptyOutDir: true,
+    },
 });

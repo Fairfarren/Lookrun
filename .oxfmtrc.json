@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "tabWidth": 4,
+  "useTabs": false,
+  "singleQuote": true,
+  "jsxSingleQuote": true,
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist*/**",
+    "**/coverage/**",
+    "**/reports/**",
+    "**/data/**",
+    "**/midscene_run/**",
+    "**/.stryker-tmp/**",
+    "**/src/server/gen/**",
+    "bun.lock",
+    "resources/**"
+  ]
+}

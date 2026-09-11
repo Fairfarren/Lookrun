@@ -7,11 +7,11 @@ import App from './App';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <ConfigProvider locale={zhCN}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </ConfigProvider>
-  </StrictMode>,
+    <StrictMode>
+        <ConfigProvider locale={zhCN}>
+            <BrowserRouter>
+                <App />
+            </BrowserRouter>
+        </ConfigProvider>
+    </StrictMode>,
 );

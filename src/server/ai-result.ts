@@ -3,65 +3,73 @@
 // dump 结构复杂且随版本变化，所有取值都做防御性判断，提取失败返回 null
 
 export interface AiResultSummary {
-  action: string;
-  thought?: string;
-  element?: {
-    rect?: unknown;
-    center?: unknown;
-  };
-  assertPass?: boolean;
-  data?: unknown;
+    action: string;
+    thought?: string;
+    element?: {
+        rect?: unknown;
+        center?: unknown;
+    };
+    assertPass?: boolean;
+    data?: unknown;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export function extractLastAiResult(dumpJson: string): AiResultSummary | null {
-  let dump: unknown;
-  try {
-    dump = JSON.parse(dumpJson);
-  } catch {
-    return null;
-  }
-  if (!isRecord(dump) || !Array.isArray(dump.executions) || dump.executions.length === 0) {
-    return null;
-  }
+    let dump: unknown;
+    try {
+        dump = JSON.parse(dumpJson);
+    } catch {
+        return null;
+    }
+    if (!isRecord(dump) || !Array.isArray(dump.executions) || dump.executions.length === 0) {
+        return null;
+    }
 
-  const lastExecution = dump.executions[dump.executions.length - 1];
-  if (!isRecord(lastExecution) || !Array.isArray(lastExecution.tasks)) {
-    return null;
-  }
+    const lastExecution = dump.executions[dump.executions.length - 1];
+    if (!isRecord(lastExecution) || !Array.isArray(lastExecution.tasks)) {
+        return null;
+    }
 
-  const summary: AiResultSummary = {
-    action: typeof lastExecution.name === 'string' ? lastExecution.name : 'unknown',
-  };
+    const summary: AiResultSummary = {
+        action: typeof lastExecution.name === 'string' ? lastExecution.name : 'unknown',
+    };
 
-  // 从后往前找最近一条有信息量的任务记录
-  for (const task of [...lastExecution.tasks].reverse()) {
-    if (!isRecord(task)) {
-      continue;
+    // 从后往前找最近一条有信息量的任务记录
+    for (const task of [...lastExecution.tasks].reverse()) {
+        if (!isRecord(task)) {
+            continue;
+        }
+        if (
+            summary.thought === undefined &&
+            typeof task.thought === 'string' &&
+            task.thought !== ''
+        ) {
+            summary.thought = task.thought;
+        }
+        const output = task.output;
+        if (!isRecord(output)) {
+            continue;
+        }
+        if (summary.element === undefined && isRecord(output.element)) {
+            summary.element = { rect: output.element.rect, center: output.element.center };
+        }
+        if (summary.assertPass === undefined && typeof output.pass === 'boolean') {
+            summary.assertPass = output.pass;
+        }
+        if (
+            summary.thought === undefined &&
+            typeof output.thought === 'string' &&
+            output.thought !== ''
+        ) {
+            summary.thought = output.thought;
+        }
+        if (summary.data === undefined && 'data' in output) {
+            summary.data = output.data;
+        }
     }
-    if (summary.thought === undefined && typeof task.thought === 'string' && task.thought !== '') {
-      summary.thought = task.thought;
-    }
-    const output = task.output;
-    if (!isRecord(output)) {
-      continue;
-    }
-    if (summary.element === undefined && isRecord(output.element)) {
-      summary.element = { rect: output.element.rect, center: output.element.center };
-    }
-    if (summary.assertPass === undefined && typeof output.pass === 'boolean') {
-      summary.assertPass = output.pass;
-    }
-    if (summary.thought === undefined && typeof output.thought === 'string' && output.thought !== '') {
-      summary.thought = output.thought;
-    }
-    if (summary.data === undefined && 'data' in output) {
-      summary.data = output.data;
-    }
-  }
 
-  return summary;
+    return summary;
 }
