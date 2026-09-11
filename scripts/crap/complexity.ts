@@ -223,6 +223,10 @@ export function collectFunctions(source: string, fileName: string) {
             return true;
         }
         if (token.kind === 'ident' && !CONTROL_NAMES.has(token.text) && peek(1)?.text === '(') {
+            // `cond ? fn() : other` 的冒号不是返回类型
+            if (tokens[cursor - 1]?.text === '?') {
+                return false;
+            }
             let index = cursor + 1;
             let depth = 0;
             while (index < tokens.length) {

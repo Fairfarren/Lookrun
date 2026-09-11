@@ -61,6 +61,17 @@ describe('collectFunctions', () => {
         expect(inner?.cc).toBe(2);
     });
 
+    test('三元表达式里的函数调用不是函数声明', () => {
+        const source = `
+      export function pick(parse: (() => number) | null) {
+        return parse ? parse() : null;
+      }
+    `;
+        const fns = collectFunctions(source, 'ternary.ts');
+        expect(fns.map((item) => item.name)).toEqual(['pick']);
+        expect(fns[0].cc).toBe(2);
+    });
+
     test('catch 和空值合并计入 CC', () => {
         const source = `
       export function read(value: string | null) {
