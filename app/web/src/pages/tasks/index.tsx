@@ -1,19 +1,32 @@
-import { DeleteOutlined, EditOutlined, PlayCircleOutlined, PlusOutlined } from '@ant-design/icons';
-import { App as AntApp, Button, Card, Flex, Modal, Select, Space, theme, Typography } from 'antd';
+import { Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TaskRecord } from '@lookrun/shared';
-import { api, type ModelBrief } from './api';
+import { confirmAction } from '../../components/confirm';
 import { formatTime } from '../../components';
+import { runConfirmedDelete } from '../../utils/confirmed-delete';
+import { BusyButton } from '../../components/busy-button';
+import { notify } from '../../components/notify';
+import { PageCard } from '../../components/page-card';
+import { SelectField } from '../../components/select-field';
+import { Button } from '../../components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '../../components/ui/dialog';
 import { errorText } from '../../utils/error-text';
-import { canStartTask, startTaskSuccess } from './utils';
 import { defaultModelId } from '../../utils/default-model-id';
 import { queuesViewState } from '../../utils/queues-page';
+import { api, type ModelBrief } from './api';
 import { TasksEmpty, TasksLoading, TasksReady } from './components/list-state';
+import { stayOnTasks } from '../../utils/ui-class';
+import { canStartTask, startTaskSuccess } from './utils';
 
 export default function TasksPage() {
-    const { message, modal } = AntApp.useApp();
-    const { token } = theme.useToken();
     const navigate = useNavigate();
     const [tasks, setTasks] = useState<TaskRecord[]>([]);
     const [loading, setLoading] = useState(true);
@@ -26,7 +39,7 @@ export default function TasksPage() {
         setLoading(true);
         api.listTasks()
             .then(setTasks)
-            .catch((error: Error) => message.error(error.message))
+            .catch((error: Error) => notify.error(error.message))
             .finally(() => setLoading(false));
     };
 
@@ -39,7 +52,7 @@ export default function TasksPage() {
                 setModels(result.models);
                 setModelId(defaultModelId(result.selected, result.models[0]?.id));
             })
-            .catch((error: Error) => message.error(error.message));
+            .catch((error: Error) => notify.error(error.message));
     };
 
     const submitStartRun = async () => {
@@ -48,7 +61,7 @@ export default function TasksPage() {
             setRunTask(null);
             applyStartResult(result.queued);
         } catch (error) {
-            message.error(errorText(error));
+            notify.error(errorText(error));
         } finally {
             setStarting(false);
         }
@@ -56,8 +69,8 @@ export default function TasksPage() {
 
     const applyStartResult = (queued: boolean) => {
         const feedback = startTaskSuccess(queued);
-        if (feedback.stay) {
-            message.success(feedback.message);
+        if (stayOnTasks(feedback)) {
+            notify.success(feedback.message!);
             return;
         }
         navigate('/run');
@@ -71,30 +84,32 @@ export default function TasksPage() {
         await submitStartRun();
     };
 
-    const confirmDelete = (task: TaskRecord) => {
-        modal.confirm({
+    const confirmDelete = async (task: TaskRecord) => {
+        const ok = await confirmAction({
             title: `删除任务「${task.name}」？`,
-            content: '删除后不可恢复，历史运行记录会保留。',
-            okText: '删除',
-            okButtonProps: { danger: true },
-            cancelText: '取消',
-            onOk: async () => {
+            description: '删除后不可恢复，历史运行记录会保留。',
+            confirmLabel: '删除',
+            destructive: true,
+        });
+        await runConfirmedDelete({
+            confirmed: ok,
+            remove: async () => {
                 await api.deleteTask(task.id);
-                message.success('已删除');
+            },
+            onSuccess: () => {
+                notify.success('已删除');
                 loadTasks();
             },
+            onError: (message) => notify.error(message),
         });
     };
 
     return (
-        <Card
+        <PageCard
             title='任务列表'
             extra={
-                <Button
-                    type='primary'
-                    icon={<PlusOutlined />}
-                    onClick={() => navigate('/tasks/new')}
-                >
+                <Button onClick={() => navigate('/tasks/new')}>
+                    <Plus />
                     新建任务
                 </Button>
             }
@@ -102,74 +117,72 @@ export default function TasksPage() {
             <TasksEmpty state={queuesViewState({ loading, count: tasks.length })} />
             <TasksLoading state={queuesViewState({ loading, count: tasks.length })} />
             <TasksReady state={queuesViewState({ loading, count: tasks.length })}>
-                <Flex vertical>
+                <div className='flex flex-col'>
                     {tasks.map((task) => (
-                        <Flex
+                        <div
                             key={task.id}
-                            justify='space-between'
-                            align='center'
-                            style={{
-                                padding: '12px 0',
-                                borderBottom: `1px solid ${token.colorBorderSecondary}`,
-                            }}
+                            className='flex flex-col gap-3 border-b py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between'
                         >
-                            <Space orientation='vertical' size={2}>
-                                <Typography.Text strong>{task.name}</Typography.Text>
-                                <Typography.Text type='secondary'>
+                            <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                                <span className='font-medium'>{task.name}</span>
+                                <span className='text-sm text-muted-foreground'>
                                     更新于 {formatTime(task.updatedAt)}
-                                </Typography.Text>
-                            </Space>
-                            <Space>
-                                <Button
-                                    type='primary'
-                                    ghost
-                                    icon={<PlayCircleOutlined />}
-                                    onClick={() => openRunModal(task)}
-                                >
+                                </span>
+                            </div>
+                            <div className='flex flex-wrap gap-2'>
+                                <Button variant='outline' onClick={() => openRunModal(task)}>
+                                    <Play />
                                     运行
                                 </Button>
                                 <Button
-                                    icon={<EditOutlined />}
+                                    variant='outline'
                                     onClick={() => navigate(`/tasks/${task.id}`)}
                                 >
+                                    <Pencil />
                                     编辑
                                 </Button>
                                 <Button
-                                    danger
-                                    icon={<DeleteOutlined />}
-                                    onClick={() => confirmDelete(task)}
-                                />
-                            </Space>
-                        </Flex>
+                                    variant='destructive'
+                                    size='icon'
+                                    aria-label='删除任务'
+                                    onClick={() => void confirmDelete(task)}
+                                >
+                                    <Trash2 />
+                                </Button>
+                            </div>
+                        </div>
                     ))}
-                </Flex>
+                </div>
             </TasksReady>
 
-            <Modal
-                title={`运行任务「${runTask?.name}」`}
-                open={runTask !== null}
-                onOk={startRun}
-                onCancel={() => setRunTask(null)}
-                okText='开始运行'
-                cancelText='取消'
-                confirmLoading={starting}
-            >
-                <Space orientation='vertical' style={{ width: '100%' }}>
-                    <Typography.Text>选择本次运行使用的 AI 模型：</Typography.Text>
-                    <Select
-                        style={{ width: '100%' }}
+            <Dialog open={runTask !== null} onOpenChange={(open) => !open && setRunTask(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{`运行任务「${runTask?.name}」`}</DialogTitle>
+                        <DialogDescription>选择本次运行使用的 AI 模型：</DialogDescription>
+                    </DialogHeader>
+                    <SelectField
+                        className='w-full'
                         value={modelId}
-                        onChange={setModelId}
+                        onValueChange={setModelId}
                         options={models.map((model) => ({
                             label: `${model.name}（${model.model}）`,
                             value: model.id,
                         }))}
                     />
-                    <Typography.Text type='secondary'>
+                    <p className='text-sm text-muted-foreground'>
                         运行过程中可在「实时运行」页面查看画面与步骤日志。
-                    </Typography.Text>
-                </Space>
-            </Modal>
-        </Card>
+                    </p>
+                    <DialogFooter>
+                        <Button variant='outline' onClick={() => setRunTask(null)}>
+                            取消
+                        </Button>
+                        <BusyButton busy={starting} onClick={() => void startRun()}>
+                            开始运行
+                        </BusyButton>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </PageCard>
     );
 }

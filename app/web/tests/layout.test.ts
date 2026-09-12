@@ -1,56 +1,45 @@
 import { describe, expect, test } from 'bun:test';
 import {
-    APP_SHELL_STYLE,
-    CARD_ACTIONS_STYLE,
-    CARD_HEADER_WRAP_STYLE,
-    RUN_FRAME_COL,
-    RUN_LOG_COL,
-    CONTENT_STYLE,
-    HEADER_STYLE,
-    MAIN_LAYOUT_STYLE,
+    APP_SHELL_CLASS,
+    CARD_ACTIONS_CLASS,
+    CARD_HEADER_WRAP_CLASS,
+    CONTENT_CLASS,
+    HEADER_CLASS,
+    MAIN_LAYOUT_CLASS,
+    RUN_FRAME_CLASS,
+    RUN_LOG_CLASS,
+    SIDER_CLASS,
     SIDER_COLLAPSE_BELOW,
-    SIDER_STYLE,
+    SIDER_COLLAPSED_CLASS,
+    SIDER_EXPANDED_CLASS,
     siderCollapsed,
+    siderWidthClass,
 } from '../src/styles/layout';
 
 describe('应用布局', () => {
     test('应用壳限制在视口内且不产生全局滚动', () => {
-        expect(APP_SHELL_STYLE).toEqual({
-            height: '100vh',
-            overflow: 'hidden',
-        });
+        expect(APP_SHELL_CLASS).toContain('h-svh');
+        expect(APP_SHELL_CLASS).toContain('overflow-hidden');
     });
 
     test('左侧导航固定在视口高度内', () => {
-        expect(SIDER_STYLE).toEqual({
-            height: '100vh',
-            overflowY: 'auto',
-        });
+        expect(SIDER_CLASS).toContain('h-svh');
+        expect(SIDER_CLASS).toContain('overflow-y-auto');
     });
 
     test('右侧布局不把滚动传递给页面', () => {
-        expect(MAIN_LAYOUT_STYLE).toEqual({
-            height: '100vh',
-            minWidth: 0,
-            overflow: 'hidden',
-        });
+        expect(MAIN_LAYOUT_CLASS).toContain('overflow-hidden');
+        expect(MAIN_LAYOUT_CLASS).toContain('min-w-0');
     });
 
     test('顶部标题栏保持吸顶', () => {
-        expect(HEADER_STYLE).toEqual({
-            position: 'sticky',
-            top: 0,
-            zIndex: 1,
-            flex: 'none',
-        });
+        expect(HEADER_CLASS).toContain('sticky');
+        expect(HEADER_CLASS).toContain('top-0');
     });
 
     test('右侧内容区域独立滚动', () => {
-        expect(CONTENT_STYLE).toEqual({
-            margin: 16,
-            minHeight: 0,
-            overflowY: 'auto',
-        });
+        expect(CONTENT_CLASS).toContain('overflow-y-auto');
+        expect(CONTENT_CLASS).toContain('min-h-0');
     });
 
     test('窄于 768 时侧栏应收起', () => {
@@ -63,14 +52,20 @@ describe('应用布局', () => {
         expect(siderCollapsed(1280)).toBe(false);
     });
 
+    test('收起时用窄宽度 class', () => {
+        expect(siderWidthClass(true)).toBe(SIDER_COLLAPSED_CLASS);
+        expect(siderWidthClass(false)).toBe(SIDER_EXPANDED_CLASS);
+    });
+
     test('卡片标题和操作区允许换行以免窄屏把保存挤出视口', () => {
-        expect(CARD_HEADER_WRAP_STYLE.flexWrap).toBe('wrap');
-        expect(CARD_ACTIONS_STYLE.flexWrap).toBe('wrap');
+        expect(CARD_HEADER_WRAP_CLASS).toContain('flex-wrap');
+        expect(CARD_ACTIONS_CLASS).toContain('flex-wrap');
     });
 
     test('实时运行页在窄屏上画面和日志上下排列', () => {
-        expect(RUN_FRAME_COL.xs).toBe(24);
-        expect(RUN_LOG_COL.xs).toBe(24);
-        expect(RUN_FRAME_COL.lg + RUN_LOG_COL.lg).toBe(24);
+        expect(RUN_FRAME_CLASS).toContain('w-full');
+        expect(RUN_LOG_CLASS).toContain('w-full');
+        expect(RUN_FRAME_CLASS).toContain('lg:w-5/12');
+        expect(RUN_LOG_CLASS).toContain('lg:w-7/12');
     });
 });

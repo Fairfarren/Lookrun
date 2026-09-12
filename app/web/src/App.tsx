@@ -1,67 +1,49 @@
 import {
-    BulbOutlined,
-    HistoryOutlined,
-    MoonOutlined,
-    UnorderedListOutlined,
-    PlayCircleOutlined,
-    ProfileOutlined,
-    SettingOutlined,
-} from '@ant-design/icons';
-import {
-    App as AntApp,
-    ConfigProvider,
-    Flex,
-    Layout,
-    Menu,
-    Switch,
-    theme as antdTheme,
-    Tooltip,
-} from 'antd';
+    ClipboardList,
+    History,
+    ListOrdered,
+    Moon,
+    PanelLeft,
+    PlayCircle,
+    Settings,
+    Sun,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import {
-    APP_SHELL_STYLE,
-    CONTENT_STYLE,
-    HEADER_STYLE,
-    MAIN_LAYOUT_STYLE,
-    SIDER_COLLAPSED_WIDTH,
-    SIDER_STYLE,
-    SIDER_WIDTH,
-    siderCollapsed,
-} from './styles/layout';
+import { ConfirmHost } from './components/confirm-host';
+import { Button } from './components/ui/button';
+import { Toaster } from './components/ui/sonner';
+import { Switch } from './components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip';
+import { cn } from './lib/utils';
 import { AppRoutes } from './routes';
+import {
+    APP_SHELL_CLASS,
+    CONTENT_CLASS,
+    HEADER_CLASS,
+    MAIN_LAYOUT_CLASS,
+    SIDER_CLASS,
+    siderCollapsed,
+    siderWidthClass,
+} from './styles/layout';
 import { getStoredTheme, setStoredTheme, type ThemeMode } from './theme';
 import { ThemeModeContext } from './theme/context';
 import { selectedMenuKey, themeFromSwitch, themeSwitchTitle } from './utils/menu-key';
-
-const { Sider, Header, Content } = Layout;
+import {
+    collapseAriaLabel,
+    collapseButtonLabel,
+    collapsedMenuClass,
+    menuItemLabel,
+    selectedMenuClass,
+    sidebarBrand,
+} from './utils/shell';
 
 const menuItems = [
-    {
-        key: '/tasks',
-        icon: <ProfileOutlined />,
-        label: <Link to='/tasks'>任务</Link>,
-    },
-    {
-        key: '/queues',
-        icon: <UnorderedListOutlined />,
-        label: <Link to='/queues'>队列</Link>,
-    },
-    {
-        key: '/run',
-        icon: <PlayCircleOutlined />,
-        label: <Link to='/run'>实时运行</Link>,
-    },
-    {
-        key: '/history',
-        icon: <HistoryOutlined />,
-        label: <Link to='/history'>历史记录</Link>,
-    },
-    {
-        key: '/settings',
-        icon: <SettingOutlined />,
-        label: <Link to='/settings'>设置</Link>,
-    },
+    { key: '/tasks', icon: ClipboardList, label: '任务' },
+    { key: '/queues', icon: ListOrdered, label: '队列' },
+    { key: '/run', icon: PlayCircle, label: '实时运行' },
+    { key: '/history', icon: History, label: '历史记录' },
+    { key: '/settings', icon: Settings, label: '设置' },
 ];
 
 const PAGE_TITLES: Record<string, string> = {
@@ -72,6 +54,11 @@ const PAGE_TITLES: Record<string, string> = {
     '/settings': '设置',
 };
 
+function applyThemeClass(themeMode: ThemeMode) {
+    document.documentElement.classList.toggle('dark', themeMode === 'dark');
+    document.documentElement.style.colorScheme = themeMode;
+}
+
 function AppContent({
     themeMode,
     onThemeChange,
@@ -80,7 +67,6 @@ function AppContent({
     onThemeChange: (themeMode: ThemeMode) => void;
 }) {
     const location = useLocation();
-    const { token } = antdTheme.useToken();
     const [collapsed, setCollapsed] = useState(() => siderCollapsed(window.innerWidth));
     const selectedKey = selectedMenuKey(location.pathname);
 
@@ -92,71 +78,123 @@ function AppContent({
 
     return (
         <ThemeModeContext.Provider value={themeMode}>
-            <AntApp>
-                <Layout style={APP_SHELL_STYLE}>
-                    <Sider
+            <TooltipProvider>
+                <Toaster />
+                <ConfirmHost />
+                <div className={APP_SHELL_CLASS}>
+                    <aside
                         data-testid='app-sidebar'
-                        style={SIDER_STYLE}
-                        theme={themeMode}
-                        width={SIDER_WIDTH}
-                        collapsedWidth={SIDER_COLLAPSED_WIDTH}
-                        collapsed={collapsed}
-                        collapsible
-                        onCollapse={setCollapsed}
+                        className={cn(SIDER_CLASS, siderWidthClass(collapsed))}
                     >
-                        <div style={{ padding: 16, fontWeight: 'bold', fontSize: 16 }}>
-                            AI 自动化测试
+                        <div className='flex items-center gap-2 px-4 py-4 text-base font-semibold tracking-wide'>
+                            <span className='size-2 shrink-0 rounded-full bg-sidebar-primary' />
+                            {sidebarBrand(collapsed)}
                         </div>
-                        <Menu mode='inline' selectedKeys={[selectedKey]} items={menuItems} />
-                    </Sider>
-                    <Layout style={MAIN_LAYOUT_STYLE}>
-                        <Header
-                            data-testid='app-header'
-                            style={{
-                                ...HEADER_STYLE,
-                                background: token.colorBgContainer,
-                                padding: '0 24px',
-                                fontSize: 16,
-                                borderBottom: `1px solid ${token.colorBorderSecondary}`,
-                            }}
-                        >
-                            <Flex justify='space-between' align='center'>
-                                {PAGE_TITLES[selectedKey]}
-                                <Tooltip title={themeSwitchTitle(themeMode)}>
-                                    <Switch
-                                        aria-label='黑夜模式'
-                                        checked={themeMode === 'dark'}
-                                        checkedChildren={<MoonOutlined />}
-                                        unCheckedChildren={<BulbOutlined />}
-                                        onChange={(checked) =>
-                                            onThemeChange(themeFromSwitch(checked))
-                                        }
-                                    />
-                                </Tooltip>
-                            </Flex>
-                        </Header>
-                        <Content data-testid='app-content' style={CONTENT_STYLE}>
+                        <nav className='flex flex-1 flex-col gap-1 px-2'>
+                            {menuItems.map((item) => (
+                                <MenuLink
+                                    key={item.key}
+                                    item={item}
+                                    selected={item.key === selectedKey}
+                                    collapsed={collapsed}
+                                />
+                            ))}
+                        </nav>
+                        <div className='p-2'>
+                            <Button
+                                type='button'
+                                variant='ghost'
+                                size='sm'
+                                className='w-full text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                                onClick={() => setCollapsed((current) => !current)}
+                                aria-label={collapseAriaLabel(collapsed)}
+                            >
+                                <PanelLeft />
+                                {collapseButtonLabel(collapsed)}
+                            </Button>
+                        </div>
+                    </aside>
+                    <div className={MAIN_LAYOUT_CLASS}>
+                        <header data-testid='app-header' className={HEADER_CLASS}>
+                            <span>{PAGE_TITLES[selectedKey]}</span>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className='inline-flex items-center gap-2'>
+                                        <Sun className='size-4 text-muted-foreground' />
+                                        <Switch
+                                            aria-label='黑夜模式'
+                                            checked={themeMode === 'dark'}
+                                            onCheckedChange={(checked) =>
+                                                onThemeChange(themeFromSwitch(checked))
+                                            }
+                                        />
+                                        <Moon className='size-4 text-muted-foreground' />
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent>{themeSwitchTitle(themeMode)}</TooltipContent>
+                            </Tooltip>
+                        </header>
+                        <main data-testid='app-content' className={CONTENT_CLASS}>
                             <AppRoutes />
-                        </Content>
-                    </Layout>
-                </Layout>
-            </AntApp>
+                        </main>
+                    </div>
+                </div>
+            </TooltipProvider>
         </ThemeModeContext.Provider>
     );
 }
 
-function themeAlgorithm(themeMode: ThemeMode) {
-    if (themeMode === 'dark') {
-        return antdTheme.darkAlgorithm;
+function MenuLink({
+    item,
+    selected,
+    collapsed,
+}: {
+    item: (typeof menuItems)[number];
+    selected: boolean;
+    collapsed: boolean;
+}) {
+    const link = <NavItemLink item={item} selected={selected} collapsed={collapsed} />;
+    if (!collapsed) {
+        return link;
     }
-    return antdTheme.defaultAlgorithm;
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>{link}</TooltipTrigger>
+            <TooltipContent side='right'>{item.label}</TooltipContent>
+        </Tooltip>
+    );
+}
+
+function NavItemLink({
+    item,
+    selected,
+    collapsed,
+}: {
+    item: (typeof menuItems)[number];
+    selected: boolean;
+    collapsed: boolean;
+}) {
+    const Icon = item.icon;
+    return (
+        <Link
+            to={item.key}
+            className={cn(
+                'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
+                selectedMenuClass(selected),
+                collapsedMenuClass(collapsed),
+            )}
+        >
+            <Icon className='size-4 shrink-0' />
+            {menuItemLabel(collapsed, item.label)}
+        </Link>
+    );
 }
 
 export default function App() {
     const [themeMode, setThemeMode] = useState(() => getStoredTheme(window.localStorage));
 
     useEffect(() => {
-        document.documentElement.style.colorScheme = themeMode;
+        applyThemeClass(themeMode);
     }, [themeMode]);
 
     const changeTheme = (nextThemeMode: ThemeMode) => {
@@ -164,13 +202,5 @@ export default function App() {
         setStoredTheme(window.localStorage, nextThemeMode);
     };
 
-    return (
-        <ConfigProvider
-            theme={{
-                algorithm: themeAlgorithm(themeMode),
-            }}
-        >
-            <AppContent themeMode={themeMode} onThemeChange={changeTheme} />
-        </ConfigProvider>
-    );
+    return <AppContent themeMode={themeMode} onThemeChange={changeTheme} />;
 }

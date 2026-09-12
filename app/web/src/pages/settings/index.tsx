@@ -1,31 +1,23 @@
-import {
-    CheckCircleOutlined,
-    CloseCircleOutlined,
-    DeleteOutlined,
-    ExperimentOutlined,
-    PlusOutlined,
-} from '@ant-design/icons';
-import {
-    App as AntApp,
-    Alert,
-    Button,
-    Card,
-    Descriptions,
-    Input,
-    Select,
-    Space,
-    Spin,
-    Tag,
-    Typography,
-} from 'antd';
+import { CheckCircle2, FlaskConical, Plus, Trash2, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { SystemInfo } from '@lookrun/shared';
-import { api, type ModelBrief, type StorageStats } from './api';
+import { BusyButton } from '../../components/busy-button';
+import { confirmAction } from '../../components/confirm';
+import { CopyText } from '../../components/copy-text';
+import { notify } from '../../components/notify';
+import { PageCard } from '../../components/page-card';
+import { SelectField } from '../../components/select-field';
+import { Alert, AlertTitle } from '../../components/ui/alert';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { LoadingBlock } from '../../components/loading-block';
 import { errorText } from '../../utils/error-text';
-import { formatBytes } from './format-bytes';
 import { defaultModelId } from '../../utils/default-model-id';
+import { api, type ModelBrief, type StorageStats } from './api';
+import { formatBytes } from './format-bytes';
+import { modelCheckVariant } from '../../utils/ui-class';
 import {
-    checkAlertType,
     checkResultFromError,
     emptyVariableName,
     emptyVariableRow,
@@ -43,20 +35,18 @@ function CheckingHint({ checking }: { checking: boolean }) {
         return null;
     }
     return (
-        <Space>
-            <Spin size='small' />
-            <Typography.Text type='secondary'>
-                正在向模型发送测试截图，验证能否返回元素坐标，可能需要几十秒...
-            </Typography.Text>
-        </Space>
+        <div className='flex items-center gap-2 text-sm text-muted-foreground'>
+            <LoadingBlock className='py-0' />
+            正在向模型发送测试截图，验证能否返回元素坐标，可能需要几十秒...
+        </div>
     );
 }
 
 function CheckResultIcon({ ok }: { ok: boolean }) {
     if (ok) {
-        return <CheckCircleOutlined />;
+        return <CheckCircle2 className='size-4' />;
     }
-    return <CloseCircleOutlined />;
+    return <XCircle className='size-4' />;
 }
 
 function CheckResultAlert({
@@ -68,16 +58,12 @@ function CheckResultAlert({
         return null;
     }
     return (
-        <Alert
-            type={checkAlertType(checkResult.ok)}
-            title={
-                <Space>
-                    <CheckResultIcon ok={checkResult.ok} />
-                    {checkResult.message}
-                </Space>
-            }
-            showIcon={false}
-        />
+        <Alert variant={modelCheckVariant(checkResult.ok)}>
+            <AlertTitle className='flex items-center gap-2'>
+                <CheckResultIcon ok={checkResult.ok} />
+                {checkResult.message}
+            </AlertTitle>
+        </Alert>
     );
 }
 
@@ -85,70 +71,91 @@ function EmptyVariablesHint({ count }: { count: number }) {
     if (count > 0) {
         return null;
     }
-    return <Typography.Text type='secondary'>还没有变量</Typography.Text>;
+    return <p className='text-sm text-muted-foreground'>还没有变量</p>;
 }
 
 function StorageBody({ storage }: { storage: StorageStats | null }) {
     if (!storage) {
-        return <Spin size='small' />;
+        return <LoadingBlock className='py-4' />;
     }
     return (
-        <Descriptions column={2}>
-            <Descriptions.Item label='步骤截图'>
-                {formatBytes(storage.screenshotsBytes)}
-            </Descriptions.Item>
-            <Descriptions.Item label='Midscene 报告'>
-                {formatBytes(storage.reportsBytes)}
-            </Descriptions.Item>
-            <Descriptions.Item label='数据库'>
-                {formatBytes(storage.databaseBytes)}
-            </Descriptions.Item>
-            <Descriptions.Item label='总计'>
-                <Typography.Text strong>{formatBytes(storage.totalBytes)}</Typography.Text>
-                <Typography.Text type='secondary'> （{storage.runCount} 次运行）</Typography.Text>
-            </Descriptions.Item>
-        </Descriptions>
+        <dl className='grid grid-cols-2 gap-x-6 gap-y-3 text-sm'>
+            <div>
+                <dt className='text-muted-foreground'>步骤截图</dt>
+                <dd>{formatBytes(storage.screenshotsBytes)}</dd>
+            </div>
+            <div>
+                <dt className='text-muted-foreground'>Midscene 报告</dt>
+                <dd>{formatBytes(storage.reportsBytes)}</dd>
+            </div>
+            <div>
+                <dt className='text-muted-foreground'>数据库</dt>
+                <dd>{formatBytes(storage.databaseBytes)}</dd>
+            </div>
+            <div>
+                <dt className='text-muted-foreground'>总计</dt>
+                <dd>
+                    <span className='font-medium'>{formatBytes(storage.totalBytes)}</span>
+                    <span className='text-muted-foreground'> （{storage.runCount} 次运行）</span>
+                </dd>
+            </div>
+        </dl>
     );
 }
 
 function DetectedPath({ path, missingTitle }: { path: string | null; missingTitle: string }) {
     if (!path) {
-        return <Alert type='error' title={missingTitle} />;
+        return (
+            <Alert variant='destructive'>
+                <AlertTitle>{missingTitle}</AlertTitle>
+            </Alert>
+        );
     }
     return (
-        <Space>
-            <Tag color='success'>已检测到</Tag>
-            <Typography.Text copyable={{ text: path }}>{path}</Typography.Text>
-        </Space>
+        <div className='flex flex-wrap items-center gap-2'>
+            <Badge variant='success'>已检测到</Badge>
+            <CopyText text={path} />
+        </div>
     );
 }
 
 function SystemBody({ system }: { system: SystemInfo | null }) {
     if (!system) {
-        return <Spin size='small' />;
+        return <LoadingBlock className='py-4' />;
     }
     return (
-        <Descriptions column={1}>
-            <Descriptions.Item label='Chrome 浏览器'>
-                <DetectedPath
-                    path={system.chromePath}
-                    missingTitle='未检测到系统 Chrome，请先安装 Google Chrome：https://www.google.com/chrome/'
-                />
-            </Descriptions.Item>
-            <Descriptions.Item label='Android ADB'>
-                <DetectedPath
-                    path={system.adbPath}
-                    missingTitle='未检测到 ADB，请使用包含 platform-tools 的完整程序包'
-                />
-            </Descriptions.Item>
-            <Descriptions.Item label='数据目录'>{system.dataDir}</Descriptions.Item>
-            <Descriptions.Item label='版本'>{system.version}</Descriptions.Item>
-        </Descriptions>
+        <dl className='flex flex-col gap-4 text-sm'>
+            <div>
+                <dt className='mb-1 text-muted-foreground'>Chrome 浏览器</dt>
+                <dd>
+                    <DetectedPath
+                        path={system.chromePath}
+                        missingTitle='未检测到系统 Chrome，请先安装 Google Chrome：https://www.google.com/chrome/'
+                    />
+                </dd>
+            </div>
+            <div>
+                <dt className='mb-1 text-muted-foreground'>Android ADB</dt>
+                <dd>
+                    <DetectedPath
+                        path={system.adbPath}
+                        missingTitle='未检测到 ADB，请使用包含 platform-tools 的完整程序包'
+                    />
+                </dd>
+            </div>
+            <div>
+                <dt className='mb-1 text-muted-foreground'>数据目录</dt>
+                <dd>{system.dataDir}</dd>
+            </div>
+            <div>
+                <dt className='mb-1 text-muted-foreground'>版本</dt>
+                <dd>{system.version}</dd>
+            </div>
+        </dl>
     );
 }
 
 export default function SettingsPage() {
-    const { message, modal } = AntApp.useApp();
     const [models, setModels] = useState<ModelBrief[]>([]);
     const [selectedModel, setSelectedModel] = useState<string>();
     const [checkResult, setCheckResult] = useState<{
@@ -174,38 +181,42 @@ export default function SettingsPage() {
                 setModels(result.models);
                 setSelectedModel(defaultModelId(result.selected, result.models[0]?.id));
             })
-            .catch((error: Error) => message.error(error.message));
+            .catch((error: Error) => notify.error(error.message));
         api.getVariables()
             .then((vars) => setVariables(variablesFromRecord(vars)))
-            .catch((error: Error) => message.error(error.message));
+            .catch((error: Error) => notify.error(error.message));
         api.systemInfo()
             .then(setSystem)
             .catch(() => {});
         loadStorage();
     }, []);
 
-    const confirmCleanup = () => {
-        modal.confirm({
+    const runCleanup = async () => {
+        try {
+            const result = await api.cleanupStorage();
+            notify.success(
+                `已清空 ${result.deletedRuns} 次运行，释放 ${formatBytes(result.freedBytes)}`,
+            );
+            loadStorage();
+        } catch (error) {
+            notify.error(errorText(error));
+        } finally {
+            setCleaning(false);
+        }
+    };
+
+    const confirmCleanup = async () => {
+        const ok = await confirmAction({
             title: '清空全部历史记录？',
-            content: '将删除所有运行记录、步骤日志和截图，任务与变量不受影响。此操作不可恢复。',
-            okText: '全部清空',
-            okButtonProps: { danger: true },
-            cancelText: '取消',
-            onOk: async () => {
-                setCleaning(true);
-                try {
-                    const result = await api.cleanupStorage();
-                    message.success(
-                        `已清空 ${result.deletedRuns} 次运行，释放 ${formatBytes(result.freedBytes)}`,
-                    );
-                    loadStorage();
-                } catch (error) {
-                    message.error(errorText(error));
-                } finally {
-                    setCleaning(false);
-                }
-            },
+            description: '将删除所有运行记录、步骤日志和截图，任务与变量不受影响。此操作不可恢复。',
+            confirmLabel: '全部清空',
+            destructive: true,
         });
+        if (!ok) {
+            return;
+        }
+        setCleaning(true);
+        await runCleanup();
     };
 
     const selectModel = async (id: string) => {
@@ -213,9 +224,9 @@ export default function SettingsPage() {
         setCheckResult(null);
         try {
             await api.selectModel(id);
-            message.success('默认模型已更新');
+            notify.success('默认模型已更新');
         } catch (error) {
-            message.error(errorText(error));
+            notify.error(errorText(error));
         }
     };
 
@@ -241,9 +252,9 @@ export default function SettingsPage() {
     const persistVariables = async () => {
         try {
             await api.saveVariables(variablesToRecord(variables));
-            message.success('变量已保存');
+            notify.success('变量已保存');
         } catch (error) {
-            message.error(errorText(error));
+            notify.error(errorText(error));
         } finally {
             setSavingVariables(false);
         }
@@ -251,7 +262,7 @@ export default function SettingsPage() {
 
     const saveVariables = async () => {
         if (emptyVariableName(variables)) {
-            message.warning('变量名不能为空');
+            notify.warning('变量名不能为空');
             return;
         }
         setSavingVariables(true);
@@ -263,104 +274,113 @@ export default function SettingsPage() {
     };
 
     return (
-        <Space orientation='vertical' size='middle' style={{ width: '100%' }}>
-            <Card title='AI 模型'>
-                <Space orientation='vertical' size='middle' style={{ width: '100%' }}>
-                    <Space wrap>
-                        <Typography.Text>默认模型：</Typography.Text>
-                        <Select
-                            style={{ minWidth: 320 }}
+        <div className='flex flex-col gap-4'>
+            <PageCard title='AI 模型'>
+                <div className='flex flex-col gap-4'>
+                    <div className='flex flex-wrap items-center gap-2'>
+                        <span>默认模型：</span>
+                        <SelectField
+                            className='w-full max-w-full sm:w-[320px]'
                             value={selectedModel}
-                            onChange={selectModel}
+                            onValueChange={(id) => void selectModel(id)}
                             options={models.map((model) => ({
                                 label: `${model.name}（${model.model}）`,
                                 value: model.id,
                             }))}
                         />
-                        <Button
-                            icon={<ExperimentOutlined />}
-                            loading={checking}
-                            onClick={checkModel}
+                        <BusyButton
+                            variant='outline'
+                            busy={checking}
+                            onClick={() => void checkModel()}
                         >
+                            <FlaskConical />
                             视觉自检
-                        </Button>
-                    </Space>
+                        </BusyButton>
+                    </div>
                     <CheckingHint checking={checking} />
                     <CheckResultAlert checkResult={checkResult} />
-                    <Typography.Text type='secondary'>
+                    <p className='text-sm text-muted-foreground'>
                         模型列表在打包时内置（resources/models.json），修改后需重新打包；运行时用
                         data/models.json 可覆盖。 自检不通过的模型不要用于 UI
                         自动化。「自由指令」动作需要模型带 family 配置，没有 family
                         的模型在启动运行时会被直接拦截并提示。
-                    </Typography.Text>
-                </Space>
-            </Card>
+                    </p>
+                </div>
+            </PageCard>
 
-            <Card
+            <PageCard
                 title='变量'
                 extra={
-                    <Space>
+                    <div className='flex gap-2'>
                         <Button
-                            icon={<PlusOutlined />}
+                            variant='outline'
                             onClick={() => setVariables((prev) => [...prev, emptyVariableRow()])}
                         >
+                            <Plus />
                             添加变量
                         </Button>
-                        <Button type='primary' loading={savingVariables} onClick={saveVariables}>
+                        <BusyButton busy={savingVariables} onClick={() => void saveVariables()}>
                             保存变量
-                        </Button>
-                    </Space>
+                        </BusyButton>
+                    </div>
                 }
             >
-                <Typography.Paragraph type='secondary'>
+                <p className='mb-3 text-sm text-muted-foreground'>
                     YAML 脚本里用 {'{{变量名}}'} 引用，例如账号密码（USERNAME /
                     PASSWORD），避免明文写在任务里。
-                </Typography.Paragraph>
-                <Space orientation='vertical' style={{ width: '100%' }}>
+                </p>
+                <div className='flex flex-col gap-2'>
                     <EmptyVariablesHint count={variables.length} />
                     {variables.map((row, index) => (
-                        <Space key={index}>
+                        <div key={index} className='flex flex-wrap gap-2'>
                             <Input
-                                style={{ width: 240 }}
+                                className='w-[240px]'
                                 placeholder='变量名，如 USERNAME'
                                 value={row.key}
                                 onChange={(e) => updateRow(index, { key: e.target.value })}
                             />
                             <Input
-                                style={{ width: 360 }}
+                                className='w-[360px]'
                                 placeholder='变量值'
                                 value={row.value}
                                 onChange={(e) => updateRow(index, { value: e.target.value })}
                             />
                             <Button
-                                danger
-                                icon={<DeleteOutlined />}
+                                variant='destructive'
+                                size='icon'
+                                aria-label='删除变量'
                                 onClick={() =>
                                     setVariables((prev) => prev.filter((_, i) => i !== index))
                                 }
-                            />
-                        </Space>
+                            >
+                                <Trash2 />
+                            </Button>
+                        </div>
                     ))}
-                </Space>
-            </Card>
+                </div>
+            </PageCard>
 
-            <Card
+            <PageCard
                 title='存储占用'
                 extra={
-                    <Button danger loading={cleaning} onClick={confirmCleanup}>
+                    <BusyButton
+                        variant='destructive'
+                        busy={cleaning}
+                        onClick={() => void confirmCleanup()}
+                    >
                         清空历史记录
-                    </Button>
+                    </BusyButton>
                 }
             >
                 <StorageBody storage={storage} />
-                <Typography.Text type='secondary'>
+                <p className='mt-3 text-sm text-muted-foreground'>
                     系统会自动保留最近 100 次运行并清理更早的；也可以手动清空全部历史。
-                </Typography.Text>
-            </Card>
+                </p>
+            </PageCard>
 
-            <Card title='系统状态'>
+            <PageCard title='系统状态'>
                 <SystemBody system={system} />
-            </Card>
-        </Space>
+            </PageCard>
+        </div>
     );
 }

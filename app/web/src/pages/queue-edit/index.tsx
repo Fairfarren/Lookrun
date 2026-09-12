@@ -1,4 +1,3 @@
-import { DeleteOutlined, HolderOutlined, PlusOutlined } from '@ant-design/icons';
 import {
     DndContext,
     KeyboardSensor,
@@ -14,14 +13,20 @@ import {
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { App as AntApp, Button, Card, Input, Select, Space, Typography } from 'antd';
+import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { TaskRecord } from '@lookrun/shared';
-import { api, type ModelBrief, type QueueDefWithItems } from './api';
-import { reorderById } from '../../utils/sortable-items';
+import { BusyButton } from '../../components/busy-button';
+import { notify } from '../../components/notify';
+import { PageCard } from '../../components/page-card';
+import { SelectField } from '../../components/select-field';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
 import { errorText } from '../../utils/error-text';
+import { reorderById } from '../../utils/sortable-items';
 import { draggingItemStyle } from '../../utils/sortable-style';
+import { api, type ModelBrief, type QueueDefWithItems } from './api';
 import {
     createQueueThenSaveItems,
     isNewQueueRoute,
@@ -67,11 +72,10 @@ function SortableTaskItem({
     } = useSortable({ id: item.id });
 
     return (
-        <Space
+        <div
             ref={setNodeRef}
-            wrap
+            className='flex flex-wrap items-center gap-2'
             style={{
-                width: '100%',
                 transform: CSS.Transform.toString(transform),
                 transition,
                 opacity: draggingItemStyle(isDragging).opacity,
@@ -81,48 +85,51 @@ function SortableTaskItem({
         >
             <Button
                 ref={setActivatorNodeRef}
-                type='text'
-                size='small'
-                icon={<HolderOutlined />}
+                type='button'
+                variant='ghost'
+                size='icon-sm'
                 aria-label={`拖拽第 ${index + 1} 个任务进行排序`}
                 title='拖拽排序'
                 style={{ cursor: draggingItemStyle(isDragging).cursor, touchAction: 'none' }}
                 {...attributes}
                 {...listeners}
-            />
-            <Typography.Text type='secondary'>{`${index + 1}.`}</Typography.Text>
-            <Select
-                style={{ width: 200 }}
+            >
+                <GripVertical />
+            </Button>
+            <span className='text-muted-foreground'>{`${index + 1}.`}</span>
+            <SelectField
+                className='w-[200px]'
                 placeholder='选择任务'
-                value={item.taskId}
-                onChange={(taskId) => onUpdate({ taskId })}
-                options={tasks.map((task) => ({ label: task.name, value: task.id }))}
+                value={item.taskId === undefined ? undefined : String(item.taskId)}
+                onValueChange={(taskId) => onUpdate({ taskId: Number(taskId) })}
+                options={tasks.map((task) => ({ label: task.name, value: String(task.id) }))}
             />
-            <Select
-                style={{ width: 180 }}
+            <SelectField
+                className='w-[180px]'
                 placeholder='选择模型'
                 value={item.modelId}
-                onChange={(modelId) => onUpdate({ modelId })}
+                onValueChange={(modelId) => onUpdate({ modelId })}
                 options={models.map((model) => ({
                     label: model.name,
                     value: model.id,
                 }))}
             />
             <Button
-                size='small'
-                danger
-                icon={<DeleteOutlined />}
+                size='icon-sm'
+                variant='destructive'
                 disabled={!canDelete}
+                aria-label='删除任务项'
                 onClick={onDelete}
-            />
-        </Space>
+            >
+                <Trash2 />
+            </Button>
+        </div>
     );
 }
 
 export default function QueueEditPage() {
     const { id } = useParams();
     const isNew = isNewQueueRoute(id);
-    const { message } = AntApp.useApp();
     const navigate = useNavigate();
     const nextItemId = useRef(0);
 
@@ -158,7 +165,7 @@ export default function QueueEditPage() {
                 setName(q.name);
                 setItems(q.items.map((item) => createEditItem(item.taskId, item.modelId)));
             })
-            .catch((e: Error) => message.error(e.message));
+            .catch((e: Error) => notify.error(e.message));
     }, [id]);
 
     const persistQueue = async (payload: {
@@ -167,10 +174,10 @@ export default function QueueEditPage() {
     }) => {
         try {
             await writeQueue(payload);
-            message.success('已保存');
+            notify.success('已保存');
             navigate('/queues');
         } catch (error) {
-            message.error(errorText(error));
+            notify.error(errorText(error));
         } finally {
             setSaving(false);
         }
@@ -202,7 +209,7 @@ export default function QueueEditPage() {
         const validItems = validQueueItems(items);
         const itemsError = queueSaveItemsError(validItems.length);
         if (itemsError) {
-            message.warning(itemsError);
+            notify.warning(itemsError);
             return;
         }
         setSaving(true);
@@ -218,7 +225,7 @@ export default function QueueEditPage() {
     const save = async () => {
         const nameError = queueSaveNameError(name);
         if (nameError) {
-            message.warning(nameError);
+            notify.warning(nameError);
             return;
         }
         await saveValidQueue();
@@ -229,30 +236,30 @@ export default function QueueEditPage() {
     };
 
     return (
-        <Card
+        <PageCard
             title={queueEditTitle(isNew)}
             extra={
-                <Space>
-                    <Button onClick={() => navigate('/queues')}>返回</Button>
-                    <Button type='primary' loading={saving} onClick={save}>
-                        保存
+                <div className='flex gap-2'>
+                    <Button variant='outline' onClick={() => navigate('/queues')}>
+                        返回
                     </Button>
-                </Space>
+                    <BusyButton busy={saving} onClick={() => void save()}>
+                        保存
+                    </BusyButton>
+                </div>
             }
         >
-            <Space orientation='vertical' size='middle' style={{ width: '100%' }}>
+            <div className='flex flex-col gap-4'>
                 <div>
-                    <Typography.Text strong>队列名</Typography.Text>
+                    <div className='font-medium'>队列名</div>
                     <Input
-                        style={{ marginTop: 8 }}
+                        className='mt-2'
                         placeholder='例如：每日冒烟测试'
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                     />
                 </div>
-                <div>
-                    <Typography.Text strong>任务列表（按顺序串行执行）</Typography.Text>
-                </div>
+                <div className='font-medium'>任务列表（按顺序串行执行）</div>
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -288,8 +295,8 @@ export default function QueueEditPage() {
                     </SortableContext>
                 </DndContext>
                 <Button
-                    type='dashed'
-                    icon={<PlusOutlined />}
+                    variant='outline'
+                    className='border-dashed'
                     onClick={() =>
                         setItems((currentItems) => [
                             ...currentItems,
@@ -297,9 +304,10 @@ export default function QueueEditPage() {
                         ])
                     }
                 >
+                    <Plus />
                     添加任务
                 </Button>
-            </Space>
-        </Card>
+            </div>
+        </PageCard>
     );
 }

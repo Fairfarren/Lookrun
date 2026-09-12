@@ -1,7 +1,7 @@
-import { Tag } from 'antd';
+import { Badge } from '../../../components/ui/badge';
 import { stepStatusTag } from '../utils';
 
 export function StepStatus({ status }: { status: string }) {
     const tag = stepStatusTag(status);
-    return <Tag color={tag.color}>{tag.text}</Tag>;
+    return <Badge variant={tag.color === 'success' ? 'success' : 'destructive'}>{tag.text}</Badge>;
 }

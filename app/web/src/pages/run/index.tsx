@@ -1,32 +1,18 @@
-import {
-    ArrowDownOutlined,
-    ArrowUpOutlined,
-    DeleteOutlined,
-    PlusOutlined,
-    StopOutlined,
-} from '@ant-design/icons';
-import {
-    App as AntApp,
-    Button,
-    Card,
-    Col,
-    Empty,
-    Flex,
-    Row,
-    Select,
-    Space,
-    Spin,
-    Tag,
-    theme,
-    Typography,
-} from 'antd';
+import { ArrowDown, ArrowUp, Plus, Square, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { TaskRecord } from '@lookrun/shared';
-import { api, type ModelBrief } from './api';
 import { RunStatusTag, formatDuration } from '../../components';
-import { RUN_FRAME_COL, RUN_LOG_COL } from '../../styles/layout';
-import { runProgressText } from './utils';
+import { EmptyState } from '../../components/empty-state';
+import { LoadingBlock } from '../../components/loading-block';
+import { notify } from '../../components/notify';
+import { PageCard } from '../../components/page-card';
+import { SelectField } from '../../components/select-field';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { RUN_FRAME_CLASS, RUN_LOG_CLASS } from '../../styles/layout';
 import { errorText } from '../../utils/error-text';
+import { api, type ModelBrief } from './api';
+import { useWebSocket, type WsMessage } from './hooks';
 import {
     applyRunWsMessage,
     pendingQueueItems,
@@ -37,7 +23,8 @@ import {
     type LiveStep,
     type RunViewState,
 } from './run-ws';
-import { useWebSocket, type WsMessage } from './hooks';
+import { optionalIdString } from '../../utils/ui-class';
+import { runProgressText } from './utils';
 
 const emptyView = (): RunViewState => ({
     frame: null,
@@ -51,71 +38,60 @@ function StepRunningTag({ status }: { status: string }) {
     if (status !== 'running') {
         return null;
     }
-    return <Tag color='processing'>执行中</Tag>;
+    return <Badge variant='running'>执行中</Badge>;
 }
 
 function StepSuccessTag({ status }: { status: string }) {
     if (status !== 'success') {
         return null;
     }
-    return <Tag color='success'>成功</Tag>;
+    return <Badge variant='success'>成功</Badge>;
 }
 
 function StepFailedTag({ status }: { status: string }) {
     if (status !== 'failed') {
         return null;
     }
-    return <Tag color='error'>失败</Tag>;
+    return <Badge variant='destructive'>失败</Badge>;
 }
 
 function StepDuration({ item }: { item: LiveStep }) {
     if (!item.record) {
         return null;
     }
-    return (
-        <Typography.Text type='secondary'>{formatDuration(item.record.durationMs)}</Typography.Text>
-    );
+    return <span className='text-muted-foreground'>{formatDuration(item.record.durationMs)}</span>;
 }
 
 function StepError({ item }: { item: LiveStep }) {
     if (!item.record?.error) {
         return null;
     }
-    return <Typography.Text type='danger'>{item.record.error}</Typography.Text>;
+    return <span className='text-destructive'>{item.record.error}</span>;
 }
 
 function StepUrl({ item }: { item: LiveStep }) {
     if (!item.record?.url) {
         return null;
     }
-    return (
-        <Typography.Text type='secondary' style={{ fontSize: 12 }}>
-            {item.record.url}
-        </Typography.Text>
-    );
+    return <span className='text-xs text-muted-foreground'>{item.record.url}</span>;
 }
 
-function StepLogItem({ item, borderColor }: { item: LiveStep; borderColor: string }) {
+function StepLogItem({ item }: { item: LiveStep }) {
     return (
-        <div
-            style={{
-                padding: '10px 0',
-                borderBottom: `1px solid ${borderColor}`,
-            }}
-        >
-            <Space orientation='vertical' size={2} style={{ width: '100%' }}>
-                <Space wrap>
-                    <Tag>{`#${item.stepIndex + 1}`}</Tag>
-                    <Typography.Text strong>{item.stepName}</Typography.Text>
-                    <Tag color='blue'>{item.action}</Tag>
+        <div className='border-b py-2.5'>
+            <div className='flex flex-col gap-0.5'>
+                <div className='flex flex-wrap items-center gap-2'>
+                    <Badge variant='outline'>{`#${item.stepIndex + 1}`}</Badge>
+                    <span className='font-medium'>{item.stepName}</span>
+                    <Badge>{item.action}</Badge>
                     <StepRunningTag status={item.status} />
                     <StepSuccessTag status={item.status} />
                     <StepFailedTag status={item.status} />
                     <StepDuration item={item} />
-                </Space>
+                </div>
                 <StepError item={item} />
                 <StepUrl item={item} />
-            </Space>
+            </div>
         </div>
     );
 }
@@ -138,7 +114,7 @@ function FinishedBannerInner({ status }: { status: string | null }) {
         return null;
     }
     return (
-        <div style={{ marginTop: 12 }}>
+        <div className='mt-3'>
             上次运行结果：
             <RunStatusTag status={status as never} />
         </div>
@@ -172,31 +148,32 @@ function LiveFrame({
     onStop: () => void;
 }) {
     return (
-        <Card
+        <PageCard
             title='实时画面'
             extra={
-                <Button danger icon={<StopOutlined />} onClick={onStop}>
+                <Button variant='destructive' onClick={onStop}>
+                    <Square />
                     停止运行
                 </Button>
             }
         >
             <FrameBody frame={frame} height={height} />
-        </Card>
+        </PageCard>
     );
 }
 
 function IdleFrame({ frame, height }: { frame: string | null; height: string }) {
     if (frame) {
         return (
-            <Card title='实时画面'>
+            <PageCard title='实时画面'>
                 <FrameBody frame={frame} height={height} />
-            </Card>
+            </PageCard>
         );
     }
     return (
-        <Card title='实时画面'>
-            <Empty description='当前没有运行中的任务，到「任务」页面发起一次运行' />
-        </Card>
+        <PageCard title='实时画面'>
+            <EmptyState text='当前没有运行中的任务，到「任务」页面发起一次运行' />
+        </PageCard>
     );
 }
 
@@ -204,40 +181,21 @@ function FrameBody({ frame, height }: { frame: string | null; height: string }) 
     if (!frame) {
         return (
             <div
-                style={{
-                    background: '#000',
-                    borderRadius: 8,
-                    overflow: 'hidden',
-                    height,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                }}
+                className='flex items-center justify-center overflow-hidden rounded-lg bg-black text-white'
+                style={{ height }}
             >
-                <div style={{ color: '#fff' }}>等待浏览器画面...</div>
+                等待浏览器画面...
             </div>
         );
     }
     return (
         <div
-            style={{
-                background: '#000',
-                borderRadius: 8,
-                overflow: 'hidden',
-                height,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-            }}
+            className='flex items-center justify-center overflow-hidden rounded-lg bg-black'
+            style={{ height }}
         >
             <img
                 src={`data:image/jpeg;base64,${frame}`}
-                style={{
-                    maxWidth: '100%',
-                    maxHeight: '100%',
-                    objectFit: 'contain',
-                    display: 'block',
-                }}
+                className='block max-h-full max-w-full object-contain'
                 alt='实时画面'
             />
         </div>
@@ -248,14 +206,14 @@ function EmptyQueueHint({ count }: { count: number }) {
     if (count > 0) {
         return null;
     }
-    return <Typography.Text type='secondary'>队列为空</Typography.Text>;
+    return <p className='text-sm text-muted-foreground'>队列为空</p>;
 }
 
 function EmptyStepHint({ count, running }: { count: number; running: boolean }) {
     if (count > 0) {
         return null;
     }
-    return <Typography.Text type='secondary'>{stepLogPlaceholder(running)}</Typography.Text>;
+    return <p className='text-sm text-muted-foreground'>{stepLogPlaceholder(running)}</p>;
 }
 
 function RunProgress({ current }: { current: RunViewState['current'] }) {
@@ -263,19 +221,17 @@ function RunProgress({ current }: { current: RunViewState['current'] }) {
         return null;
     }
     return (
-        <Typography.Text type='secondary' data-testid='run-progress'>
+        <span className='text-sm text-muted-foreground' data-testid='run-progress'>
             {runProgressText({
                 taskName: current.run.taskName,
                 currentStepIndex: current.run.currentStepIndex,
                 totalSteps: current.run.totalSteps,
             })}
-        </Typography.Text>
+        </span>
     );
 }
 
 export default function RunPage() {
-    const { message } = AntApp.useApp();
-    const { token } = theme.useToken();
     const [view, setView] = useState(emptyView);
     const [loading, setLoading] = useState(true);
     const stepListRef = useRef<HTMLDivElement>(null);
@@ -287,7 +243,7 @@ export default function RunPage() {
     useEffect(() => {
         api.currentRun()
             .then((current) => setView((prev) => ({ ...prev, current })))
-            .catch((error: Error) => message.error(error.message))
+            .catch((error: Error) => notify.error(error.message))
             .finally(() => setLoading(false));
         api.listQueue()
             .then((result) => setView((prev) => ({ ...prev, queueItems: result.items })))
@@ -319,9 +275,9 @@ export default function RunPage() {
     const stop = async () => {
         try {
             await api.stopRun();
-            message.info('已发送停止指令');
+            notify.info('已发送停止指令');
         } catch (error) {
-            message.error(errorText(error));
+            notify.error(errorText(error));
         }
     };
 
@@ -331,15 +287,15 @@ export default function RunPage() {
                 taskId: addTaskId!,
                 modelId: addModelId!,
             });
-            message.success(startRunSuccessText(result.queued));
+            notify.success(startRunSuccessText(result.queued));
         } catch (error) {
-            message.error(errorText(error));
+            notify.error(errorText(error));
         }
     };
 
     const addToQueue = async () => {
         if (queueAddMissing(addTaskId, addModelId)) {
-            message.warning('请选择任务和模型');
+            notify.warning('请选择任务和模型');
             return;
         }
         await submitQueueAdd();
@@ -350,7 +306,7 @@ export default function RunPage() {
             const result = await api.moveQueueItem(id, direction);
             setView((prev) => ({ ...prev, queueItems: result.items }));
         } catch (error) {
-            message.error(errorText(error));
+            notify.error(errorText(error));
         }
     };
 
@@ -359,12 +315,12 @@ export default function RunPage() {
             const result = await api.cancelQueueItem(id);
             setView((prev) => ({ ...prev, queueItems: result.items }));
         } catch (error) {
-            message.error(errorText(error));
+            notify.error(errorText(error));
         }
     };
 
     if (loading) {
-        return <Spin style={{ display: 'block', margin: '80px auto' }} />;
+        return <LoadingBlock className='py-20' />;
     }
 
     const running = view.current.status === 'running';
@@ -372,8 +328,8 @@ export default function RunPage() {
     const frameAreaHeight = 'calc(100vh - 250px)';
 
     return (
-        <Row gutter={16}>
-            <Col {...RUN_FRAME_COL}>
+        <div className='flex flex-col gap-4 lg:flex-row'>
+            <div className={RUN_FRAME_CLASS}>
                 <RunFrame
                     running={running}
                     frame={view.frame}
@@ -381,127 +337,101 @@ export default function RunPage() {
                     onStop={() => void stop()}
                 />
                 <FinishedBanner finishedStatus={view.finishedStatus} running={running} />
-            </Col>
-            <Col {...RUN_LOG_COL}>
-                <Space orientation='vertical' size={16} style={{ width: '100%' }}>
-                    <Card title={queueCardTitle(pendingItems.length)} size='small'>
-                        <div style={{ maxHeight: 180, overflowY: 'auto' }}>
-                            <EmptyQueueHint count={pendingItems.length} />
-                            <Flex vertical>
-                                {pendingItems.map((item, index) => (
-                                    <div
-                                        key={item.id}
-                                        style={{
-                                            padding: '6px 0',
-                                            borderBottom: `1px solid ${token.colorBorderSecondary}`,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'space-between',
-                                        }}
-                                    >
-                                        <Space>
-                                            <Tag>{`#${index + 1}`}</Tag>
-                                            <Typography.Text strong>
-                                                {item.taskName}
-                                            </Typography.Text>
-                                            <Typography.Text
-                                                type='secondary'
-                                                style={{ fontSize: 12 }}
-                                            >
-                                                {item.model}
-                                            </Typography.Text>
-                                        </Space>
-                                        <Space size={4}>
-                                            <Button
-                                                size='small'
-                                                type='text'
-                                                icon={<ArrowUpOutlined />}
-                                                disabled={index === 0}
-                                                onClick={() => void moveItem(item.id, 'up')}
-                                            />
-                                            <Button
-                                                size='small'
-                                                type='text'
-                                                icon={<ArrowDownOutlined />}
-                                                disabled={index === pendingItems.length - 1}
-                                                onClick={() => void moveItem(item.id, 'down')}
-                                            />
-                                            <Button
-                                                size='small'
-                                                type='text'
-                                                danger
-                                                icon={<DeleteOutlined />}
-                                                onClick={() => void cancelItem(item.id)}
-                                            />
-                                        </Space>
-                                    </div>
-                                ))}
-                            </Flex>
-                        </div>
-                        <div
-                            style={{
-                                borderTop: `1px solid ${token.colorBorderSecondary}`,
-                                paddingTop: 8,
-                                marginTop: 8,
-                            }}
-                        >
-                            <Space style={{ width: '100%' }}>
-                                <Select
-                                    style={{ flex: 1, minWidth: 160 }}
-                                    placeholder='选择任务'
-                                    value={addTaskId}
-                                    onChange={setAddTaskId}
-                                    options={tasks.map((task) => ({
-                                        label: task.name,
-                                        value: task.id,
-                                    }))}
-                                />
-                                <Select
-                                    style={{ minWidth: 160 }}
-                                    placeholder='选择模型'
-                                    value={addModelId}
-                                    onChange={setAddModelId}
-                                    options={models.map((model) => ({
-                                        label: model.name,
-                                        value: model.id,
-                                    }))}
-                                />
-                                <Button
-                                    type='primary'
-                                    icon={<PlusOutlined />}
-                                    onClick={() => void addToQueue()}
+            </div>
+            <div className={`${RUN_LOG_CLASS} flex flex-col gap-4`}>
+                <PageCard title={queueCardTitle(pendingItems.length)}>
+                    <div className='max-h-[180px] overflow-y-auto'>
+                        <EmptyQueueHint count={pendingItems.length} />
+                        <div className='flex flex-col'>
+                            {pendingItems.map((item, index) => (
+                                <div
+                                    key={item.id}
+                                    className='flex items-center justify-between border-b py-1.5'
                                 >
-                                    添加
-                                </Button>
-                            </Space>
+                                    <div className='flex items-center gap-2'>
+                                        <Badge variant='outline'>{`#${index + 1}`}</Badge>
+                                        <span className='font-medium'>{item.taskName}</span>
+                                        <span className='text-xs text-muted-foreground'>
+                                            {item.model}
+                                        </span>
+                                    </div>
+                                    <div className='flex gap-1'>
+                                        <Button
+                                            size='icon-xs'
+                                            variant='ghost'
+                                            disabled={index === 0}
+                                            aria-label='上移'
+                                            onClick={() => void moveItem(item.id, 'up')}
+                                        >
+                                            <ArrowUp />
+                                        </Button>
+                                        <Button
+                                            size='icon-xs'
+                                            variant='ghost'
+                                            disabled={index === pendingItems.length - 1}
+                                            aria-label='下移'
+                                            onClick={() => void moveItem(item.id, 'down')}
+                                        >
+                                            <ArrowDown />
+                                        </Button>
+                                        <Button
+                                            size='icon-xs'
+                                            variant='ghost'
+                                            aria-label='取消排队'
+                                            onClick={() => void cancelItem(item.id)}
+                                        >
+                                            <Trash2 />
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                    </Card>
-                    <Card
-                        title={
-                            <Space>
-                                步骤日志
-                                <RunProgress current={view.current} />
-                            </Space>
-                        }
-                    >
-                        <div
-                            ref={stepListRef}
-                            style={{ maxHeight: 'calc(100vh - 510px)', overflowY: 'auto' }}
-                        >
-                            <EmptyStepHint count={view.steps.length} running={running} />
-                            <Flex vertical>
-                                {view.steps.map((item) => (
-                                    <StepLogItem
-                                        key={item.stepIndex}
-                                        item={item}
-                                        borderColor={token.colorBorderSecondary}
-                                    />
-                                ))}
-                            </Flex>
+                    </div>
+                    <div className='mt-2 flex flex-wrap items-center gap-2 border-t pt-2'>
+                        <SelectField
+                            className='min-w-[160px] flex-1'
+                            placeholder='选择任务'
+                            value={optionalIdString(addTaskId)}
+                            onValueChange={(value) => setAddTaskId(Number(value))}
+                            options={tasks.map((task) => ({
+                                label: task.name,
+                                value: String(task.id),
+                            }))}
+                        />
+                        <SelectField
+                            className='min-w-[160px]'
+                            placeholder='选择模型'
+                            value={addModelId}
+                            onValueChange={setAddModelId}
+                            options={models.map((model) => ({
+                                label: model.name,
+                                value: model.id,
+                            }))}
+                        />
+                        <Button onClick={() => void addToQueue()}>
+                            <Plus />
+                            添加
+                        </Button>
+                    </div>
+                </PageCard>
+                <PageCard
+                    title={
+                        <span className='inline-flex items-center gap-2'>
+                            步骤日志
+                            <RunProgress current={view.current} />
+                        </span>
+                    }
+                >
+                    <div ref={stepListRef} className='max-h-[calc(100vh-510px)] overflow-y-auto'>
+                        <EmptyStepHint count={view.steps.length} running={running} />
+                        <div className='flex flex-col'>
+                            {view.steps.map((item) => (
+                                <StepLogItem key={item.stepIndex} item={item} />
+                            ))}
                         </div>
-                    </Card>
-                </Space>
-            </Col>
-        </Row>
+                    </div>
+                </PageCard>
+            </div>
+        </div>
     );
 }

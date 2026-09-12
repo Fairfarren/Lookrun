@@ -14,7 +14,10 @@
         "jsx": "react-jsx",
         "useDefineForClassFields": true,
         "allowImportingTsExtensions": true,
-        "types": ["bun"]
+        "types": ["bun"],
+        "paths": {
+            "@/*": ["./src/*"]
+        }
     },
     "include": ["src", "tests", "vite.config.ts"]
 }

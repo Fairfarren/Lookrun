@@ -141,7 +141,7 @@ tasks:
 
 | 路径 | 作用 |
 | --- | --- |
-| `app/web` | 前端（React / Vite / antd），开发时独立启动 |
+| `app/web` | 前端（React / Vite / shadcn/ui），开发时独立启动 |
 | `app/server` | 后端（Hono / bun:sqlite / puppeteer-core / Midscene） |
 | `packages/shared` | 共享类型、YAML ↔ 表单 |
 | `scripts` | 打包、CRAP、E2E |
