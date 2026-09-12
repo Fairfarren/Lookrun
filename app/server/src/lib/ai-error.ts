@@ -1,4 +1,5 @@
 import type { RunRecord, RunStepRecord } from '@lookrun/shared';
+import { errorText } from './error-text';
 import type { FlowStep } from './yamlflow';
 
 const MAX_ERROR_MESSAGE_LENGTH = 500;
@@ -7,12 +8,34 @@ const MAX_LATIN_TO_CHINESE_RATIO = 2;
 const CHINESE_CHARACTER_PATTERN = /[\u3400-\u9fff]/g;
 const LATIN_CHARACTER_PATTERN = /[a-z]/gi;
 const LOCATE_ACTIONS = new Set(['aiTap', 'aiHover', 'aiRightClick', 'aiInput']);
+const INVALID_API_KEY_HEADER_PATTERN = /header['\s].*invalid value|invalid character in header/i;
+const UNAUTHORIZED_API_KEY_PATTERN =
+    /401|unauthorized|invalid api key|incorrect api key|invalid_api_key|authentication failed/i;
+
+export const API_KEY_UNCONFIGURED_MESSAGE =
+    'API Key 未配置或含有非法字符，请在 models.json 中填写有效的 API Key';
+export const API_KEY_UNAUTHORIZED_MESSAGE = 'API Key 无效，请检查 models.json 中的配置';
+
+export function formatModelServiceError(message: string) {
+    if (INVALID_API_KEY_HEADER_PATTERN.test(message)) {
+        return API_KEY_UNCONFIGURED_MESSAGE;
+    }
+    if (UNAUTHORIZED_API_KEY_PATTERN.test(message)) {
+        return API_KEY_UNAUTHORIZED_MESSAGE;
+    }
+    return null;
+}
+
+function truncateErrorMessage(message: string) {
+    if (message.length > MAX_ERROR_MESSAGE_LENGTH) {
+        return `${message.slice(0, MAX_ERROR_MESSAGE_LENGTH)}...`;
+    }
+    return message;
+}
 
 export function formatErrorMessage(error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    return message.length > MAX_ERROR_MESSAGE_LENGTH
-        ? `${message.slice(0, MAX_ERROR_MESSAGE_LENGTH)}...`
-        : message;
+    const message = truncateErrorMessage(errorText(error));
+    return formatModelServiceError(message) ?? message;
 }
 
 const AI_FAILURE_PREFIX: Record<string, string> = {

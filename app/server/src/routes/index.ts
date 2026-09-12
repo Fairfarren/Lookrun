@@ -42,7 +42,12 @@ import {
 } from '../services/queue-defs';
 import { broadcast } from '../lib/ws';
 import { cleanupAllRuns, storageStats } from '../services/storage';
-import { checkModelVision, getModelById, loadModels } from '../services/models';
+import {
+    checkModelVision,
+    getModelById,
+    modelVisionCheckTarget,
+    tryLoadModels,
+} from '../services/models';
 import pkg from '../../../../package.json';
 import { getSetting, setSetting } from '../db';
 import type { SystemInfo } from '@lookrun/shared';
@@ -91,11 +96,19 @@ async function writeExistingTask(c: Context, db: ReturnType<typeof createDb>, id
     return c.json(getTask(db, id));
 }
 
+function modelExists(id: string) {
+    const loaded = tryLoadModels();
+    if (!loaded.ok) {
+        return false;
+    }
+    return Boolean(getModelById(loaded.models, id));
+}
+
 function hasModel(id: string | undefined) {
     if (!id) {
         return false;
     }
-    return Boolean(getModelById(loadModels(), id));
+    return modelExists(id);
 }
 
 function selectModel(c: Context, db: ReturnType<typeof createDb>, id: string | undefined) {
@@ -212,16 +225,16 @@ export function registerRoutes(app: Hono) {
 
     // ---------- 模型 ----------
     app.get('/api/models', (c) => {
-        try {
-            const models = loadModels().map(({ id, name, model }) => ({
-                id,
-                name,
-                model,
-            }));
-            return c.json({ models, selected: getSetting(db, SELECTED_MODEL_KEY) });
-        } catch (error) {
-            return jsonError(c, errorText(error), 500);
+        const loaded = tryLoadModels();
+        if (!loaded.ok) {
+            return jsonError(c, loaded.error, 500);
         }
+        const models = loaded.models.map(({ id, name, model }) => ({
+            id,
+            name,
+            model,
+        }));
+        return c.json({ models, selected: getSetting(db, SELECTED_MODEL_KEY) });
     });
 
     app.put('/api/models/select', async (c) => {
@@ -231,12 +244,11 @@ export function registerRoutes(app: Hono) {
 
     // 视觉自检：验证模型能否看图并返回元素坐标
     app.post('/api/models/:id/check', async (c) => {
-        const model = getModelById(loadModels(), c.req.param('id'));
-        if (!model) {
-            return c.json({ error: '模型不存在' }, 404);
+        const target = modelVisionCheckTarget(c.req.param('id'), tryLoadModels());
+        if (!target.ok) {
+            return jsonError(c, target.error, target.status);
         }
-        const result = await checkModelVision(model);
-        return c.json(result);
+        return c.json(await checkModelVision(target.model));
     });
 
     // ---------- 变量 ----------

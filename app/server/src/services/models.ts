@@ -2,6 +2,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { ModelConfig } from '@lookrun/shared';
 import { DATA_DIR } from '../config';
+import { formatModelServiceError } from '../lib/ai-error';
+import { errorText } from '../lib/error-text';
 // 构建时内置的模型列表；运行时可用 data/models.json 覆盖
 import embeddedModelsJson from '../../../../resources/models.json';
 // 视觉自检测试图，bun build --compile 时随二进制内嵌
@@ -15,11 +17,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+const HTTP_HEADER_SAFE_PATTERN = /^[\u0020-\u007E]+$/;
+
 function requireText(value: unknown, message: string) {
     if (typeof value !== 'string' || value === '') {
         throw new Error(message);
     }
     return value;
+}
+
+export function apiKeyConfigError(apiKey: string) {
+    if (HTTP_HEADER_SAFE_PATTERN.test(apiKey)) {
+        return null;
+    }
+    return 'API Key 含有非法字符，无法用于请求（请检查是否仍是占位符）';
+}
+
+function requireApiKey(value: unknown) {
+    const apiKey = requireText(value, '模型配置缺少 apiKey');
+    const error = apiKeyConfigError(apiKey);
+    if (error) {
+        throw new Error(error);
+    }
+    return apiKey;
 }
 
 function requireModelList(value: unknown) {
@@ -35,7 +55,7 @@ export function parseModelsConfig(json: unknown): ModelConfig[] {
         throw new Error('模型配置必须是一个对象');
     }
     requireText(json.baseUrl, '模型配置缺少 baseUrl');
-    requireText(json.apiKey, '模型配置缺少 apiKey');
+    requireApiKey(json.apiKey);
     return requireModelList(json.models).map((item, index) => parseModelEntry(item, index, json));
 }
 
@@ -60,25 +80,44 @@ function parseModelEntry(item: unknown, index: number, json: Record<string, unkn
     };
 }
 
-// 加载模型列表：优先 data/models.json（运行时覆盖），否则用构建时内置的配置
-function errorMessage(error: unknown) {
-    return error instanceof Error ? error.message : String(error);
-}
-
 function readOverrideModels(overridePath: string) {
     try {
         return parseModelsConfig(JSON.parse(readFileSync(overridePath, 'utf8')));
     } catch (error) {
-        throw new Error(`运行时模型配置 ${overridePath} 解析失败：${errorMessage(error)}`);
+        throw new Error(`运行时模型配置 ${overridePath} 解析失败：${errorText(error)}`);
     }
 }
 
+// 加载模型列表：优先 data/models.json（运行时覆盖），否则用构建时内置的配置
 export function loadModels() {
     const overridePath = path.join(DATA_DIR, 'models.json');
     if (existsSync(overridePath)) {
         return readOverrideModels(overridePath);
     }
     return parseModelsConfig(embeddedModelsJson);
+}
+
+export function modelsFromLoad(load: () => ModelConfig[]) {
+    try {
+        return { ok: true as const, models: load() };
+    } catch (error) {
+        return { ok: false as const, error: errorText(error) };
+    }
+}
+
+export function tryLoadModels() {
+    return modelsFromLoad(loadModels);
+}
+
+export function modelVisionCheckTarget(id: string, loaded: ReturnType<typeof tryLoadModels>) {
+    if (!loaded.ok) {
+        return { ok: false as const, status: 500 as const, error: loaded.error };
+    }
+    const model = getModelById(loaded.models, id);
+    if (!model) {
+        return { ok: false as const, status: 404 as const, error: '模型不存在' };
+    }
+    return { ok: true as const, model };
 }
 
 export function getModelById(models: ModelConfig[], id: string) {
@@ -266,10 +305,12 @@ export function visionCheckOutcome(result: VisionCheckResult) {
 }
 
 export function visionRequestError(error: unknown) {
-    if (error instanceof Error) {
-        return { ok: false as const, message: `自检请求失败：${error.message}` };
+    const raw = errorText(error);
+    const friendly = formatModelServiceError(raw);
+    if (friendly) {
+        return { ok: false as const, message: friendly };
     }
-    return { ok: false as const, message: `自检请求失败：${String(error)}` };
+    return { ok: false as const, message: `自检请求失败：${raw}` };
 }
 
 function visionCheckBody(model: string, imageBase64: string) {

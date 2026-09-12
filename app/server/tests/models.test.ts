@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
+import { API_KEY_UNCONFIGURED_MESSAGE } from '../src/lib/ai-error';
 import {
+    apiKeyConfigError,
+    modelVisionCheckTarget,
+    modelsFromLoad,
     parseModelsConfig,
     parseVisionCheckResponse,
     visionChatUrl,
@@ -52,6 +56,63 @@ describe('parseModelsConfig', () => {
                 models: [{ id: 'a', name: 'n', model: 'm' }],
             }),
         ).toThrow();
+    });
+
+    test('占位符或非 ASCII 的 apiKey 报错', () => {
+        expect(() =>
+            parseModelsConfig({
+                baseUrl: 'https://example.com/v1',
+                apiKey: '在这里填你的 API Key',
+                models: [{ id: 'a', name: 'n', model: 'm' }],
+            }),
+        ).toThrow('非法字符');
+        expect(apiKeyConfigError('sk-test')).toBeNull();
+        expect(apiKeyConfigError('在这里填你的 API Key')).toContain('非法字符');
+    });
+
+    test('加载模型失败时返回错误而不是抛出', () => {
+        const result = modelsFromLoad(() => {
+            throw new Error('模型配置缺少 apiKey');
+        });
+        expect(result.ok).toBe(false);
+        if (result.ok) {
+            return;
+        }
+        expect(result.error).toContain('apiKey');
+    });
+
+    test('加载模型成功时返回列表', () => {
+        expect(modelsFromLoad(() => [{ id: 'a', name: 'n', model: 'm' }] as never).ok).toBe(true);
+    });
+
+    test('视觉自检查找：配置失败返回 500', () => {
+        expect(modelVisionCheckTarget('a', { ok: false, error: '模型配置缺少 apiKey' })).toEqual({
+            ok: false,
+            status: 500,
+            error: '模型配置缺少 apiKey',
+        });
+    });
+
+    test('视觉自检查找：模型不存在返回 404', () => {
+        expect(modelVisionCheckTarget('missing', { ok: true, models: [] })).toEqual({
+            ok: false,
+            status: 404,
+            error: '模型不存在',
+        });
+    });
+
+    test('视觉自检查找：命中模型', () => {
+        const model = {
+            id: 'a',
+            name: 'n',
+            model: 'm',
+            baseUrl: 'u',
+            apiKey: 'k',
+        };
+        expect(modelVisionCheckTarget('a', { ok: true, models: [model] })).toEqual({
+            ok: true,
+            model,
+        });
     });
 
     test('models 为空数组报错', () => {
@@ -182,5 +243,13 @@ describe('vision helpers', () => {
     test('请求异常文案', () => {
         expect(visionRequestError(new Error('超时')).message).toContain('超时');
         expect(visionRequestError('down').message).toContain('down');
+    });
+
+    test('非法 API Key 请求头错误转成配置提示', () => {
+        expect(
+            visionRequestError(
+                new Error("Header '14' has invalid value: 'Bearer 在这里填你的 API Key'"),
+            ).message,
+        ).toBe(API_KEY_UNCONFIGURED_MESSAGE);
     });
 });

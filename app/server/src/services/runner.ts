@@ -19,7 +19,7 @@ import {
     listRunSteps,
     listVariables,
 } from '../db';
-import { getModelById, loadModels, toMidsceneModelConfig } from './models';
+import { getModelById, loadModels, tryLoadModels, toMidsceneModelConfig } from './models';
 import { enqueue, listQueue, nextPending, requeueInterrupted, setQueueStatus } from './queue';
 import { cleanupOldRuns } from './retention';
 import {
@@ -124,7 +124,7 @@ export class Runner {
     start(input: { taskId: number | null; taskName: string; yaml: string; modelId: string }) {
         const parseResult = parseScript(input.yaml, listVariables(this.db));
         const script = scriptFromParse(parseResult);
-        const model = getModelById(loadModels(), input.modelId);
+        const model = this.modelForStart(input.modelId);
         const chromePath = webChromePath({
             parseOk: Boolean(script),
             targetType: script?.target.type,
@@ -149,6 +149,14 @@ export class Runner {
             model: model!,
             chromePath,
         });
+    }
+
+    private modelForStart(modelId: string) {
+        const loaded = tryLoadModels();
+        if (!loaded.ok) {
+            throw new ScriptInvalidError([loaded.error]);
+        }
+        return getModelById(loaded.models, modelId);
     }
 
     private enqueueOrRun(input: {
@@ -193,6 +201,19 @@ export class Runner {
         taskName: string;
         modelId: string;
     }) {
+        try {
+            this.startLoadedQueueItem(next);
+        } catch (error) {
+            this.failQueueItem(next, formatErrorMessage(error));
+        }
+    }
+
+    private startLoadedQueueItem(next: {
+        id: number;
+        taskId: number;
+        taskName: string;
+        modelId: string;
+    }) {
         const task = getTask(this.db, next.taskId);
         const model = getModelById(loadModels(), next.modelId);
         const script = scriptFromParseResult(
@@ -227,6 +248,21 @@ export class Runner {
 
     private skipQueueItem(id: number) {
         setQueueStatus(this.db, id, 'cancelled');
+        broadcast({ type: 'queue', items: listQueue(this.db) });
+        this.scheduleNext();
+    }
+
+    private failQueueItem(
+        next: { id: number; taskId: number; taskName: string; modelId: string },
+        error: string,
+    ) {
+        const { id: runId } = insertRun(this.db, {
+            taskId: next.taskId,
+            taskName: next.taskName,
+            model: next.modelId,
+        });
+        this.finish(runId, 'failed', error, Date.now(), 0, 0);
+        setQueueStatus(this.db, next.id, 'done', runId);
         broadcast({ type: 'queue', items: listQueue(this.db) });
         this.scheduleNext();
     }
@@ -271,7 +307,7 @@ export class Runner {
             toMidsceneModelConfig(input.model),
             input.chromePath,
             input.queueItemId,
-        );
+        ).catch((error) => this.recoverFailedExecute(runId, error, input.queueItemId));
         return runId;
     }
 
@@ -317,6 +353,17 @@ export class Runner {
             await runtime?.cleanup();
             await this.afterExecute(queueItemId);
         }
+    }
+
+    private recoverFailedExecute(runId: number, error: unknown, queueItemId?: number) {
+        console.error(`运行 #${runId} 未捕获错误：${formatErrorMessage(error)}`);
+        if (this.state?.runId !== runId) {
+            return;
+        }
+        this.handleExecuteError(runId, error, Date.now(), { input: 0, output: 0 });
+        void this.afterExecute(queueItemId).catch((cleanupError) => {
+            console.error(`运行 #${runId} 清理失败：${formatErrorMessage(cleanupError)}`);
+        });
     }
 
     private handleExecuteError(
