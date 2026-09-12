@@ -1,101 +1,98 @@
-# test-web-use-ai
+# Lookrun
 
-基于 [Midscene.js](https://midscenejs.com) 的 AI 自动化测试工具：用自然语言编写 YAML 测试脚本，AI 视觉模型驱动系统 Chrome 或 Android 真机执行，Web 页面实时查看自动化画面与每步日志。
+给非开发人员用的 AI 自动化测试工具。打包后双击就能跑，不装 Node、不写代码。用自然语言描述步骤（点哪里、输入什么、断言什么），AI 看着屏幕去操作。
 
-## 功能
+当前支持 **网页**（本机 Chrome）和 **Android 真机**。**iOS 后续再做。**
 
-- **任务编辑**：选择网页 URL 或 Android 设备，定义测试步骤，编辑器实时校验，支持 `{{变量}}` 占位符（账号密码不明文入库）
-- **Android 真机**：自动发现并检查已连接设备，支持打开 App 后继续执行 AI 点击、输入、等待和断言
-- **实时画面**：网页任务通过 CDP screencast、Android 任务通过 scrcpy 以约 100 毫秒间隔推送最新画面
-- **完整日志**：每一步记录当时 URL、目标、AI 识别结果、执行前后截图、耗时、Token 用量；失败即停止
-- **历史记录**：最近 100 次运行可随时回看（含截图）
-- **模型自检**：一键验证所选模型的视觉定位能力是否可用于 UI 自动化
-- **完整程序包**：打包为 Windows / macOS 可执行程序，附带 sharp native 文件与 Android Platform Tools，数据写在程序同级 `data/` 目录
+拿到程序包后：双击可执行文件，浏览器会打开控制台（`http://localhost:3877`）。任务、运行记录、截图都写在程序同级的 `data/`，换电脑把整个目录带走即可。执行引擎是 [Midscene.js](https://midscenejs.com)。
 
-## 环境要求
+界面：任务、队列、实时运行、历史记录、设置。日常用表单编辑步骤；YAML 是给需要高级写法的人备用。
 
-- 运行时：[Bun](https://bun.sh)
-- 被控浏览器：系统安装的 Google Chrome（程序自动探测）
-- Android：设备已开启 USB 调试并授权当前电脑；正式程序包自带 ADB
-- AI 模型：远程 Ollama 服务器（OpenAI 兼容接口 + API Key），需具备视觉能力
+## 能做什么
 
-## 仓库结构
+- **任务**：选网页地址或已连接的 Android 设备，用表单填步骤（也可切 YAML）。保存前校验。账号密码用 `{{变量}}`，在设置里维护，不明文写进任务。
+- **多页面**：每个步骤组可另填页面地址。相同地址回到已打开的页面，不新开窗口（例如 H5 发验证码后再去后台接码）。
+- **队列**：把多个任务排好顺序，一次启动。运行时始终单任务串行，忙时排队。
+- **实时画面**：网页和 Android 执行时都能在控制台看当前屏幕。失败即停，也可手动停止。
+- **历史**：每步记下当时画面、AI 识别结果、耗时。最多留 100 次，超出自动清掉旧记录和截图。
+- **模型自检**：一键测所选模型能不能看懂界面、返回可用坐标。
+- **程序包**：Windows / macOS 可执行文件，附带运行所需工具。数据在程序同级 `data/`。
 
-Bun workspaces，请在仓库根目录执行命令：
+## 使用前准备
 
-- `app/web`：前端（React / Vite），独立启动
-  - `src/routes.tsx` 路由表
-  - `src/pages` 按路由分的页面（各自的 api / hooks / components）
-  - `src/components` 跨页组件
-  - `src/api` 请求封装与跨页类型
-  - `src/theme` 主题
-  - `src/styles` 布局样式
-  - `src/utils` 跨页工具函数
-- `app/server`：后端（Hono / Bun），独立启动
-  - `src/routes` HTTP 路由
-  - `src/services` 业务服务（执行、队列、设备、模型、存储）
-  - `src/lib` 工具与基础设施
-- `packages/shared`：前后端共享类型和 YAML 表单转换，不独立启动
+程序包使用者不需要装开发环境。本机准备好这些即可：
+
+- 已安装 Google Chrome（测网页时）
+- Android 设备已开 USB 调试，并授权这台电脑（测真机时；程序包自带 ADB）
+- 可用的视觉模型（OpenAI 兼容接口 + API Key）。可打进程序，也可用 `data/models.json` 覆盖
+
+macOS 未签名：访达里右键 → 打开。Windows SmartScreen 选「仍要运行」。
 
 ## 开发
 
+从源码跑需要 [Bun](https://bun.sh)，不要用 npm / pnpm / Node。Chrome 路径可用 `CHROME_PATH`，ADB 可用 `MIDSCENE_ADB_PATH` / `ANDROID_HOME`。
+
 ```bash
 bun install
-bun run dev          # 后端 :3877 + 前端 vite :5173（开发访问 5173）
+cp resources/models.example.json resources/models.json   # 填 baseUrl / apiKey
+bun run dev          # 后端 :3877 + 前端 Vite :5173，开发时打开 5173
 ```
 
-没有可用模型时，用演示模式跑通整条链路（AI 调用返回模拟结果）：
+没有可用模型时，用演示模式跑通链路（不调真实模型）：
 
 ```bash
 MOCK_AI=1 bun run dev
-MOCK_AI=1 MOCK_FAIL_AT=2 bun run dev   # 模拟第 2 步失败，验证失败即停
+MOCK_AI=1 MOCK_FAIL_AT=2 bun run dev   # 第 2 步失败，验证失败即停
 ```
+
+单独起一端：`bun run dev:server` / `bun run dev:web`。端口用 `SERVER_PORT`（默认 3877），数据目录用 `TEST_WEB_AI_DATA_DIR`（默认仓库根下 `data/`）。
 
 ## 测试与检查
 
 ```bash
-bun test               # 单元测试
-bun run lint           # oxlint（警告视为失败）
-bun run format         # oxfmt 写入（4 空格、单引号）
-bun run format:check   # oxfmt 只检查不改文件
-bun run crap           # CRAP 检查（bun 覆盖率 + 圈复杂度，门槛 ≤ 8）
-bun run mutate         # 变异测试（Stryker + bun test，仅已有单测的纯函数）
-bun run typecheck      # 前后端 TypeScript 检查
-bun scripts/e2e-smoke.ts   # E2E 冒烟：完整跑通 / 手动停止 / 失败即停
+bun test
+bun run lint
+bun run format          # oxfmt，4 空格、单引号
+bun run format:check
+bun run typecheck
+bun run crap            # 覆盖率 + 圈复杂度，门槛 CRAP ≤ 8
+bun run mutate          # Stryker，分数低于 50% 失败
+bun scripts/e2e-smoke.ts
 ```
 
-指向 `master` 的 Pull Request 会跑 GitHub Action：检查、lint、format、tsc、CRAP、变异测试。没有 PR 的分支不跑。
-
-`bun run crap` 门槛是 CRAP ≤ 8。检查 `app/` 与 `packages/` 里的源码函数（跳过测试文件、类型声明和生成代码）。待检文件不在覆盖率报告里时按 cov=0 打分；一个函数都没扫到则失败。
-
-`bun run mutate` 用 Stryker 官方 command runner 跑 `bun test`，分数低于 50% 时失败。本仓库的 TypeScript 7 不必降级：Stryker 按 5.x API 改写 tsconfig 会失败，所以配置了 `inPlace`。当前改写范围是已有单测的纯函数，以及 YAML / 模型解析。
+指向 `master` 的 PR 会跑上述检查（E2E 冒烟除外）。没有 PR 的分支不跑 CI。
 
 ## 打包
 
 ```bash
-# 1. 配置模型（打包时内置，换配置需重新打包）
-vim resources/models.json   # 填 baseUrl / apiKey / 模型列表
+# 1. 模型配置会打进程序；换配置要么重打包，要么运行时用 data/models.json 覆盖
+cp resources/models.example.json resources/models.json
+# 编辑 resources/models.json：baseUrl / apiKey / 模型列表
 
-# 2. 编译本机平台可执行文件（dist/test-web-use-ai）
+# 2. 本机平台
 bun run build:exe
 
-# 3. 交叉编译 Windows
-bun scripts/build-exe.ts --target=bun-windows-x64
+# 3. 交叉编译
+bun run build:exe:win
+bun run build:exe:mac
 ```
 
-产物双击后自动启动服务并打开浏览器（`http://localhost:3877`），任务、运行记录、截图都写在程序同级的 `data/` 目录。请分发完整的 `dist-mac/` 或 `dist-win/` 目录，不能只复制其中的可执行文件。Android 实时预览依赖的 FFmpeg 与 scrcpy-server 位于同级 `runtime-tools/`，构建脚本会按目标平台自动安装。
+产物目录是 `dist-mac/`、`dist-win/`（可执行文件目前仍叫 `test-web-use-ai`）。请分发整个目录，不要只拷贝 exe。同级还需要：
 
-> macOS 未签名：首次打开需在「访达」中右键 → 打开；Windows SmartScreen 选择「仍要运行」。
-> 运行时也可用 `data/models.json` 覆盖内置模型配置，无需重新打包。
+- `node_modules/@img/`：sharp 的 native 文件
+- `runtime-tools/`：FFmpeg、scrcpy-server（Android 实时预览）
+- Android Platform Tools（ADB）
 
-## YAML 脚本格式
+分发出去后由使用者双击运行，数据写在同级 `data/`。
 
-与 Midscene YAML 脚本对齐：
+## YAML
+
+和 Midscene YAML 对齐。网页任务：
 
 ```yaml
 target: https://example.com
-# viewportWidth: 1280   # 可选，默认 1280
-# viewportHeight: 800   # 可选，默认 800
+# viewportWidth: 390    # 可选，默认 390
+# viewportHeight: 844   # 可选，默认 844
 
 tasks:
   - name: 登录
@@ -109,14 +106,13 @@ tasks:
       - aiTap: 登录按钮
       - aiWaitFor: 跳转到首页
         timeout: 10000
-  - name: 验证
+  - name: 后台接码
+    url: https://admin.example.com
     flow:
-      - aiAssert: 页面显示登录成功
+      - aiAssert: 页面显示验证码
 ```
 
-支持的动作：`ai`（自由指令）、`aiTap`、`aiHover`、`aiRightClick`、`aiInput`、`aiAssert`、`aiWaitFor`、`aiQuery`、`aiKeyboardPress`、`aiScroll`、`sleep`（毫秒）。任意步骤可加 `name:` 命名；变量在「设置-变量」中维护。
-
-Android 任务使用设备号并可在步骤中打开 App：
+Android 任务用设备号，步骤里可以打开 App：
 
 ```yaml
 android:
@@ -132,8 +128,21 @@ tasks:
       - aiAssert: 当前已经进入 VIP 页面
 ```
 
-`launch` 仅用于 Android 任务，参数可以是包名或 `包名/.Activity`。
+动作：`ai`、`aiTap`、`aiHover`、`aiRightClick`、`aiInput`、`aiAssert`、`aiWaitFor`、`aiQuery`、`aiKeyboardPress`、`aiScroll`、`sleep`（毫秒）、`launch`。
 
-## 技术栈
+- `launch` 只用于 Android，值可以是包名或 `包名/.Activity`
+- `aiHover` / `aiRightClick` 只用于网页
+- 任意步骤可加 `name:`；`timeout` 只允许写在 `aiWaitFor` 上
+- 网页和 Android 不能写在同一份脚本里
 
-Bun workspaces（app/web、app/server、packages/shared）+ Hono（API/WebSocket）+ bun:sqlite + puppeteer-core（驱动系统 Chrome）+ @midscene/web / @midscene/android（AI 执行）+ React/Vite/antd（前端）+ CodeMirror（YAML 编辑）
+## 仓库
+
+在仓库根目录执行命令。Bun workspaces：
+
+| 路径 | 作用 |
+| --- | --- |
+| `app/web` | 前端（React / Vite / antd），开发时独立启动 |
+| `app/server` | 后端（Hono / bun:sqlite / puppeteer-core / Midscene） |
+| `packages/shared` | 共享类型、YAML ↔ 表单 |
+| `scripts` | 打包、CRAP、E2E |
+| `resources` | `models.example.json`、视觉自检测试图 |
