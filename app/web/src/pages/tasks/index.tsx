@@ -1,47 +1,15 @@
 import { DeleteOutlined, EditOutlined, PlayCircleOutlined, PlusOutlined } from '@ant-design/icons';
-import {
-    App as AntApp,
-    Button,
-    Card,
-    Empty,
-    Flex,
-    Modal,
-    Select,
-    Space,
-    Spin,
-    theme,
-    Typography,
-} from 'antd';
+import { App as AntApp, Button, Card, Flex, Modal, Select, Space, theme, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TaskRecord } from '@lookrun/shared';
-import { api, type ModelBrief } from '../api';
-import { formatTime } from '../components';
-import { errorText } from '../utils/error-text';
-import { canStartTask, startTaskSuccess } from '../utils/tasks-run';
-import { defaultModelId } from '../utils/settings-view';
-import { queuesViewState } from '../utils/queues-page';
-
-function TasksLoading({ state }: { state: string }) {
-    if (state !== 'loading') {
-        return null;
-    }
-    return <Spin style={{ display: 'block', margin: '40px auto' }} />;
-}
-
-function TasksEmpty({ state }: { state: string }) {
-    if (state !== 'empty') {
-        return null;
-    }
-    return <Empty description='还没有任务，点击右上角新建一个' />;
-}
-
-function TasksReady({ state, children }: { state: string; children: React.ReactNode }) {
-    if (state !== 'ready') {
-        return null;
-    }
-    return children;
-}
+import { api, type ModelBrief } from './api';
+import { formatTime } from '../../components';
+import { errorText } from '../../utils/error-text';
+import { canStartTask, startTaskSuccess } from './utils';
+import { defaultModelId } from '../../utils/default-model-id';
+import { queuesViewState } from '../../utils/queues-page';
+import { TasksEmpty, TasksLoading, TasksReady } from './components/list-state';
 
 export default function TasksPage() {
     const { message, modal } = AntApp.useApp();

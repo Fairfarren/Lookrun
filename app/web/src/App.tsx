@@ -18,7 +18,7 @@ import {
     Tooltip,
 } from 'antd';
 import { useEffect, useState } from 'react';
-import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
     APP_SHELL_STYLE,
     CONTENT_STYLE,
@@ -29,14 +29,7 @@ import {
     SIDER_WIDTH,
     siderCollapsed,
 } from './styles/layout';
-import HistoryPage from './pages/HistoryPage';
-import QueueEditPage from './pages/QueueEditPage';
-import QueuesPage from './pages/QueuesPage';
-import RunDetailPage from './pages/RunDetailPage';
-import RunPage from './pages/RunPage';
-import SettingsPage from './pages/SettingsPage';
-import TaskEditPage from './pages/TaskEditPage';
-import TasksPage from './pages/TasksPage';
+import { AppRoutes } from './routes';
 import { getStoredTheme, setStoredTheme, type ThemeMode } from './theme';
 import { ThemeModeContext } from './theme/context';
 import { selectedMenuKey, themeFromSwitch, themeSwitchTitle } from './utils/menu-key';
@@ -143,19 +136,7 @@ function AppContent({
                             </Flex>
                         </Header>
                         <Content data-testid='app-content' style={CONTENT_STYLE}>
-                            <Routes>
-                                <Route path='/' element={<Navigate to='/tasks' replace />} />
-                                <Route path='/tasks' element={<TasksPage />} />
-                                <Route path='/tasks/new' element={<TaskEditPage />} />
-                                <Route path='/tasks/:id' element={<TaskEditPage />} />
-                                <Route path='/queues' element={<QueuesPage />} />
-                                <Route path='/queues/new' element={<QueueEditPage />} />
-                                <Route path='/queues/:id' element={<QueueEditPage />} />
-                                <Route path='/run' element={<RunPage />} />
-                                <Route path='/history' element={<HistoryPage />} />
-                                <Route path='/history/:id' element={<RunDetailPage />} />
-                                <Route path='/settings' element={<SettingsPage />} />
-                            </Routes>
+                            <AppRoutes />
                         </Content>
                     </Layout>
                 </Layout>

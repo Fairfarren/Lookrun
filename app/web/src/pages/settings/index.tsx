@@ -20,18 +20,18 @@ import {
 } from 'antd';
 import { useEffect, useState } from 'react';
 import type { SystemInfo } from '@lookrun/shared';
-import { api, type ModelBrief, type StorageStats } from '../api';
-import { errorText } from '../utils/error-text';
-import { formatBytes } from '../utils/format-bytes';
+import { api, type ModelBrief, type StorageStats } from './api';
+import { errorText } from '../../utils/error-text';
+import { formatBytes } from './format-bytes';
+import { defaultModelId } from '../../utils/default-model-id';
 import {
     checkAlertType,
     checkResultFromError,
-    defaultModelId,
     emptyVariableName,
     emptyVariableRow,
     variablesFromRecord,
     variablesToRecord,
-} from '../utils/settings-view';
+} from './utils';
 
 interface VariableRow {
     key: string;

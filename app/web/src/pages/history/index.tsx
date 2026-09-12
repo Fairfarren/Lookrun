@@ -2,8 +2,8 @@ import { App as AntApp, Card, Table, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { RunRecord } from '@lookrun/shared';
-import { api } from '../api';
-import { RunStatusTag, formatDuration, formatTime } from '../components';
+import { api } from './api';
+import { RunStatusTag, formatDuration, formatTime } from '../../components';
 
 const PAGE_SIZE = 20;
 

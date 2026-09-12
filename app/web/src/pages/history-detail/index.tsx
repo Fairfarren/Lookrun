@@ -14,25 +14,12 @@ import {
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { RunRecord, RunStepRecord } from '@lookrun/shared';
-import { api, screenshotUrl } from '../api';
-import { RunStatusTag, formatDuration, formatTime } from '../components';
-import { hasTokenUsage, stepStatusTag, tokenPairText } from '../utils/run-detail';
-
-function TokenText({ input, output }: { input: number; output: number }) {
-    return <>{tokenPairText(input, output)}</>;
-}
-
-function StepStatus({ status }: { status: string }) {
-    const tag = stepStatusTag(status);
-    return <Tag color={tag.color}>{tag.text}</Tag>;
-}
-
-function OptionalBlock({ show, children }: { show: boolean; children: React.ReactNode }) {
-    if (!show) {
-        return null;
-    }
-    return children;
-}
+import { api, screenshotUrl } from './api';
+import { RunStatusTag, formatDuration, formatTime } from '../../components';
+import { hasTokenUsage } from './utils';
+import { OptionalBlock } from './components/OptionalBlock';
+import { StepStatus } from './components/StepStatus';
+import { TokenText } from './components/TokenText';
 
 export default function RunDetailPage() {
     const { id } = useParams();
