@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { formatRunHistory, formatStepError } from '../src/lib/ai-error';
+import {
+    API_KEY_UNAUTHORIZED_MESSAGE,
+    API_KEY_UNCONFIGURED_MESSAGE,
+    formatErrorMessage,
+    formatRunHistory,
+    formatStepError,
+} from '../src/lib/ai-error';
 
 describe('formatStepError', () => {
     test('英文模型定位错误转换为中文失败原因', () => {
@@ -51,6 +57,32 @@ describe('formatStepError', () => {
         });
 
         expect(result).toBe('sleep failed');
+    });
+
+    test('未配置 API Key 的请求头错误不伪装成找不到元素', () => {
+        const error = new Error(
+            "failed to call AI model service: Header '14' has invalid value: 'Bearer 在这里填你的 API Key'",
+        );
+
+        expect(formatErrorMessage(error)).toBe(API_KEY_UNCONFIGURED_MESSAGE);
+        expect(
+            formatStepError(error, {
+                action: 'aiTap',
+                params: '登录按钮',
+            }),
+        ).toBe(API_KEY_UNCONFIGURED_MESSAGE);
+    });
+
+    test('错误 API Key 的 401 不伪装成找不到元素', () => {
+        const error = new Error('failed to call AI model service: 401 Unauthorized');
+
+        expect(formatErrorMessage(error)).toBe(API_KEY_UNAUTHORIZED_MESSAGE);
+        expect(
+            formatStepError(error, {
+                action: 'aiTap',
+                params: '登录按钮',
+            }),
+        ).toBe(API_KEY_UNAUTHORIZED_MESSAGE);
     });
 
     test('读取旧运行记录时同步转换步骤和运行错误', () => {

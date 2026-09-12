@@ -4,10 +4,14 @@ import { Hono } from 'hono';
 import { SERVER_PORT } from './config';
 import { browserOpenCommand } from './lib/open-browser';
 import { ensurePortFree } from './lib/port';
+import { installProcessErrorHandlers } from './lib/process-errors';
 import { registerRoutes } from './routes';
 import { configureBundledRuntimeAssets } from './lib/runtime-assets';
 import { registerStatic } from './lib/static';
 import { addWsClient, removeWsClient } from './lib/ws';
+
+// API Key 无效时 Midscene/OpenAI 可能抛出未处理拒绝，Bun 默认会退出进程
+installProcessErrorHandlers(process);
 
 // 打包产物才加载编译期生成的内嵌资源；开发态由 Vite 提供前端页面
 function isPackaged() {
