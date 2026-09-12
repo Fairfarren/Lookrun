@@ -30,6 +30,7 @@ import {
 import { startScreencast } from './screencast';
 import { broadcast, hasWsClients } from '../lib/ws';
 import { activatePageSession } from '../lib/page-session';
+import { restrictDirectNavigateFromAgent, searchOnOpenedPageContext } from '../lib/web-agent';
 import { parseScript, type FlowStep, type ParsedScript } from '../lib/yamlflow';
 import {
     androidAdbPath,
@@ -501,25 +502,29 @@ export class Runner {
         });
         return {
             page,
-            agent: this.createWebAgent(page, modelConfig, usage),
+            agent: await this.createWebAgent(page, modelConfig, usage, url),
         };
     }
 
-    private createWebAgent(
+    private async createWebAgent(
         page: Page,
         modelConfig: Record<string, string>,
         usage: { input: number; output: number },
+        pageUrl: string,
     ) {
         if (MOCK_AI) {
             return null;
         }
-        return new PuppeteerAgent(
+        const agent = new PuppeteerAgent(
             page as unknown as AgentPage,
             {
                 modelConfig,
                 onLLMUsage: this.trackUsage(usage),
+                aiActContext: searchOnOpenedPageContext(pageUrl),
             } as ConstructorParameters<typeof PuppeteerAgent>[1],
         );
+        await restrictDirectNavigateFromAgent(agent, pageUrl);
+        return agent;
     }
 
     private async activateWebStepPage(
