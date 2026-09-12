@@ -21,36 +21,264 @@ import {
     Typography,
 } from 'antd';
 import { useEffect, useRef, useState } from 'react';
-import type { RunStepRecord, TaskRecord } from '@lookrun/shared';
-import { api, type CurrentRunState, type ModelBrief, type QueueItem } from '../api';
+import type { TaskRecord } from '@lookrun/shared';
+import { api, type ModelBrief } from '../api';
 import { RunStatusTag, formatDuration } from '../components';
 import { RUN_FRAME_COL, RUN_LOG_COL } from '../styles/layout';
 import { runProgressText } from '../utils/run-progress';
+import { errorText } from '../utils/error-text';
+import {
+    applyRunWsMessage,
+    pendingQueueItems,
+    queueAddMissing,
+    queueCardTitle,
+    startRunSuccessText,
+    stepLogPlaceholder,
+    type LiveStep,
+    type RunViewState,
+} from '../utils/run-ws';
 import { useWebSocket, type WsMessage } from '../hooks';
 
-interface LiveStep {
-    stepIndex: number;
-    stepName: string;
-    action: string;
-    status: 'running' | 'success' | 'failed';
-    record?: RunStepRecord;
+const emptyView = (): RunViewState => ({
+    frame: null,
+    queueItems: [],
+    steps: [],
+    current: { status: 'idle', run: null },
+    finishedStatus: null,
+});
+
+function StepRunningTag({ status }: { status: string }) {
+    if (status !== 'running') {
+        return null;
+    }
+    return <Tag color='processing'>执行中</Tag>;
+}
+
+function StepSuccessTag({ status }: { status: string }) {
+    if (status !== 'success') {
+        return null;
+    }
+    return <Tag color='success'>成功</Tag>;
+}
+
+function StepFailedTag({ status }: { status: string }) {
+    if (status !== 'failed') {
+        return null;
+    }
+    return <Tag color='error'>失败</Tag>;
+}
+
+function StepDuration({ item }: { item: LiveStep }) {
+    if (!item.record) {
+        return null;
+    }
+    return (
+        <Typography.Text type='secondary'>{formatDuration(item.record.durationMs)}</Typography.Text>
+    );
+}
+
+function StepError({ item }: { item: LiveStep }) {
+    if (!item.record?.error) {
+        return null;
+    }
+    return <Typography.Text type='danger'>{item.record.error}</Typography.Text>;
+}
+
+function StepUrl({ item }: { item: LiveStep }) {
+    if (!item.record?.url) {
+        return null;
+    }
+    return (
+        <Typography.Text type='secondary' style={{ fontSize: 12 }}>
+            {item.record.url}
+        </Typography.Text>
+    );
+}
+
+function StepLogItem({ item, borderColor }: { item: LiveStep; borderColor: string }) {
+    return (
+        <div
+            style={{
+                padding: '10px 0',
+                borderBottom: `1px solid ${borderColor}`,
+            }}
+        >
+            <Space orientation='vertical' size={2} style={{ width: '100%' }}>
+                <Space wrap>
+                    <Tag>{`#${item.stepIndex + 1}`}</Tag>
+                    <Typography.Text strong>{item.stepName}</Typography.Text>
+                    <Tag color='blue'>{item.action}</Tag>
+                    <StepRunningTag status={item.status} />
+                    <StepSuccessTag status={item.status} />
+                    <StepFailedTag status={item.status} />
+                    <StepDuration item={item} />
+                </Space>
+                <StepError item={item} />
+                <StepUrl item={item} />
+            </Space>
+        </div>
+    );
+}
+
+function FinishedBanner({
+    finishedStatus,
+    running,
+}: {
+    finishedStatus: string | null;
+    running: boolean;
+}) {
+    if (running) {
+        return null;
+    }
+    return <FinishedBannerInner status={finishedStatus} />;
+}
+
+function FinishedBannerInner({ status }: { status: string | null }) {
+    if (!status) {
+        return null;
+    }
+    return (
+        <div style={{ marginTop: 12 }}>
+            上次运行结果：
+            <RunStatusTag status={status as never} />
+        </div>
+    );
+}
+
+function RunFrame({
+    running,
+    frame,
+    height,
+    onStop,
+}: {
+    running: boolean;
+    frame: string | null;
+    height: string;
+    onStop: () => void;
+}) {
+    if (running) {
+        return <LiveFrame frame={frame} height={height} onStop={onStop} />;
+    }
+    return <IdleFrame frame={frame} height={height} />;
+}
+
+function LiveFrame({
+    frame,
+    height,
+    onStop,
+}: {
+    frame: string | null;
+    height: string;
+    onStop: () => void;
+}) {
+    return (
+        <Card
+            title='实时画面'
+            extra={
+                <Button danger icon={<StopOutlined />} onClick={onStop}>
+                    停止运行
+                </Button>
+            }
+        >
+            <FrameBody frame={frame} height={height} />
+        </Card>
+    );
+}
+
+function IdleFrame({ frame, height }: { frame: string | null; height: string }) {
+    if (frame) {
+        return (
+            <Card title='实时画面'>
+                <FrameBody frame={frame} height={height} />
+            </Card>
+        );
+    }
+    return (
+        <Card title='实时画面'>
+            <Empty description='当前没有运行中的任务，到「任务」页面发起一次运行' />
+        </Card>
+    );
+}
+
+function FrameBody({ frame, height }: { frame: string | null; height: string }) {
+    if (!frame) {
+        return (
+            <div
+                style={{
+                    background: '#000',
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                    height,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                }}
+            >
+                <div style={{ color: '#fff' }}>等待浏览器画面...</div>
+            </div>
+        );
+    }
+    return (
+        <div
+            style={{
+                background: '#000',
+                borderRadius: 8,
+                overflow: 'hidden',
+                height,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+            }}
+        >
+            <img
+                src={`data:image/jpeg;base64,${frame}`}
+                style={{
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    objectFit: 'contain',
+                    display: 'block',
+                }}
+                alt='实时画面'
+            />
+        </div>
+    );
+}
+
+function EmptyQueueHint({ count }: { count: number }) {
+    if (count > 0) {
+        return null;
+    }
+    return <Typography.Text type='secondary'>队列为空</Typography.Text>;
+}
+
+function EmptyStepHint({ count, running }: { count: number; running: boolean }) {
+    if (count > 0) {
+        return null;
+    }
+    return <Typography.Text type='secondary'>{stepLogPlaceholder(running)}</Typography.Text>;
+}
+
+function RunProgress({ current }: { current: RunViewState['current'] }) {
+    if (!current.run) {
+        return null;
+    }
+    return (
+        <Typography.Text type='secondary' data-testid='run-progress'>
+            {runProgressText({
+                taskName: current.run.taskName,
+                currentStepIndex: current.run.currentStepIndex,
+                totalSteps: current.run.totalSteps,
+            })}
+        </Typography.Text>
+    );
 }
 
 export default function RunPage() {
     const { message } = AntApp.useApp();
     const { token } = theme.useToken();
-    const [current, setCurrent] = useState<CurrentRunState>({
-        status: 'idle',
-        run: null,
-    });
-    const [frame, setFrame] = useState<string | null>(null);
-    const [steps, setSteps] = useState<LiveStep[]>([]);
-    const [finishedStatus, setFinishedStatus] = useState<string | null>(null);
+    const [view, setView] = useState(emptyView);
     const [loading, setLoading] = useState(true);
     const stepListRef = useRef<HTMLDivElement>(null);
-
-    // 任务队列
-    const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
     const [tasks, setTasks] = useState<TaskRecord[]>([]);
     const [models, setModels] = useState<ModelBrief[]>([]);
     const [addTaskId, setAddTaskId] = useState<number>();
@@ -58,86 +286,25 @@ export default function RunPage() {
 
     useEffect(() => {
         api.currentRun()
-            .then(setCurrent)
+            .then((current) => setView((prev) => ({ ...prev, current })))
             .catch((error: Error) => message.error(error.message))
             .finally(() => setLoading(false));
         api.listQueue()
-            .then((r) => setQueueItems(r.items))
+            .then((result) => setView((prev) => ({ ...prev, queueItems: result.items })))
             .catch(() => {});
         api.listTasks()
             .then(setTasks)
             .catch(() => {});
         api.listModels()
-            .then((r) => {
-                setModels(r.models);
-                setAddModelId(r.selected ?? r.models[0]?.id);
+            .then((result) => {
+                setModels(result.models);
+                setAddModelId(result.selected ?? result.models[0]?.id);
             })
             .catch(() => {});
     }, []);
 
     const handleMessage = (msg: WsMessage) => {
-        if (msg.type === 'frame') {
-            setFrame(msg.data);
-            return;
-        }
-        if (msg.type === 'queue') {
-            setQueueItems(msg.items);
-            return;
-        }
-        if (msg.type === 'step-start') {
-            setSteps((prev) => [
-                ...prev,
-                {
-                    stepIndex: msg.stepIndex,
-                    stepName: msg.stepName,
-                    action: msg.action,
-                    status: 'running',
-                },
-            ]);
-            setCurrent((prev) =>
-                prev.run
-                    ? {
-                          status: 'running',
-                          run: {
-                              ...prev.run,
-                              currentStepIndex: msg.stepIndex,
-                              totalSteps: msg.totalSteps,
-                          },
-                      }
-                    : prev,
-            );
-            return;
-        }
-        if (msg.type === 'step') {
-            setSteps((prev) =>
-                prev.map((item) =>
-                    item.stepIndex === msg.step.stepIndex
-                        ? { ...item, status: msg.step.status, record: msg.step }
-                        : item,
-                ),
-            );
-            return;
-        }
-        if (msg.type === 'run') {
-            if (msg.run.status === 'running') {
-                setCurrent({
-                    status: 'running',
-                    run: {
-                        runId: msg.run.id,
-                        taskName: msg.run.taskName,
-                        model: msg.run.model,
-                        startedAt: msg.run.startedAt,
-                        currentStepIndex: -1,
-                        totalSteps: 0,
-                    },
-                });
-                setSteps([]);
-                setFinishedStatus(null);
-            } else {
-                setCurrent({ status: 'idle', run: null });
-                setFinishedStatus(msg.run.status);
-            }
-        }
+        setView((prev) => applyRunWsMessage(prev, msg));
     };
 
     useWebSocket(handleMessage);
@@ -147,52 +314,52 @@ export default function RunPage() {
             top: stepListRef.current.scrollHeight,
             behavior: 'smooth',
         });
-    }, [steps.length]);
+    }, [view.steps.length]);
 
     const stop = async () => {
         try {
             await api.stopRun();
             message.info('已发送停止指令');
         } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
+            message.error(errorText(error));
+        }
+    };
+
+    const submitQueueAdd = async () => {
+        try {
+            const result = await api.startRun({
+                taskId: addTaskId!,
+                modelId: addModelId!,
+            });
+            message.success(startRunSuccessText(result.queued));
+        } catch (error) {
+            message.error(errorText(error));
         }
     };
 
     const addToQueue = async () => {
-        if (!addTaskId || !addModelId) {
+        if (queueAddMissing(addTaskId, addModelId)) {
             message.warning('请选择任务和模型');
             return;
         }
-        try {
-            const result = await api.startRun({
-                taskId: addTaskId,
-                modelId: addModelId,
-            });
-            if (result.queued) {
-                message.success('已加入队列');
-            } else {
-                message.success('已开始运行');
-            }
-        } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
-        }
+        await submitQueueAdd();
     };
 
     const moveItem = async (id: number, direction: 'up' | 'down') => {
         try {
             const result = await api.moveQueueItem(id, direction);
-            setQueueItems(result.items);
+            setView((prev) => ({ ...prev, queueItems: result.items }));
         } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
+            message.error(errorText(error));
         }
     };
 
     const cancelItem = async (id: number) => {
         try {
             const result = await api.cancelQueueItem(id);
-            setQueueItems(result.items);
+            setView((prev) => ({ ...prev, queueItems: result.items }));
         } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
+            message.error(errorText(error));
         }
     };
 
@@ -200,71 +367,26 @@ export default function RunPage() {
         return <Spin style={{ display: 'block', margin: '80px auto' }} />;
     }
 
-    const running = current.status === 'running';
+    const running = view.current.status === 'running';
+    const pendingItems = pendingQueueItems(view.queueItems);
     const frameAreaHeight = 'calc(100vh - 250px)';
-    const pendingItems = queueItems.filter((item) => item.status === 'pending');
 
     return (
         <Row gutter={16}>
             <Col {...RUN_FRAME_COL}>
-                <Card
-                    title='实时画面'
-                    extra={
-                        running ? (
-                            <Button danger icon={<StopOutlined />} onClick={stop}>
-                                停止运行
-                            </Button>
-                        ) : undefined
-                    }
-                >
-                    {running || frame ? (
-                        <div
-                            style={{
-                                background: '#000',
-                                borderRadius: 8,
-                                overflow: 'hidden',
-                                height: frameAreaHeight,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
-                        >
-                            {frame ? (
-                                <img
-                                    src={`data:image/jpeg;base64,${frame}`}
-                                    style={{
-                                        maxWidth: '100%',
-                                        maxHeight: '100%',
-                                        objectFit: 'contain',
-                                        display: 'block',
-                                    }}
-                                    alt='实时画面'
-                                />
-                            ) : (
-                                <div style={{ color: '#fff' }}>等待浏览器画面...</div>
-                            )}
-                        </div>
-                    ) : (
-                        <Empty description='当前没有运行中的任务，到「任务」页面发起一次运行' />
-                    )}
-                    {finishedStatus && !running && (
-                        <div style={{ marginTop: 12 }}>
-                            上次运行结果：
-                            <RunStatusTag status={finishedStatus as never} />
-                        </div>
-                    )}
-                </Card>
+                <RunFrame
+                    running={running}
+                    frame={view.frame}
+                    height={frameAreaHeight}
+                    onStop={() => void stop()}
+                />
+                <FinishedBanner finishedStatus={view.finishedStatus} running={running} />
             </Col>
             <Col {...RUN_LOG_COL}>
                 <Space orientation='vertical' size={16} style={{ width: '100%' }}>
-                    <Card
-                        title={`任务队列${pendingItems.length > 0 ? `（${pendingItems.length} 个待执行）` : ''}`}
-                        size='small'
-                    >
+                    <Card title={queueCardTitle(pendingItems.length)} size='small'>
                         <div style={{ maxHeight: 180, overflowY: 'auto' }}>
-                            {pendingItems.length === 0 && (
-                                <Typography.Text type='secondary'>队列为空</Typography.Text>
-                            )}
+                            <EmptyQueueHint count={pendingItems.length} />
                             <Flex vertical>
                                 {pendingItems.map((item, index) => (
                                     <div
@@ -295,21 +417,21 @@ export default function RunPage() {
                                                 type='text'
                                                 icon={<ArrowUpOutlined />}
                                                 disabled={index === 0}
-                                                onClick={() => moveItem(item.id, 'up')}
+                                                onClick={() => void moveItem(item.id, 'up')}
                                             />
                                             <Button
                                                 size='small'
                                                 type='text'
                                                 icon={<ArrowDownOutlined />}
                                                 disabled={index === pendingItems.length - 1}
-                                                onClick={() => moveItem(item.id, 'down')}
+                                                onClick={() => void moveItem(item.id, 'down')}
                                             />
                                             <Button
                                                 size='small'
                                                 type='text'
                                                 danger
                                                 icon={<DeleteOutlined />}
-                                                onClick={() => cancelItem(item.id)}
+                                                onClick={() => void cancelItem(item.id)}
                                             />
                                         </Space>
                                     </div>
@@ -344,26 +466,21 @@ export default function RunPage() {
                                         value: model.id,
                                     }))}
                                 />
-                                <Button type='primary' icon={<PlusOutlined />} onClick={addToQueue}>
+                                <Button
+                                    type='primary'
+                                    icon={<PlusOutlined />}
+                                    onClick={() => void addToQueue()}
+                                >
                                     添加
                                 </Button>
                             </Space>
                         </div>
                     </Card>
-
                     <Card
                         title={
                             <Space>
                                 步骤日志
-                                {current.run && (
-                                    <Typography.Text type='secondary' data-testid='run-progress'>
-                                        {runProgressText({
-                                            taskName: current.run.taskName,
-                                            currentStepIndex: current.run.currentStepIndex,
-                                            totalSteps: current.run.totalSteps,
-                                        })}
-                                    </Typography.Text>
-                                )}
+                                <RunProgress current={view.current} />
                             </Space>
                         }
                     >
@@ -371,61 +488,14 @@ export default function RunPage() {
                             ref={stepListRef}
                             style={{ maxHeight: 'calc(100vh - 510px)', overflowY: 'auto' }}
                         >
-                            {steps.length === 0 && (
-                                <Typography.Text type='secondary'>
-                                    {running ? '准备中...' : '暂无步骤'}
-                                </Typography.Text>
-                            )}
+                            <EmptyStepHint count={view.steps.length} running={running} />
                             <Flex vertical>
-                                {steps.map((item) => (
-                                    <div
+                                {view.steps.map((item) => (
+                                    <StepLogItem
                                         key={item.stepIndex}
-                                        style={{
-                                            padding: '10px 0',
-                                            borderBottom: `1px solid ${token.colorBorderSecondary}`,
-                                        }}
-                                    >
-                                        <Space
-                                            orientation='vertical'
-                                            size={2}
-                                            style={{ width: '100%' }}
-                                        >
-                                            <Space wrap>
-                                                <Tag>{`#${item.stepIndex + 1}`}</Tag>
-                                                <Typography.Text strong>
-                                                    {item.stepName}
-                                                </Typography.Text>
-                                                <Tag color='blue'>{item.action}</Tag>
-                                                {item.status === 'running' && (
-                                                    <Tag color='processing'>执行中</Tag>
-                                                )}
-                                                {item.status === 'success' && (
-                                                    <Tag color='success'>成功</Tag>
-                                                )}
-                                                {item.status === 'failed' && (
-                                                    <Tag color='error'>失败</Tag>
-                                                )}
-                                                {item.record && (
-                                                    <Typography.Text type='secondary'>
-                                                        {formatDuration(item.record.durationMs)}
-                                                    </Typography.Text>
-                                                )}
-                                            </Space>
-                                            {item.record?.error && (
-                                                <Typography.Text type='danger'>
-                                                    {item.record.error}
-                                                </Typography.Text>
-                                            )}
-                                            {item.record?.url && (
-                                                <Typography.Text
-                                                    type='secondary'
-                                                    style={{ fontSize: 12 }}
-                                                >
-                                                    {item.record.url}
-                                                </Typography.Text>
-                                            )}
-                                        </Space>
-                                    </div>
+                                        item={item}
+                                        borderColor={token.colorBorderSecondary}
+                                    />
                                 ))}
                             </Flex>
                         </div>

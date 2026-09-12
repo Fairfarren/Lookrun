@@ -1,5 +1,15 @@
 import { describe, expect, test } from 'bun:test';
-import { parseModelsConfig, parseVisionCheckResponse } from '../src/services/models';
+import {
+    parseModelsConfig,
+    parseVisionCheckResponse,
+    visionChatUrl,
+    visionCheckOutcome,
+    visionHttpError,
+    visionOkMessage,
+    visionRequestError,
+    visionResponseContent,
+    visionTimeoutMs,
+} from '../src/services/models';
 
 describe('parseModelsConfig', () => {
     test('合法配置：baseUrl 和 apiKey 平铺到每个模型', () => {
@@ -122,5 +132,55 @@ describe('parseVisionCheckResponse', () => {
 
     test('响应里没有 bbox 则失败', () => {
         expect(parseVisionCheckResponse('我看不懂这张图').ok).toBe(false);
+    });
+
+    test('bbox JSON 无法解析则失败', () => {
+        expect(parseVisionCheckResponse('{"bbox": [1, 2, 3,]}').ok).toBe(false);
+    });
+});
+
+describe('vision helpers', () => {
+    test('超时默认 60 秒', () => {
+        expect(visionTimeoutMs(undefined)).toBe(60_000);
+        expect(visionTimeoutMs(1000)).toBe(1000);
+    });
+
+    test('拼接 chat 地址并去掉末尾斜杠', () => {
+        expect(visionChatUrl('http://x/v1/')).toBe('http://x/v1/chat/completions');
+    });
+
+    test('HTTP 错误截断正文', () => {
+        expect(visionHttpError(500, 'e'.repeat(300)).message).toContain('500');
+        expect(visionHttpError(500, 'e'.repeat(300)).message.length).toBeLessThan(230);
+    });
+
+    test('从 choices 取内容，缺省为空串', () => {
+        expect(visionResponseContent({ choices: [{ message: { content: 'hi' } }] })).toBe('hi');
+        expect(visionResponseContent({})).toBe('');
+    });
+
+    test('成功文案区分坐标系', () => {
+        expect(visionOkMessage({ coordinateSystem: 'normalized', bbox: [1, 2, 3, 4] })).toContain(
+            '归一化',
+        );
+        expect(visionOkMessage({ coordinateSystem: 'absolute', bbox: [1, 2, 3, 4] })).toContain(
+            '绝对像素',
+        );
+    });
+
+    test('把解析结果转成自检结论', () => {
+        expect(
+            visionCheckOutcome({
+                ok: true,
+                bbox: [1, 2, 3, 4],
+                coordinateSystem: 'absolute',
+            }).ok,
+        ).toBe(true);
+        expect(visionCheckOutcome({ ok: false, reason: '坏' }).message).toContain('坏');
+    });
+
+    test('请求异常文案', () => {
+        expect(visionRequestError(new Error('超时')).message).toContain('超时');
+        expect(visionRequestError('down').message).toContain('down');
     });
 });

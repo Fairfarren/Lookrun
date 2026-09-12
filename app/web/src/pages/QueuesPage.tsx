@@ -3,6 +3,29 @@ import { App as AntApp, Button, Card, Empty, Flex, Space, Spin, theme, Typograph
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type QueueDef } from '../api';
+import { errorText } from '../utils/error-text';
+import { queuesViewState, startQueueFeedback } from '../utils/queues-page';
+
+function QueuesLoading({ state }: { state: string }) {
+    if (state !== 'loading') {
+        return null;
+    }
+    return <Spin style={{ display: 'block', margin: '40px auto' }} />;
+}
+
+function QueuesEmpty({ state }: { state: string }) {
+    if (state !== 'empty') {
+        return null;
+    }
+    return <Empty description='还没有队列，点击右上角新建一个' />;
+}
+
+function QueuesReady({ state, children }: { state: string; children: React.ReactNode }) {
+    if (state !== 'ready') {
+        return null;
+    }
+    return children;
+}
 
 export default function QueuesPage() {
     const { message, modal } = AntApp.useApp();
@@ -22,25 +45,38 @@ export default function QueuesPage() {
 
     useEffect(load, []);
 
-    const startQueue = async (queue: QueueDef) => {
-        setStarting(queue.id);
+    const showStartFeedback = (
+        queue: QueueDef,
+        result: { started: number; queued: number; errors: string[] },
+    ) => {
+        const feedback = startQueueFeedback({
+            name: queue.name,
+            started: result.started,
+            queued: result.queued,
+            errors: result.errors,
+        });
+        if (feedback.type === 'warning') {
+            message.warning(feedback.text);
+            return;
+        }
+        message.success(feedback.text);
+    };
+
+    const submitStartQueue = async (queue: QueueDef) => {
         try {
             const result = await api.startQueue(queue.id);
-            if (result.errors.length > 0) {
-                message.warning(
-                    `已启动 ${result.started + result.queued} 个任务，${result.errors.length} 个被跳过：${result.errors.join('；')}`,
-                );
-            } else {
-                message.success(
-                    `已启动队列「${queue.name}」：${result.started} 个立即执行，${result.queued} 个排队`,
-                );
-            }
+            showStartFeedback(queue, result);
             navigate('/run');
         } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
+            message.error(errorText(error));
         } finally {
             setStarting(null);
         }
+    };
+
+    const startQueue = async (queue: QueueDef) => {
+        setStarting(queue.id);
+        await submitStartQueue(queue);
     };
 
     const confirmDelete = (queue: QueueDef) => {
@@ -71,11 +107,9 @@ export default function QueuesPage() {
                 </Button>
             }
         >
-            {queues.length === 0 && !loading ? (
-                <Empty description='还没有队列，点击右上角新建一个' />
-            ) : loading ? (
-                <Spin style={{ display: 'block', margin: '40px auto' }} />
-            ) : (
+            <QueuesEmpty state={queuesViewState({ loading, count: queues.length })} />
+            <QueuesLoading state={queuesViewState({ loading, count: queues.length })} />
+            <QueuesReady state={queuesViewState({ loading, count: queues.length })}>
                 <Flex vertical>
                     {queues.map((queue) => (
                         <Flex
@@ -121,7 +155,7 @@ export default function QueuesPage() {
                         </Flex>
                     ))}
                 </Flex>
-            )}
+            </QueuesReady>
         </Card>
     );
 }

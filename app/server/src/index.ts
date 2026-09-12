@@ -2,6 +2,7 @@ import path from 'node:path';
 import { createBunWebSocket } from 'hono/bun';
 import { Hono } from 'hono';
 import { SERVER_PORT } from './config';
+import { browserOpenCommand } from './lib/open-browser';
 import { ensurePortFree } from './lib/port';
 import { registerRoutes } from './routes';
 import { configureBundledRuntimeAssets } from './lib/runtime-assets';
@@ -39,13 +40,11 @@ const embeddedAssets = isPackaged() ? (await import('./gen/assets')).embeddedAss
 registerStatic(app, embeddedAssets);
 
 function openBrowser(url: string) {
-    const command =
-        process.platform === 'darwin'
-            ? ['open', url]
-            : process.platform === 'win32'
-              ? ['cmd', '/c', 'start', url]
-              : ['xdg-open', url];
-    Bun.spawn({ cmd: command, stdout: 'ignore', stderr: 'ignore' });
+    Bun.spawn({
+        cmd: browserOpenCommand(process.platform, url),
+        stdout: 'ignore',
+        stderr: 'ignore',
+    });
 }
 
 // 启动前确保端口空闲：被占用则自动杀掉占用进程（通常是上次未退出的残留实例）

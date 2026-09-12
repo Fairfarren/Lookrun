@@ -15,24 +15,33 @@ const CONTENT_TYPES: Record<string, string> = {
     '.map': 'application/json; charset=utf-8',
 };
 
-// 前端静态资源：打包后使用二进制内嵌文件，开发页面由 Vite 提供
-// 非文件路径一律回退到 index.html（SPA 前端路由）
+export function resolveStaticAsset(requestPath: string, embeddedAssets: Record<string, string>) {
+    const assetPath = requestPath === '/' ? '/index.html' : requestPath;
+    if (embeddedAssets[assetPath]) {
+        return embeddedAssets[assetPath];
+    }
+    if (/\.[a-zA-Z0-9]+$/.test(assetPath)) {
+        return undefined;
+    }
+    return embeddedAssets['/index.html'];
+}
+
+export function contentTypeFor(filePath: string) {
+    const ext = filePath.slice(filePath.lastIndexOf('.'));
+    return CONTENT_TYPES[ext] ?? 'application/octet-stream';
+}
+
 export function registerStatic(app: Hono, embeddedAssets: Record<string, string>) {
     app.get('*', (c) => {
-        const requestPath = c.req.path === '/' ? '/index.html' : c.req.path;
-        const isFileRequest = /\.[a-zA-Z0-9]+$/.test(requestPath);
-        const filePath =
-            embeddedAssets[requestPath] ??
-            (isFileRequest ? undefined : embeddedAssets['/index.html']);
+        const filePath = resolveStaticAsset(c.req.path, embeddedAssets);
         if (!filePath) {
             return c.text(
                 '前端资源未构建：请先 bun run build:web；开发模式请访问 vite 端口 5173',
                 404,
             );
         }
-        const ext = filePath.slice(filePath.lastIndexOf('.'));
         return new Response(Bun.file(filePath), {
-            headers: { 'Content-Type': CONTENT_TYPES[ext] ?? 'application/octet-stream' },
+            headers: { 'Content-Type': contentTypeFor(filePath) },
         });
     });
 }

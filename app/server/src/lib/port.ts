@@ -33,16 +33,37 @@ export function parseNetstatPids(output: string, port: number): number[] {
     return pids;
 }
 
-// 查找占用指定端口的进程 PID（排除自己，避免误杀）
-function findPortPids(port: number): number[] {
-    const selfPid = process.pid;
+export function findPortPidsWith(input: {
+    platform: string;
+    selfPid: number;
+    stdout: string;
+    port: number;
+}) {
+    const pids =
+        input.platform === 'win32'
+            ? parseNetstatPids(input.stdout, input.port)
+            : parseLsofPids(input.stdout);
+    return pids.filter((pid) => pid !== input.selfPid);
+}
+
+function commandStdout(result: { stdout?: string | null }) {
+    return result.stdout ?? '';
+}
+
+function readPortCommand(port: number) {
     if (process.platform === 'win32') {
-        const r = spawnSync('netstat', ['-ano'], { encoding: 'utf8' });
-        return parseNetstatPids(r.stdout ?? '', port).filter((p) => p !== selfPid);
+        return commandStdout(spawnSync('netstat', ['-ano'], { encoding: 'utf8' }));
     }
-    // macOS/Linux：lsof -ti :PORT 直接返回 PID
-    const r = spawnSync('lsof', ['-ti', `:${port}`], { encoding: 'utf8' });
-    return parseLsofPids(r.stdout ?? '').filter((p) => p !== selfPid);
+    return commandStdout(spawnSync('lsof', ['-ti', `:${port}`], { encoding: 'utf8' }));
+}
+
+function findPortPids(port: number) {
+    return findPortPidsWith({
+        platform: process.platform,
+        selfPid: process.pid,
+        stdout: readPortCommand(port),
+        port,
+    });
 }
 
 // 杀掉指定 PID（跨平台）
@@ -59,22 +80,43 @@ function isPortFree(port: number): boolean {
     return findPortPids(port).length === 0;
 }
 
-// 启动前确保端口空闲：占用则杀掉占用进程，并等待端口释放
-export function ensurePortFree(port: number): void {
-    const pids = findPortPids(port);
-    if (pids.length === 0) {
+export function ensurePortFreeWith(input: {
+    port: number;
+    pids: number[];
+    kill: (pid: number) => void;
+    isFree: () => boolean;
+    wait: () => void;
+    maxWaits: number;
+    log: (message: string) => void;
+    warn: (message: string) => void;
+}) {
+    if (input.pids.length === 0) {
         return;
     }
-    console.log(`端口 ${port} 被占用（PID: ${pids.join(', ')}），自动清理后启动...`);
-    for (const pid of pids) {
-        killPid(pid);
+    input.log(`端口 ${input.port} 被占用（PID: ${input.pids.join(', ')}），自动清理后启动...`);
+    for (const pid of input.pids) {
+        input.kill(pid);
     }
-    // 等待端口释放，最多重试 30 次（约 3 秒）
-    for (let i = 0; i < 30; i++) {
-        if (isPortFree(port)) {
+    for (let attempt = 0; attempt < input.maxWaits; attempt++) {
+        if (input.isFree()) {
             return;
         }
-        spawnSync('sleep', ['0.1'], { stdio: 'ignore' });
+        input.wait();
     }
-    console.warn(`端口 ${port} 清理后仍被占用，继续尝试启动`);
+    input.warn(`端口 ${input.port} 清理后仍被占用，继续尝试启动`);
+}
+
+export function ensurePortFree(port: number) {
+    ensurePortFreeWith({
+        port,
+        pids: findPortPids(port),
+        kill: killPid,
+        isFree: () => isPortFree(port),
+        wait: () => {
+            spawnSync('sleep', ['0.1'], { stdio: 'ignore' });
+        },
+        maxWaits: 30,
+        log: (message) => console.log(message),
+        warn: (message) => console.warn(message),
+    });
 }

@@ -15,13 +15,28 @@ export function hasWsClients() {
     return wsClients.size > 0;
 }
 
-export function broadcast(payload: unknown) {
+export function trySendWs(ws: { send: (text: string) => void }, text: string) {
+    try {
+        ws.send(text);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export function sendJsonToClients(
+    clients: Set<{ send: (text: string) => void }>,
+    payload: unknown,
+) {
     const text = JSON.stringify(payload);
-    for (const ws of wsClients) {
-        try {
-            ws.send(text);
-        } catch {
-            wsClients.delete(ws);
+    const snapshot = Array.from(clients);
+    for (const ws of snapshot) {
+        if (!trySendWs(ws, text)) {
+            clients.delete(ws);
         }
     }
+}
+
+export function broadcast(payload: unknown) {
+    sendJsonToClients(wsClients, payload);
 }

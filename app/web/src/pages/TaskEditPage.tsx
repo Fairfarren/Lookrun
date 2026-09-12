@@ -35,9 +35,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
     ACTION_OPTIONS,
     actionOptionsForTarget,
-    createStepId,
-    formToYaml,
-    yamlToForm,
     type AndroidAppRecord,
     type AndroidDeviceRecord,
     type FormScript,
@@ -51,33 +48,37 @@ import { useThemeMode } from '../theme/context';
 import { CARD_ACTIONS_STYLE, CARD_HEADER_WRAP_STYLE } from '../styles/layout';
 import { scriptValidationBanner } from '../utils/script-validation';
 import { createValidationErrorKey } from '../utils/validation-errors';
+import { errorText } from '../utils/error-text';
+import { draggingItemStyle } from '../utils/sortable-style';
+import {
+    androidDeviceId,
+    applyLoadedTaskYaml,
+    canCheckAndroidDevice,
+    createEmptyForm,
+    createEmptyStep,
+    createEmptyTask,
+    currentYamlText,
+    editorModeSwitch,
+    isNewEditRoute,
+    isAndroidLaunchField,
+    stepFieldKind,
+    taskEditTitle,
+    taskNameError,
+    fieldNumberValue,
+    fieldSelectValue,
+    fieldStringValue,
+    firstDeviceId,
+    formWithTargetType,
+    optionalDeviceId,
+    urlText,
+    withDefaultAndroidDevice,
+    withWebUrl,
+    withWebViewportHeight,
+    withWebViewportWidth,
+    yamlValidateError,
+} from '../utils/task-form';
 
 const VALIDATE_DEBOUNCE_MS = 800;
-
-function createEmptyStep(action = 'aiTap'): FormStep {
-    return {
-        id: createStepId(),
-        action,
-        params:
-            action === 'aiScroll'
-                ? { direction: 'down' }
-                : action === 'aiKeyboardPress'
-                  ? { key: 'Enter' }
-                  : {},
-    };
-}
-
-function createEmptyTask(index: number): FormTask {
-    return {
-        id: createStepId(),
-        name: `步骤组 ${index}`,
-        steps: [createEmptyStep()],
-    };
-}
-
-function createEmptyForm(): FormScript {
-    return { target: { type: 'web', url: '' }, tasks: [createEmptyTask(1)] };
-}
 
 interface SortableListProps {
     ids: string[];
@@ -142,9 +143,9 @@ function SortableTaskCard({
             style={{
                 transform: CSS.Transform.toString(transform),
                 transition,
-                opacity: isDragging ? 0.5 : 1,
+                opacity: draggingItemStyle(isDragging).opacity,
                 position: 'relative',
-                zIndex: isDragging ? 1 : undefined,
+                zIndex: draggingItemStyle(isDragging).zIndex,
             }}
             title={
                 <Space>
@@ -156,7 +157,7 @@ function SortableTaskCard({
                         aria-label={`拖拽第 ${index + 1} 个步骤组进行排序`}
                         title='拖拽排序'
                         style={{
-                            cursor: isDragging ? 'grabbing' : 'grab',
+                            cursor: draggingItemStyle(isDragging).cursor,
                             touchAction: 'none',
                         }}
                         {...attributes}
@@ -212,9 +213,9 @@ function SortableStepRow({ id, index, children }: SortableStepRowProps) {
             style={{
                 transform: CSS.Transform.toString(transform),
                 transition,
-                opacity: isDragging ? 0.5 : 1,
+                opacity: draggingItemStyle(isDragging).opacity,
                 position: 'relative',
-                zIndex: isDragging ? 1 : undefined,
+                zIndex: draggingItemStyle(isDragging).zIndex,
             }}
         >
             <Button
@@ -224,7 +225,7 @@ function SortableStepRow({ id, index, children }: SortableStepRowProps) {
                 icon={<HolderOutlined />}
                 aria-label={`拖拽第 ${index + 1} 个步骤进行排序`}
                 title='拖拽排序'
-                style={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
+                style={{ cursor: draggingItemStyle(isDragging).cursor, touchAction: 'none' }}
                 {...attributes}
                 {...listeners}
             />
@@ -236,10 +237,363 @@ function SortableStepRow({ id, index, children }: SortableStepRowProps) {
     );
 }
 
+function appFilterOption(inputValue: string, currentOption: { value?: string } | undefined) {
+    return String(currentOption?.value ?? '')
+        .toLocaleLowerCase()
+        .includes(inputValue.toLocaleLowerCase());
+}
+
+function appsNotFoundContent(loadingApps: boolean) {
+    if (loadingApps) {
+        return '正在读取应用列表…';
+    }
+    return '没有匹配包名，可直接输入应用名称或包名';
+}
+
+function SelectStepField(input: {
+    field: { key: string; options?: { label: string; value: string }[] };
+    value: unknown;
+    onChange: (next: string | number | undefined) => void;
+}) {
+    return (
+        <Select
+            key={input.field.key}
+            style={{ width: 110 }}
+            value={fieldSelectValue(input.value)}
+            options={input.field.options}
+            onChange={input.onChange}
+        />
+    );
+}
+
+function AndroidLaunchField(input: {
+    field: { key: string; placeholder?: string; label: string };
+    value: unknown;
+    androidApps: AndroidAppRecord[];
+    loadingApps: boolean;
+    deviceId: string;
+    onChange: (next: string | number | undefined) => void;
+    onReloadApps: () => void;
+}) {
+    return (
+        <Flex key={input.field.key} gap={8} style={{ flex: 1, minWidth: 280 }}>
+            <AutoComplete
+                style={{ flex: 1 }}
+                value={fieldStringValue(input.value)}
+                options={createAndroidAppOptions(input.androidApps)}
+                placeholder={input.field.placeholder ?? input.field.label}
+                notFoundContent={appsNotFoundContent(input.loadingApps)}
+                filterOption={appFilterOption}
+                onChange={input.onChange}
+            />
+            <Button
+                icon={<ReloadOutlined />}
+                loading={input.loadingApps}
+                disabled={!input.deviceId}
+                title='刷新应用列表'
+                onClick={input.onReloadApps}
+            />
+        </Flex>
+    );
+}
+
+function NumberStepField(input: {
+    field: { key: string; placeholder?: string; label: string };
+    value: unknown;
+    onChange: (next: string | number | undefined) => void;
+}) {
+    return (
+        <InputNumber
+            key={input.field.key}
+            style={{ width: 130 }}
+            min={1}
+            placeholder={input.field.placeholder ?? input.field.label}
+            value={fieldNumberValue(input.value)}
+            onChange={(next) => input.onChange(next ?? undefined)}
+        />
+    );
+}
+
+function TextStepField(input: {
+    field: { key: string; placeholder?: string; label: string };
+    value: unknown;
+    onChange: (next: string | number | undefined) => void;
+}) {
+    return (
+        <Input
+            key={input.field.key}
+            style={{ flex: 1, minWidth: 140 }}
+            placeholder={input.field.placeholder ?? input.field.label}
+            value={fieldStringValue(input.value)}
+            onChange={(event) => input.onChange(event.target.value)}
+        />
+    );
+}
+
+function StepFieldByKind(input: {
+    kind: string;
+    field: {
+        key: string;
+        placeholder?: string;
+        label: string;
+        options?: { label: string; value: string }[];
+    };
+    value: unknown;
+    androidApps: AndroidAppRecord[];
+    loadingApps: boolean;
+    deviceId: string;
+    onChange: (next: string | number | undefined) => void;
+    onReloadApps: () => void;
+}) {
+    if (input.kind === 'select') {
+        return (
+            <SelectStepField field={input.field} value={input.value} onChange={input.onChange} />
+        );
+    }
+    return <StepFieldRest {...input} />;
+}
+
+function StepFieldRest(input: {
+    kind: string;
+    field: { key: string; placeholder?: string; label: string };
+    value: unknown;
+    androidApps: AndroidAppRecord[];
+    loadingApps: boolean;
+    deviceId: string;
+    onChange: (next: string | number | undefined) => void;
+    onReloadApps: () => void;
+}) {
+    if (input.kind === 'android-launch') {
+        return <AndroidLaunchField {...input} />;
+    }
+    return <StepFieldInput {...input} />;
+}
+
+function StepFieldInput(input: {
+    kind: string;
+    field: { key: string; placeholder?: string; label: string };
+    value: unknown;
+    onChange: (next: string | number | undefined) => void;
+}) {
+    if (input.kind === 'number') {
+        return <NumberStepField {...input} />;
+    }
+    return <TextStepField {...input} />;
+}
+
+function WebTargetEditor(input: { form: FormScript; onFormChange: (form: FormScript) => void }) {
+    if (input.form.target.type !== 'web') {
+        return null;
+    }
+    const target = input.form.target;
+    return (
+        <>
+            <Flex gap={12} wrap='wrap' align='center'>
+                <Typography.Text strong>起始页面</Typography.Text>
+                <Input
+                    style={{ flex: 1, minWidth: 260 }}
+                    placeholder='起始页面地址，如 https://h5.example.com'
+                    value={target.url}
+                    onChange={(event) =>
+                        input.onFormChange(withWebUrl(input.form, event.target.value))
+                    }
+                />
+                <InputNumber
+                    placeholder='视口宽(默认390)'
+                    min={320}
+                    value={target.viewportWidth}
+                    onChange={(value) =>
+                        input.onFormChange(withWebViewportWidth(input.form, value ?? undefined))
+                    }
+                />
+                <InputNumber
+                    placeholder='视口高(默认844)'
+                    min={320}
+                    value={target.viewportHeight}
+                    onChange={(value) =>
+                        input.onFormChange(withWebViewportHeight(input.form, value ?? undefined))
+                    }
+                />
+            </Flex>
+            <Typography.Text type='secondary'>
+                每个步骤组可另填页面地址。相同地址会回到已打开的页面，不会新开，适合 H5
+                发验证码后再去后台接码。
+            </Typography.Text>
+        </>
+    );
+}
+
+function AndroidTargetEditor(input: {
+    form: FormScript;
+    androidDevices: AndroidDeviceRecord[];
+    loadingDevices: boolean;
+    checkingDevice: boolean;
+    onFormChange: (form: FormScript) => void;
+    onReloadDevices: () => void;
+    onCheckDevice: () => void;
+}) {
+    if (input.form.target.type !== 'android') {
+        return null;
+    }
+    return (
+        <Flex gap={12} wrap='wrap' align='center'>
+            <Typography.Text strong>设备号</Typography.Text>
+            <Select
+                style={{ flex: 1, minWidth: 320 }}
+                loading={input.loadingDevices}
+                placeholder='选择已连接并授权的 Android 设备'
+                value={optionalDeviceId(input.form.target.deviceId)}
+                options={input.androidDevices.map((device) => ({
+                    label: `${device.name}（${device.id}）`,
+                    value: device.id,
+                }))}
+                onChange={(deviceId) =>
+                    input.onFormChange({
+                        ...input.form,
+                        target: { type: 'android', deviceId },
+                    })
+                }
+            />
+            <Button
+                icon={<ReloadOutlined />}
+                loading={input.loadingDevices}
+                onClick={input.onReloadDevices}
+            >
+                刷新设备
+            </Button>
+            <Button
+                loading={input.checkingDevice}
+                disabled={!input.form.target.deviceId}
+                onClick={input.onCheckDevice}
+            >
+                检查连接
+            </Button>
+        </Flex>
+    );
+}
+
+function TargetEditor(input: {
+    form: FormScript;
+    androidDevices: AndroidDeviceRecord[];
+    loadingDevices: boolean;
+    checkingDevice: boolean;
+    onFormChange: (form: FormScript) => void;
+    onReloadDevices: () => void;
+    onCheckDevice: () => void;
+}) {
+    return (
+        <>
+            <WebTargetEditor form={input.form} onFormChange={input.onFormChange} />
+            <AndroidTargetEditor {...input} />
+        </>
+    );
+}
+
+function YamlLockedAlert({ yamlLocked }: { yamlLocked: boolean }) {
+    if (!yamlLocked) {
+        return null;
+    }
+    return (
+        <Alert
+            type='warning'
+            title='此脚本包含表单编辑器不支持的内容（如高级参数），已用 YAML 模式编辑'
+            style={{ marginBottom: 12 }}
+        />
+    );
+}
+
+function ModeEditor(input: { mode: string; formEditor: ReactNode; yamlEditor: ReactNode }) {
+    if (input.mode === 'form') {
+        return input.formEditor;
+    }
+    return input.yamlEditor;
+}
+
+function BannerPending({ banner }: { banner: string }) {
+    if (banner !== 'pending') {
+        return null;
+    }
+    return <Alert data-testid='script-validation-banner' type='info' title='正在校验' />;
+}
+
+function BannerError({ banner, errors }: { banner: string; errors: string[] }) {
+    if (banner !== 'error') {
+        return null;
+    }
+    return (
+        <Alert
+            data-testid='script-validation-banner'
+            type='error'
+            title='脚本存在问题'
+            description={
+                <ul style={{ margin: 0, paddingInlineStart: 20 }}>
+                    {errors.map((error, errorIndex) => (
+                        <li key={createValidationErrorKey(error, errorIndex)}>{error}</li>
+                    ))}
+                </ul>
+            }
+        />
+    );
+}
+
+function BannerSuccess({ banner }: { banner: string }) {
+    if (banner !== 'success') {
+        return null;
+    }
+    return (
+        <Alert data-testid='script-validation-banner' type='success' title='校验通过' showIcon />
+    );
+}
+
+function TaskGroupUrl(input: {
+    targetType: string;
+    url: string | undefined;
+    onChange: (url: string) => void;
+}) {
+    if (input.targetType !== 'web') {
+        return null;
+    }
+    return (
+        <Input
+            placeholder='本步骤组页面地址（可选，相同则复用）'
+            value={urlText(input.url)}
+            onChange={(event) => input.onChange(event.target.value)}
+        />
+    );
+}
+
+function StepField(input: {
+    field: {
+        key: string;
+        type: string;
+        placeholder?: string;
+        label: string;
+        options?: { label: string; value: string }[];
+    };
+    step: FormStep;
+    value: unknown;
+    targetType: string;
+    androidApps: AndroidAppRecord[];
+    loadingApps: boolean;
+    deviceId: string;
+    onChange: (next: string | number | undefined) => void;
+    onReloadApps: () => void;
+}) {
+    const kind = stepFieldKind(
+        input.field.type,
+        isAndroidLaunchField({
+            action: input.step.action,
+            fieldKey: input.field.key,
+            targetType: input.targetType,
+        }),
+    );
+    return <StepFieldByKind {...input} kind={kind} />;
+}
+
 export default function TaskEditPage() {
     const themeMode = useThemeMode();
     const { id } = useParams();
-    const isNew = id === undefined || id === 'new';
+    const isNew = isNewEditRoute(id);
     const { message } = AntApp.useApp();
     const navigate = useNavigate();
 
@@ -260,25 +614,25 @@ export default function TaskEditPage() {
     const [checkingDevice, setCheckingDevice] = useState(false);
     const androidAppsRequestId = useRef(0);
     const validateTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-    const androidDeviceId = form.target.type === 'android' ? form.target.deviceId : '';
+    const deviceId = androidDeviceId(form);
 
     useEffect(() => {
-        if (!isNew) {
-            api.getTask(Number(id))
-                .then((task) => {
-                    setName(task.name);
-                    setYamlText(task.yaml);
-                    const parsed = yamlToForm(task.yaml);
-                    if (parsed.ok) {
-                        setForm(parsed.form);
-                    } else {
-                        setMode('yaml');
-                        setYamlLocked(true);
-                    }
-                    setLoaded(true);
-                })
-                .catch((error: Error) => message.error(error.message));
+        if (isNew) {
+            return;
         }
+        api.getTask(Number(id))
+            .then((task) => {
+                setName(task.name);
+                setYamlText(task.yaml);
+                const loadedForm = applyLoadedTaskYaml(task.yaml);
+                if (loadedForm.form) {
+                    setForm(loadedForm.form);
+                }
+                setMode(loadedForm.mode);
+                setYamlLocked(loadedForm.yamlLocked);
+                setLoaded(true);
+            })
+            .catch((error: Error) => message.error(error.message));
     }, [id]);
 
     const loadAndroidDevices = async () => {
@@ -286,20 +640,9 @@ export default function TaskEditPage() {
         try {
             const result = await api.listAndroidDevices();
             setAndroidDevices(result.devices);
-            setForm((prev) => {
-                if (prev.target.type !== 'android' || prev.target.deviceId) {
-                    return prev;
-                }
-                return {
-                    ...prev,
-                    target: {
-                        type: 'android',
-                        deviceId: result.devices[0]?.id ?? '',
-                    },
-                };
-            });
+            setForm((prev) => withDefaultAndroidDevice(prev, firstDeviceId(result.devices)));
         } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
+            message.error(errorText(error));
         } finally {
             setLoadingDevices(false);
         }
@@ -311,40 +654,42 @@ export default function TaskEditPage() {
         }
     }, [form.target.type]);
 
-    const loadAndroidApps = async (deviceId: string) => {
+    const applyIfCurrent = (requestId: number, action: () => void) => {
+        if (requestId !== androidAppsRequestId.current) {
+            return;
+        }
+        action();
+    };
+
+    const loadAndroidApps = async (id: string) => {
         const requestId = androidAppsRequestId.current + 1;
         androidAppsRequestId.current = requestId;
         setAndroidApps([]);
         setLoadingApps(true);
         try {
-            const result = await api.listAndroidApps(deviceId);
-            if (requestId === androidAppsRequestId.current) {
-                setAndroidApps(result.apps);
-            }
+            const result = await api.listAndroidApps(id);
+            applyIfCurrent(requestId, () => setAndroidApps(result.apps));
         } catch (error) {
-            if (requestId === androidAppsRequestId.current) {
+            applyIfCurrent(requestId, () => {
                 setAndroidApps([]);
-                message.error(error instanceof Error ? error.message : String(error));
-            }
+                message.error(errorText(error));
+            });
         } finally {
-            if (requestId === androidAppsRequestId.current) {
-                setLoadingApps(false);
-            }
+            applyIfCurrent(requestId, () => setLoadingApps(false));
         }
     };
 
     useEffect(() => {
-        if (!androidDeviceId) {
+        if (!deviceId) {
             androidAppsRequestId.current += 1;
             setAndroidApps([]);
             setLoadingApps(false);
             return;
         }
-        void loadAndroidApps(androidDeviceId);
-    }, [androidDeviceId]);
+        void loadAndroidApps(deviceId);
+    }, [deviceId]);
 
-    // 当前编辑内容对应的 YAML 文本
-    const currentYaml = mode === 'form' ? formToYaml(form) : yamlText;
+    const currentYaml = currentYamlText({ mode, form, yamlText });
 
     // 编辑停顿后自动调后端校验（含变量检查）
     useEffect(() => {
@@ -367,22 +712,41 @@ export default function TaskEditPage() {
     }, [currentYaml, loaded]);
 
     const switchMode = (next: string | number) => {
-        if (next === mode) {
+        const result = editorModeSwitch({ current: mode, next, form, yamlText });
+        applyEditorMode(result);
+    };
+
+    const applyEditorMode = (result: ReturnType<typeof editorModeSwitch>) => {
+        if (result.type === 'noop') {
             return;
         }
-        if (next === 'yaml') {
-            setYamlText(formToYaml(form));
+        applyEditorModeChange(result);
+    };
+
+    const applyEditorModeChange = (
+        result: Exclude<ReturnType<typeof editorModeSwitch>, { type: 'noop' }>,
+    ) => {
+        if (result.type === 'yaml') {
+            setYamlText(result.yamlText);
             setMode('yaml');
             return;
         }
-        const parsed = yamlToForm(yamlText);
-        if (parsed.ok) {
-            setForm(parsed.form);
-            setMode('form');
-            setYamlLocked(false);
-        } else {
+        applyFormMode(result);
+    };
+
+    const applyFormMode = (
+        result: Extract<
+            ReturnType<typeof editorModeSwitch>,
+            { type: 'form' } | { type: 'blocked' }
+        >,
+    ) => {
+        if (result.type === 'blocked') {
             message.warning('当前 YAML 包含表单不支持的内容，无法切换；请先在 YAML 里修正');
+            return;
         }
+        setForm(result.form);
+        setMode('form');
+        setYamlLocked(false);
     };
 
     const updateTask = (index: number, patch: Partial<FormTask>) => {
@@ -399,35 +763,48 @@ export default function TaskEditPage() {
         });
     };
 
-    const save = async () => {
-        if (!name.trim()) {
-            message.warning('请填写任务名');
+    const persistValidatedTask = async () => {
+        const result = await api.validateYaml(currentYaml);
+        const validateError = yamlValidateError(result);
+        if (validateError) {
+            setErrors(result.errors);
+            message.error(validateError);
             return;
         }
-        setSaving(true);
+        await writeTask();
+        message.success('已保存');
+        navigate('/tasks');
+    };
+
+    const persistTask = async () => {
         try {
-            const result = await api.validateYaml(currentYaml);
-            if (!result.ok) {
-                setErrors(result.errors);
-                message.error('脚本校验未通过，请先修复错误');
-                return;
-            }
-            const yamlToSave = currentYaml;
-            if (isNew) {
-                await api.createTask({ name: name.trim(), yaml: yamlToSave });
-            } else {
-                await api.updateTask(Number(id), {
-                    name: name.trim(),
-                    yaml: yamlToSave,
-                });
-            }
-            message.success('已保存');
-            navigate('/tasks');
+            await persistValidatedTask();
         } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
+            message.error(errorText(error));
         } finally {
             setSaving(false);
         }
+    };
+
+    const writeTask = async () => {
+        if (isNew) {
+            await api.createTask({ name: name.trim(), yaml: currentYaml });
+            return;
+        }
+        await api.updateTask(Number(id), {
+            name: name.trim(),
+            yaml: currentYaml,
+        });
+    };
+
+    const save = async () => {
+        const nameError = taskNameError(name);
+        if (nameError) {
+            message.warning(nameError);
+            return;
+        }
+        setSaving(true);
+        await persistTask();
     };
 
     const renderStepFields = (taskIndex: number, stepIndex: number, step: FormStep) => {
@@ -435,98 +812,54 @@ export default function TaskEditPage() {
         if (!option) {
             return null;
         }
-        return option.fields.map((field) => {
-            const value = step.params[field.key];
-            const onChange = (next: string | number | undefined) =>
-                updateStep(taskIndex, stepIndex, {
-                    params: { ...step.params, [field.key]: next },
-                });
-            if (field.type === 'select') {
-                return (
-                    <Select
-                        key={field.key}
-                        style={{ width: 110 }}
-                        value={typeof value === 'string' ? value : undefined}
-                        options={field.options}
-                        onChange={onChange}
-                    />
-                );
-            }
-            if (
-                step.action === 'launch' &&
-                field.key === 'target' &&
-                form.target.type === 'android'
-            ) {
-                return (
-                    <Flex key={field.key} gap={8} style={{ flex: 1, minWidth: 280 }}>
-                        <AutoComplete
-                            style={{ flex: 1 }}
-                            value={typeof value === 'string' ? value : ''}
-                            options={createAndroidAppOptions(androidApps)}
-                            placeholder={field.placeholder ?? field.label}
-                            notFoundContent={
-                                loadingApps
-                                    ? '正在读取应用列表…'
-                                    : '没有匹配包名，可直接输入应用名称或包名'
-                            }
-                            filterOption={(inputValue, currentOption) =>
-                                String(currentOption?.value ?? '')
-                                    .toLocaleLowerCase()
-                                    .includes(inputValue.toLocaleLowerCase())
-                            }
-                            onChange={onChange}
-                        />
-                        <Button
-                            icon={<ReloadOutlined />}
-                            loading={loadingApps}
-                            disabled={!androidDeviceId}
-                            title='刷新应用列表'
-                            onClick={() => void loadAndroidApps(androidDeviceId)}
-                        />
-                    </Flex>
-                );
-            }
-            if (field.type === 'number') {
-                return (
-                    <InputNumber
-                        key={field.key}
-                        style={{ width: 130 }}
-                        min={1}
-                        placeholder={field.placeholder ?? field.label}
-                        value={typeof value === 'number' ? value : undefined}
-                        onChange={(next) => onChange(next ?? undefined)}
-                    />
-                );
-            }
-            return (
-                <Input
-                    key={field.key}
-                    style={{ flex: 1, minWidth: 140 }}
-                    placeholder={field.placeholder ?? field.label}
-                    value={typeof value === 'string' ? value : ''}
-                    onChange={(e) => onChange(e.target.value)}
-                />
-            );
-        });
+        return option.fields.map((field) => (
+            <StepField
+                key={field.key}
+                field={field}
+                step={step}
+                value={step.params[field.key]}
+                targetType={form.target.type}
+                androidApps={androidApps}
+                loadingApps={loadingApps}
+                deviceId={deviceId}
+                onChange={(next) =>
+                    updateStep(taskIndex, stepIndex, {
+                        params: { ...step.params, [field.key]: next },
+                    })
+                }
+                onReloadApps={() => void loadAndroidApps(deviceId)}
+            />
+        ));
     };
 
-    const checkSelectedAndroidDevice = async () => {
-        if (form.target.type !== 'android' || !form.target.deviceId) {
+    const showAndroidCheckMessage = (result: {
+        ok: boolean;
+        device?: { name: string };
+        message?: string;
+    }) => {
+        if (result.ok) {
+            message.success(`设备 ${result.device?.name} 连接正常`);
             return;
         }
-        setCheckingDevice(true);
+        message.error(result.message);
+    };
+
+    const reportAndroidDevice = async () => {
         try {
-            const result = await api.checkAndroidDevice(form.target.deviceId);
-            if (result.ok) {
-                message.success(`设备 ${result.device.name} 连接正常`);
-            } else {
-                message.error(result.message);
-            }
+            showAndroidCheckMessage(await api.checkAndroidDevice(deviceId));
         } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
+            message.error(errorText(error));
         } finally {
             setCheckingDevice(false);
         }
+    };
+
+    const checkSelectedAndroidDevice = async () => {
+        if (!canCheckAndroidDevice(form)) {
+            return;
+        }
+        setCheckingDevice(true);
+        await reportAndroidDevice();
     };
 
     const renderFormEditor = () => (
@@ -540,115 +873,22 @@ export default function TaskEditPage() {
                         { label: 'Android', value: 'android' },
                     ]}
                     onChange={(value) => {
-                        const targetType = value === 'android' ? 'android' : 'web';
-                        setForm((prev) => ({
-                            ...prev,
-                            target:
-                                targetType === 'android'
-                                    ? { type: 'android', deviceId: '' }
-                                    : { type: 'web', url: '' },
-                            tasks: prev.tasks.map((task) => ({
-                                ...task,
-                                steps: task.steps.map((step) =>
-                                    actionOptionsForTarget(targetType).some(
-                                        (option) => option.action === step.action,
-                                    )
-                                        ? step
-                                        : createEmptyStep(),
-                                ),
-                            })),
-                        }));
+                        setForm((prev) =>
+                            formWithTargetType(prev, value === 'android' ? 'android' : 'web'),
+                        );
                     }}
                 />
             </Flex>
 
-            {form.target.type === 'web' ? (
-                <>
-                    <Flex gap={12} wrap='wrap' align='center'>
-                        <Typography.Text strong>起始页面</Typography.Text>
-                        <Input
-                            style={{ flex: 1, minWidth: 260 }}
-                            placeholder='起始页面地址，如 https://h5.example.com'
-                            value={form.target.url}
-                            onChange={(e) =>
-                                setForm((prev) => ({
-                                    ...prev,
-                                    target:
-                                        prev.target.type === 'web'
-                                            ? { ...prev.target, url: e.target.value }
-                                            : prev.target,
-                                }))
-                            }
-                        />
-                        <InputNumber
-                            placeholder='视口宽(默认390)'
-                            min={320}
-                            value={form.target.viewportWidth}
-                            onChange={(value) =>
-                                setForm((prev) => ({
-                                    ...prev,
-                                    target:
-                                        prev.target.type === 'web'
-                                            ? { ...prev.target, viewportWidth: value ?? undefined }
-                                            : prev.target,
-                                }))
-                            }
-                        />
-                        <InputNumber
-                            placeholder='视口高(默认844)'
-                            min={320}
-                            value={form.target.viewportHeight}
-                            onChange={(value) =>
-                                setForm((prev) => ({
-                                    ...prev,
-                                    target:
-                                        prev.target.type === 'web'
-                                            ? { ...prev.target, viewportHeight: value ?? undefined }
-                                            : prev.target,
-                                }))
-                            }
-                        />
-                    </Flex>
-                    <Typography.Text type='secondary'>
-                        每个步骤组可另填页面地址。相同地址会回到已打开的页面，不会新开，适合 H5
-                        发验证码后再去后台接码。
-                    </Typography.Text>
-                </>
-            ) : (
-                <Flex gap={12} wrap='wrap' align='center'>
-                    <Typography.Text strong>设备号</Typography.Text>
-                    <Select
-                        style={{ flex: 1, minWidth: 320 }}
-                        loading={loadingDevices}
-                        placeholder='选择已连接并授权的 Android 设备'
-                        value={form.target.deviceId || undefined}
-                        options={androidDevices.map((device) => ({
-                            label: `${device.name}（${device.id}）`,
-                            value: device.id,
-                        }))}
-                        onChange={(deviceId) =>
-                            setForm((prev) => ({
-                                ...prev,
-                                target: { type: 'android', deviceId },
-                            }))
-                        }
-                    />
-                    <Button
-                        icon={<ReloadOutlined />}
-                        loading={loadingDevices}
-                        onClick={() => void loadAndroidDevices()}
-                    >
-                        刷新设备
-                    </Button>
-                    <Button
-                        loading={checkingDevice}
-                        disabled={!form.target.deviceId}
-                        onClick={() => void checkSelectedAndroidDevice()}
-                    >
-                        检查连接
-                    </Button>
-                </Flex>
-            )}
+            <TargetEditor
+                form={form}
+                androidDevices={androidDevices}
+                loadingDevices={loadingDevices}
+                checkingDevice={checkingDevice}
+                onFormChange={setForm}
+                onReloadDevices={() => void loadAndroidDevices()}
+                onCheckDevice={() => void checkSelectedAndroidDevice()}
+            />
 
             <SortableList
                 ids={form.tasks.map((task) => task.id)}
@@ -677,13 +917,11 @@ export default function TaskEditPage() {
                         }
                     >
                         <Flex vertical gap={8}>
-                            {form.target.type === 'web' ? (
-                                <Input
-                                    placeholder='本步骤组页面地址（可选，相同则复用）'
-                                    value={task.url ?? ''}
-                                    onChange={(e) => updateTask(taskIndex, { url: e.target.value })}
-                                />
-                            ) : null}
+                            <TaskGroupUrl
+                                targetType={form.target.type}
+                                url={task.url}
+                                onChange={(url) => updateTask(taskIndex, { url })}
+                            />
                             <SortableList
                                 ids={task.steps.map((step) => step.id)}
                                 onReorder={(activeId, overId) =>
@@ -744,7 +982,7 @@ export default function TaskEditPage() {
                                 icon={<PlusOutlined />}
                                 onClick={() =>
                                     updateTask(taskIndex, {
-                                        steps: [...task.steps, createEmptyStep()],
+                                        steps: [...task.steps, createEmptyStep('aiTap')],
                                     })
                                 }
                             >
@@ -773,13 +1011,7 @@ export default function TaskEditPage() {
 
     const renderYamlEditor = () => (
         <>
-            {yamlLocked && (
-                <Alert
-                    type='warning'
-                    title='此脚本包含表单编辑器不支持的内容（如高级参数），已用 YAML 模式编辑'
-                    style={{ marginBottom: 12 }}
-                />
-            )}
+            <YamlLockedAlert yamlLocked={yamlLocked} />
             <Typography.Paragraph type='secondary'>
                 支持动作：ai / aiTap / aiHover / aiRightClick / aiInput / aiAssert / aiWaitFor /
                 aiQuery / aiKeyboardPress / aiScroll / sleep；步骤组可加 <code>url</code>{' '}
@@ -801,7 +1033,7 @@ export default function TaskEditPage() {
 
     return (
         <Card
-            title={isNew ? '新建任务' : '编辑任务'}
+            title={taskEditTitle(isNew)}
             styles={{ header: CARD_HEADER_WRAP_STYLE }}
             extra={
                 <Space style={CARD_ACTIONS_STYLE}>
@@ -830,34 +1062,14 @@ export default function TaskEditPage() {
                         onChange={(e) => setName(e.target.value)}
                     />
                 </div>
-                {mode === 'form' ? renderFormEditor() : renderYamlEditor()}
-                {banner === 'pending' && (
-                    <Alert data-testid='script-validation-banner' type='info' title='正在校验' />
-                )}
-                {banner === 'error' && (
-                    <Alert
-                        data-testid='script-validation-banner'
-                        type='error'
-                        title='脚本存在问题'
-                        description={
-                            <ul style={{ margin: 0, paddingInlineStart: 20 }}>
-                                {errors.map((error, errorIndex) => (
-                                    <li key={createValidationErrorKey(error, errorIndex)}>
-                                        {error}
-                                    </li>
-                                ))}
-                            </ul>
-                        }
-                    />
-                )}
-                {banner === 'success' && (
-                    <Alert
-                        data-testid='script-validation-banner'
-                        type='success'
-                        title='校验通过'
-                        showIcon
-                    />
-                )}
+                <ModeEditor
+                    mode={mode}
+                    formEditor={renderFormEditor()}
+                    yamlEditor={renderYamlEditor()}
+                />
+                <BannerPending banner={banner} />
+                <BannerError banner={banner} errors={errors} />
+                <BannerSuccess banner={banner} />
             </Space>
         </Card>
     );

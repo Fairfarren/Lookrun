@@ -20,6 +20,16 @@ import { useNavigate, useParams } from 'react-router-dom';
 import type { TaskRecord } from '@lookrun/shared';
 import { api, type ModelBrief, type QueueDefWithItems } from '../api';
 import { reorderById } from '../utils/sortable-items';
+import { errorText } from '../utils/error-text';
+import { draggingItemStyle } from '../utils/sortable-style';
+import {
+    createQueueThenSaveItems,
+    isNewQueueRoute,
+    queueEditTitle,
+    queueSaveItemsError,
+    queueSaveNameError,
+    validQueueItems,
+} from '../utils/queue-edit';
 
 interface EditItem {
     id: string;
@@ -64,9 +74,9 @@ function SortableTaskItem({
                 width: '100%',
                 transform: CSS.Transform.toString(transform),
                 transition,
-                opacity: isDragging ? 0.5 : 1,
+                opacity: draggingItemStyle(isDragging).opacity,
                 position: 'relative',
-                zIndex: isDragging ? 1 : undefined,
+                zIndex: draggingItemStyle(isDragging).zIndex,
             }}
         >
             <Button
@@ -76,7 +86,7 @@ function SortableTaskItem({
                 icon={<HolderOutlined />}
                 aria-label={`拖拽第 ${index + 1} 个任务进行排序`}
                 title='拖拽排序'
-                style={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
+                style={{ cursor: draggingItemStyle(isDragging).cursor, touchAction: 'none' }}
                 {...attributes}
                 {...listeners}
             />
@@ -111,7 +121,7 @@ function SortableTaskItem({
 
 export default function QueueEditPage() {
     const { id } = useParams();
-    const isNew = id === undefined || id === 'new';
+    const isNew = isNewQueueRoute(id);
     const { message } = AntApp.useApp();
     const navigate = useNavigate();
     const nextItemId = useRef(0);
@@ -139,53 +149,79 @@ export default function QueueEditPage() {
         api.listModels()
             .then((r) => setModels(r.models))
             .catch(() => {});
-        if (!isNew) {
-            api.getQueue(Number(id))
-                .then((q: QueueDefWithItems) => {
-                    setName(q.name);
-                    setItems(q.items.map((item) => createEditItem(item.taskId, item.modelId)));
-                })
-                .catch((e: Error) => message.error(e.message));
-        } else {
+        if (isNew) {
             setItems([createEditItem(undefined, undefined)]);
+            return;
         }
+        api.getQueue(Number(id))
+            .then((q: QueueDefWithItems) => {
+                setName(q.name);
+                setItems(q.items.map((item) => createEditItem(item.taskId, item.modelId)));
+            })
+            .catch((e: Error) => message.error(e.message));
     }, [id]);
 
-    const save = async () => {
-        if (!name.trim()) {
-            message.warning('请填写队列名');
-            return;
-        }
-        const validItems = items.filter((item) => item.taskId && item.modelId);
-        if (validItems.length === 0) {
-            message.warning('至少添加一个任务');
-            return;
-        }
-        setSaving(true);
+    const persistQueue = async (payload: {
+        name: string;
+        items: { taskId: number; modelId: string }[];
+    }) => {
         try {
-            const payload = {
-                name: name.trim(),
-                items: validItems.map((item) => ({
-                    taskId: item.taskId!,
-                    modelId: item.modelId!,
-                })),
-            };
-            if (isNew) {
-                await api.createQueue(payload.name);
-                // 创建后更新条目
-                const created = await api.listQueues();
-                const q = created.items[0];
-                if (q) await api.updateQueue(q.id, payload);
-            } else {
-                await api.updateQueue(Number(id), payload);
-            }
+            await writeQueue(payload);
             message.success('已保存');
             navigate('/queues');
         } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
+            message.error(errorText(error));
         } finally {
             setSaving(false);
         }
+    };
+
+    const writeQueue = async (payload: {
+        name: string;
+        items: { taskId: number; modelId: string }[];
+    }) => {
+        if (isNew) {
+            await createThenUpdateQueue(payload);
+            return;
+        }
+        await api.updateQueue(Number(id), payload);
+    };
+
+    const createThenUpdateQueue = async (payload: {
+        name: string;
+        items: { taskId: number; modelId: string }[];
+    }) => {
+        await createQueueThenSaveItems({
+            payload,
+            create: api.createQueue,
+            update: api.updateQueue,
+        });
+    };
+
+    const saveValidQueue = async () => {
+        const validItems = validQueueItems(items);
+        const itemsError = queueSaveItemsError(validItems.length);
+        if (itemsError) {
+            message.warning(itemsError);
+            return;
+        }
+        setSaving(true);
+        await persistQueue({
+            name: name.trim(),
+            items: validItems.map((item) => ({
+                taskId: item.taskId!,
+                modelId: item.modelId!,
+            })),
+        });
+    };
+
+    const save = async () => {
+        const nameError = queueSaveNameError(name);
+        if (nameError) {
+            message.warning(nameError);
+            return;
+        }
+        await saveValidQueue();
     };
 
     const updateItem = (index: number, patch: Partial<EditItem>) => {
@@ -194,7 +230,7 @@ export default function QueueEditPage() {
 
     return (
         <Card
-            title={isNew ? '新建队列' : '编辑队列'}
+            title={queueEditTitle(isNew)}
             extra={
                 <Space>
                     <Button onClick={() => navigate('/queues')}>返回</Button>

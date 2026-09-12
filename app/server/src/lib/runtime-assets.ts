@@ -26,6 +26,18 @@ export function resolveBundledRuntimeAssets(input: RuntimeAssetInput) {
     };
 }
 
+export function applyRuntimeAssetEnv(
+    assets: { ffmpegPath: string | null; scrcpyServerPath: string | null },
+    env: Record<string, string | undefined>,
+) {
+    if (assets.ffmpegPath) {
+        env.MIDSCENE_FFMPEG_PATH = assets.ffmpegPath;
+    }
+    if (assets.scrcpyServerPath) {
+        env.MIDSCENE_SCRCPY_SERVER_PATH = assets.scrcpyServerPath;
+    }
+}
+
 export function configureBundledRuntimeAssets() {
     const assets = resolveBundledRuntimeAssets({
         platform: process.platform,
@@ -33,11 +45,6 @@ export function configureBundledRuntimeAssets() {
         cwd: process.cwd(),
         exists: existsSync,
     });
-    if (assets.ffmpegPath) {
-        process.env.MIDSCENE_FFMPEG_PATH = assets.ffmpegPath;
-    }
-    if (assets.scrcpyServerPath) {
-        process.env.MIDSCENE_SCRCPY_SERVER_PATH = assets.scrcpyServerPath;
-    }
+    applyRuntimeAssetEnv(assets, process.env);
     return assets;
 }

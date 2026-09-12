@@ -1,5 +1,16 @@
 import { test, expect } from 'bun:test';
-import { parseWindowsRegOutput, parseMdfindOutput, parseWhichOutput } from '../src/services/chrome';
+import {
+    chromeCandidatePaths,
+    detectChromeWith,
+    firstExistingPath,
+    parseMdfindOutput,
+    parseWhichOutput,
+    parseWindowsRegOutput,
+    queryChromeBySystem,
+    queryChromeLinux,
+    queryChromeMac,
+    queryChromeWindows,
+} from '../src/services/chrome';
 
 // Windows 注册表 reg query 输出：取 REG_SZ 后面的路径
 test('parseWindowsRegOutput 从注册表输出中提取 chrome 路径', () => {
@@ -50,4 +61,76 @@ test('parseWhichOutput 取第一行可执行文件路径', () => {
 
 test('parseWhichOutput 空输出返回 null', () => {
     expect(parseWhichOutput('')).toBeNull();
+});
+
+test('候选路径按平台生成', () => {
+    expect(chromeCandidatePaths({ platform: 'darwin', env: { HOME: '/h' } })[0]).toContain(
+        'Google Chrome',
+    );
+    expect(
+        chromeCandidatePaths({
+            platform: 'win32',
+            env: { PROGRAMFILES: 'C:\\P' },
+        })[0],
+    ).toContain('chrome.exe');
+    expect(chromeCandidatePaths({ platform: 'linux', env: {} })[0]).toContain('google-chrome');
+});
+
+test('探测 Chrome 的三级回退', () => {
+    expect(firstExistingPath(['/a', '/b'], (p) => p === '/b')).toBe('/b');
+    expect(firstExistingPath(['/a'], () => false)).toBeNull();
+    expect(
+        detectChromeWith({
+            envPath: '/env',
+            exists: (p) => p === '/env',
+            candidates: [],
+            queryBySystem: () => ({ path: null, source: 'none' }),
+        }).source,
+    ).toBe('env');
+    expect(
+        detectChromeWith({
+            envPath: undefined,
+            exists: (p) => p === '/c',
+            candidates: ['/c'],
+            queryBySystem: () => ({ path: null, source: 'none' }),
+        }).source,
+    ).toBe('detected');
+    expect(
+        detectChromeWith({
+            envPath: undefined,
+            exists: () => false,
+            candidates: [],
+            queryBySystem: () => ({ path: '/q', source: 'which' }),
+        }).path,
+    ).toBe('/q');
+});
+
+test('系统查询按平台解析', () => {
+    expect(
+        queryChromeWindows({
+            run: () => '    (默认)    REG_SZ    C:\\chrome.exe\n',
+            exists: () => true,
+        }).source,
+    ).toBe('registry');
+    expect(
+        queryChromeMac({
+            run: () => '/Applications/Google Chrome.app\n',
+            exists: () => true,
+        }).source,
+    ).toBe('spotlight');
+    expect(
+        queryChromeLinux({
+            run: () => '/usr/bin/google-chrome\n',
+            exists: () => true,
+        }).source,
+    ).toBe('which');
+    expect(
+        queryChromeBySystem({
+            platform: 'linux',
+            run: () => {
+                throw new Error('fail');
+            },
+            exists: () => false,
+        }).source,
+    ).toBe('none');
 });
