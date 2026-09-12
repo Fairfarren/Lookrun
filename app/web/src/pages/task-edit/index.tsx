@@ -41,15 +41,15 @@ import {
     type FormStep,
     type FormTask,
 } from '@lookrun/shared';
-import { api } from '../api';
-import { createAndroidAppOptions } from '../utils/android-app-options';
-import { reorderById } from '../utils/sortable-items';
-import { useThemeMode } from '../theme/context';
-import { CARD_ACTIONS_STYLE, CARD_HEADER_WRAP_STYLE } from '../styles/layout';
-import { scriptValidationBanner } from '../utils/script-validation';
-import { createValidationErrorKey } from '../utils/validation-errors';
-import { errorText } from '../utils/error-text';
-import { draggingItemStyle } from '../utils/sortable-style';
+import { api } from './api';
+import { createAndroidAppOptions } from './android-app-options';
+import { reorderById } from '../../utils/sortable-items';
+import { useThemeMode } from '../../theme/context';
+import { CARD_ACTIONS_STYLE, CARD_HEADER_WRAP_STYLE } from '../../styles/layout';
+import { scriptValidationBanner } from './script-validation';
+import { createValidationErrorKey } from './validation-errors';
+import { errorText } from '../../utils/error-text';
+import { draggingItemStyle } from '../../utils/sortable-style';
 import {
     androidDeviceId,
     applyLoadedTaskYaml,
@@ -76,7 +76,7 @@ import {
     withWebViewportHeight,
     withWebViewportWidth,
     yamlValidateError,
-} from '../utils/task-form';
+} from './task-form';
 
 const VALIDATE_DEBOUNCE_MS = 800;
 

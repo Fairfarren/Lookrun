@@ -24,13 +24,13 @@
 Bun workspaces，请在仓库根目录执行命令：
 
 - `app/web`：前端（React / Vite），独立启动
-  - `src/pages` 页面
-  - `src/components` 公共组件
-  - `src/api` 接口
-  - `src/hooks` 自定义 hooks
+  - `src/routes.tsx` 路由表
+  - `src/pages` 按路由分的页面（各自的 api / hooks / components）
+  - `src/components` 跨页组件
+  - `src/api` 请求封装与跨页类型
   - `src/theme` 主题
   - `src/styles` 布局样式
-  - `src/utils` 工具函数
+  - `src/utils` 跨页工具函数
 - `app/server`：后端（Hono / Bun），独立启动
   - `src/routes` HTTP 路由
   - `src/services` 业务服务（执行、队列、设备、模型、存储）

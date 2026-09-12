@@ -13,7 +13,7 @@ describe('shouldSkipSource', () => {
     });
 
     test('不跳过页面和编排源码', () => {
-        expect(shouldSkipSource('app/web/src/pages/TaskEditPage.tsx')).toBe(false);
+        expect(shouldSkipSource('app/web/src/pages/task-edit/index.tsx')).toBe(false);
         expect(shouldSkipSource('app/web/src/App.tsx')).toBe(false);
         expect(shouldSkipSource('app/server/src/services/runner.ts')).toBe(false);
         expect(shouldSkipSource('app/server/src/index.ts')).toBe(false);
@@ -25,7 +25,7 @@ describe('loadSources', () => {
     test('全量源码包含原先被豁免的文件', async () => {
         const files = (await loadSources()).map((item) => item.file);
 
-        expect(files).toContain('app/web/src/pages/TaskEditPage.tsx');
+        expect(files).toContain('app/web/src/pages/task-edit/index.tsx');
         expect(files).toContain('app/server/src/services/runner.ts');
         expect(files).toContain('app/web/src/App.tsx');
         expect(files.some((file) => file.endsWith('.test.ts'))).toBe(false);

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { jsonRequestHeaders, requestErrorText } from '../src/api';
+import { jsonRequestHeaders, requestErrorText } from '../src/api/request';
 
 test('有请求体时带 JSON Content-Type', () => {
     expect(jsonRequestHeaders(true)).toEqual({ 'Content-Type': 'application/json' });

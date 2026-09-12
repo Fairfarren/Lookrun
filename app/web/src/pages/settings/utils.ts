@@ -14,13 +14,6 @@ export function emptyVariableName(rows: { key: string }[]) {
     return rows.some((row) => row.key.trim() === '');
 }
 
-export function defaultModelId(selected: string | null | undefined, firstId: string | undefined) {
-    if (selected) {
-        return selected;
-    }
-    return firstId;
-}
-
 export function checkAlertType(ok: boolean) {
     if (ok) {
         return 'success' as const;

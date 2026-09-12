@@ -1,31 +1,12 @@
 import { DeleteOutlined, EditOutlined, PlayCircleOutlined, PlusOutlined } from '@ant-design/icons';
-import { App as AntApp, Button, Card, Empty, Flex, Space, Spin, theme, Typography } from 'antd';
+import { App as AntApp, Button, Card, Flex, Space, theme, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type QueueDef } from '../api';
-import { errorText } from '../utils/error-text';
-import { queuesViewState, startQueueFeedback } from '../utils/queues-page';
-
-function QueuesLoading({ state }: { state: string }) {
-    if (state !== 'loading') {
-        return null;
-    }
-    return <Spin style={{ display: 'block', margin: '40px auto' }} />;
-}
-
-function QueuesEmpty({ state }: { state: string }) {
-    if (state !== 'empty') {
-        return null;
-    }
-    return <Empty description='还没有队列，点击右上角新建一个' />;
-}
-
-function QueuesReady({ state, children }: { state: string; children: React.ReactNode }) {
-    if (state !== 'ready') {
-        return null;
-    }
-    return children;
-}
+import { api, type QueueDef } from './api';
+import { errorText } from '../../utils/error-text';
+import { queuesViewState } from '../../utils/queues-page';
+import { startQueueFeedback } from './utils';
+import { QueuesEmpty, QueuesLoading, QueuesReady } from './components/list-state';
 
 export default function QueuesPage() {
     const { message, modal } = AntApp.useApp();

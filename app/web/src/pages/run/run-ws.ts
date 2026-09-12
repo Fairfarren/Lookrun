@@ -1,6 +1,6 @@
 import type { RunStepRecord } from '@lookrun/shared';
-import type { CurrentRunState, QueueItem } from '../api';
-import type { WsMessage } from '../hooks';
+import type { CurrentRunState, QueueItem } from '../../api/types';
+import type { WsMessage } from './hooks';
 
 export interface LiveStep {
     stepIndex: number;

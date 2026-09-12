@@ -22,11 +22,11 @@ import {
 } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import type { TaskRecord } from '@lookrun/shared';
-import { api, type ModelBrief } from '../api';
-import { RunStatusTag, formatDuration } from '../components';
-import { RUN_FRAME_COL, RUN_LOG_COL } from '../styles/layout';
-import { runProgressText } from '../utils/run-progress';
-import { errorText } from '../utils/error-text';
+import { api, type ModelBrief } from './api';
+import { RunStatusTag, formatDuration } from '../../components';
+import { RUN_FRAME_COL, RUN_LOG_COL } from '../../styles/layout';
+import { runProgressText } from './utils';
+import { errorText } from '../../utils/error-text';
 import {
     applyRunWsMessage,
     pendingQueueItems,
@@ -36,8 +36,8 @@ import {
     stepLogPlaceholder,
     type LiveStep,
     type RunViewState,
-} from '../utils/run-ws';
-import { useWebSocket, type WsMessage } from '../hooks';
+} from './run-ws';
+import { useWebSocket, type WsMessage } from './hooks';
 
 const emptyView = (): RunViewState => ({
     frame: null,

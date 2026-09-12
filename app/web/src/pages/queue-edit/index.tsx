@@ -18,10 +18,10 @@ import { App as AntApp, Button, Card, Input, Select, Space, Typography } from 'a
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { TaskRecord } from '@lookrun/shared';
-import { api, type ModelBrief, type QueueDefWithItems } from '../api';
-import { reorderById } from '../utils/sortable-items';
-import { errorText } from '../utils/error-text';
-import { draggingItemStyle } from '../utils/sortable-style';
+import { api, type ModelBrief, type QueueDefWithItems } from './api';
+import { reorderById } from '../../utils/sortable-items';
+import { errorText } from '../../utils/error-text';
+import { draggingItemStyle } from '../../utils/sortable-style';
 import {
     createQueueThenSaveItems,
     isNewQueueRoute,
@@ -29,7 +29,7 @@ import {
     queueSaveItemsError,
     queueSaveNameError,
     validQueueItems,
-} from '../utils/queue-edit';
+} from './utils';
 
 interface EditItem {
     id: string;

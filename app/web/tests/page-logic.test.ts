@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { errorText } from '../src/utils/error-text';
-import { formatBytes } from '../src/utils/format-bytes';
+import { formatBytes } from '../src/pages/settings/format-bytes';
 import { selectedMenuKey, themeFromSwitch, themeSwitchTitle } from '../src/utils/menu-key';
 import { draggingItemStyle } from '../src/utils/sortable-style';
 import {
@@ -24,7 +24,7 @@ import {
     urlText,
     withDefaultAndroidDevice,
     yamlValidateError,
-} from '../src/utils/task-form';
+} from '../src/pages/task-edit/task-form';
 import {
     applyRunWsMessage,
     queueAddMissing,
@@ -32,7 +32,7 @@ import {
     startRunSuccessText,
     stepLogPlaceholder,
     type RunViewState,
-} from '../src/utils/run-ws';
+} from '../src/pages/run/run-ws';
 import {
     createQueueThenSaveItems,
     isNewQueueRoute,
@@ -40,19 +40,20 @@ import {
     queueSaveItemsError,
     queueSaveNameError,
     validQueueItems,
-} from '../src/utils/queue-edit';
-import type { QueueItem } from '../src/api';
+} from '../src/pages/queue-edit/utils';
+import type { QueueItem } from '../src/api/types';
 import type { RunRecord, RunStepRecord } from '@lookrun/shared';
-import { hasTokenUsage, stepStatusTag, tokenPairText } from '../src/utils/run-detail';
-import { canStartTask, startTaskSuccess } from '../src/utils/tasks-run';
-import { queuesViewState, startQueueFeedback } from '../src/utils/queues-page';
+import { hasTokenUsage, stepStatusTag, tokenPairText } from '../src/pages/history-detail/utils';
+import { canStartTask, startTaskSuccess } from '../src/pages/tasks/utils';
+import { queuesViewState } from '../src/utils/queues-page';
+import { startQueueFeedback } from '../src/pages/queues/utils';
+import { defaultModelId } from '../src/utils/default-model-id';
 import {
     checkAlertType,
     checkResultFromError,
-    defaultModelId,
     emptyVariableName,
     variablesToRecord,
-} from '../src/utils/settings-view';
+} from '../src/pages/settings/utils';
 
 const emptyView = (): RunViewState => ({
     frame: null,
