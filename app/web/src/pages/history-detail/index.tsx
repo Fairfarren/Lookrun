@@ -1,30 +1,21 @@
-import {
-    App as AntApp,
-    Card,
-    Col,
-    Descriptions,
-    Image,
-    Row,
-    Space,
-    Spin,
-    Tag,
-    theme,
-    Typography,
-} from 'antd';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import type { RunRecord, RunStepRecord } from '@lookrun/shared';
-import { api, screenshotUrl } from './api';
 import { RunStatusTag, formatDuration, formatTime } from '../../components';
-import { hasTokenUsage } from './utils';
+import { CopyText } from '../../components/copy-text';
+import { LoadingBlock } from '../../components/loading-block';
+import { notify } from '../../components/notify';
+import { PageCard } from '../../components/page-card';
+import { Badge } from '../../components/ui/badge';
+import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
+import { api, screenshotUrl } from './api';
 import { OptionalBlock } from './components/OptionalBlock';
 import { StepStatus } from './components/StepStatus';
 import { TokenText } from './components/TokenText';
+import { hasTokenUsage } from './utils';
 
 export default function RunDetailPage() {
     const { id } = useParams();
-    const { message } = AntApp.useApp();
-    const { token } = theme.useToken();
     const [run, setRun] = useState<RunRecord | null>(null);
     const [steps, setSteps] = useState<RunStepRecord[]>([]);
     const [loading, setLoading] = useState(true);
@@ -35,61 +26,53 @@ export default function RunDetailPage() {
                 setRun(detail.run);
                 setSteps(detail.steps);
             })
-            .catch((error: Error) => message.error(error.message))
+            .catch((error: Error) => notify.error(error.message))
             .finally(() => setLoading(false));
     }, [id]);
 
     if (loading) {
-        return <Spin style={{ display: 'block', margin: '80px auto' }} />;
+        return <LoadingBlock className='py-20' />;
     }
-    return <RunDetailBody run={run} steps={steps} token={token} />;
+    return <RunDetailBody run={run} steps={steps} />;
 }
 
-function RunDetailBody({
-    run,
-    steps,
-    token,
-}: {
-    run: RunRecord | null;
-    steps: RunStepRecord[];
-    token: { colorFillSecondary: string };
-}) {
+function RunDetailBody({ run, steps }: { run: RunRecord | null; steps: RunStepRecord[] }) {
     if (!run) {
-        return <Card>运行记录不存在</Card>;
+        return <PageCard>运行记录不存在</PageCard>;
     }
 
     return (
-        <Space orientation='vertical' size='middle' style={{ width: '100%' }}>
-            <Card title={`运行详情 #${run.id} · ${run.taskName}`}>
-                <Descriptions column={4}>
-                    <Descriptions.Item label='状态'>
+        <div className='flex flex-col gap-4'>
+            <PageCard title={`运行详情 #${run.id} · ${run.taskName}`}>
+                <dl className='grid grid-cols-2 gap-x-6 gap-y-3 text-sm md:grid-cols-4'>
+                    <Info label='状态'>
                         <RunStatusTag status={run.status} />
-                    </Descriptions.Item>
-                    <Descriptions.Item label='模型'>{run.model}</Descriptions.Item>
-                    <Descriptions.Item label='开始时间'>
-                        {formatTime(run.startedAt)}
-                    </Descriptions.Item>
-                    <Descriptions.Item label='耗时'>
-                        {formatDuration(run.durationMs)}
-                    </Descriptions.Item>
-                    <Descriptions.Item label='Token（输入/输出）'>
+                    </Info>
+                    <Info label='模型'>{run.model}</Info>
+                    <Info label='开始时间'>{formatTime(run.startedAt)}</Info>
+                    <Info label='耗时'>{formatDuration(run.durationMs)}</Info>
+                    <Info label='Token（输入/输出）'>
                         <TokenText input={run.tokenInput} output={run.tokenOutput} />
-                    </Descriptions.Item>
-                    <Descriptions.Item label='结束时间'>
-                        {formatTime(run.finishedAt)}
-                    </Descriptions.Item>
-                </Descriptions>
+                    </Info>
+                    <Info label='结束时间'>{formatTime(run.finishedAt)}</Info>
+                </dl>
                 <OptionalBlock show={Boolean(run.error)}>
-                    <Typography.Paragraph type='danger' style={{ marginTop: 12, marginBottom: 0 }}>
-                        {run.error}
-                    </Typography.Paragraph>
+                    <p className='mt-3 mb-0 text-destructive'>{run.error}</p>
                 </OptionalBlock>
-            </Card>
-
+            </PageCard>
             {steps.map((step) => (
-                <StepHistoryCard key={step.id} step={step} fill={token.colorFillSecondary} />
+                <StepHistoryCard key={step.id} step={step} />
             ))}
-        </Space>
+        </div>
+    );
+}
+
+function Info({ label, children }: { label: string; children: ReactNode }) {
+    return (
+        <div className='flex flex-col gap-1'>
+            <dt className='text-muted-foreground'>{label}</dt>
+            <dd>{children}</dd>
+        </div>
     );
 }
 
@@ -114,104 +97,91 @@ function aiResultText(raw: string | null) {
     return raw;
 }
 
-function StepHistoryCard({ step, fill }: { step: RunStepRecord; fill: string }) {
+function StepHistoryCard({ step }: { step: RunStepRecord }) {
     return (
-        <Card
-            size='small'
+        <PageCard
             title={
-                <Space>
-                    <Tag>{`#${step.stepIndex + 1}`}</Tag>
+                <span className='inline-flex flex-wrap items-center gap-2'>
+                    <Badge variant='outline'>{`#${step.stepIndex + 1}`}</Badge>
                     <span>{step.stepName}</span>
-                    <Tag color='blue'>{step.action}</Tag>
+                    <Badge>{step.action}</Badge>
                     <StepStatus status={step.status} />
-                </Space>
+                </span>
             }
             extra={
-                <Space split='·'>
-                    <Typography.Text type='secondary'>
-                        {formatDuration(step.durationMs)}
-                    </Typography.Text>
+                <span className='text-sm text-muted-foreground'>
+                    {formatDuration(step.durationMs)}
                     <OptionalBlock show={hasTokenUsage(step.tokenInput, step.tokenOutput)}>
-                        <Typography.Text type='secondary'>
-                            Token {step.tokenInput}/{step.tokenOutput}
-                        </Typography.Text>
+                        {` · Token ${step.tokenInput}/${step.tokenOutput}`}
                     </OptionalBlock>
-                </Space>
+                </span>
             }
         >
-            <Row gutter={16}>
-                <Col span={14}>
-                    <Space orientation='vertical' size={8} style={{ width: '100%' }}>
-                        <OptionalBlock show={Boolean(step.url)}>
-                            <div>
-                                <Typography.Text strong>当时 URL：</Typography.Text>
-                                <Typography.Text copyable={{ text: copyableText(step.url) }}>
-                                    {step.url}
-                                </Typography.Text>
-                            </div>
-                        </OptionalBlock>
-                        <OptionalBlock show={Boolean(step.prompt)}>
-                            <div>
-                                <Typography.Text strong>目标：</Typography.Text>
-                                <Typography.Text>{step.prompt}</Typography.Text>
-                            </div>
-                        </OptionalBlock>
-                        <OptionalBlock show={Boolean(step.aiResult)}>
-                            <div>
-                                <Typography.Text strong>AI 识别：</Typography.Text>
-                                <pre
-                                    style={{
-                                        background: fill,
-                                        padding: 8,
-                                        borderRadius: 4,
-                                        margin: '4px 0',
-                                        whiteSpace: 'pre-wrap',
-                                    }}
-                                >
-                                    {formatAiResult(aiResultText(step.aiResult))}
-                                </pre>
-                            </div>
-                        </OptionalBlock>
-                        <OptionalBlock show={Boolean(step.error)}>
-                            <div>
-                                <Typography.Text strong>失败原因：</Typography.Text>
-                                <Typography.Text type='danger'>{step.error}</Typography.Text>
-                            </div>
-                        </OptionalBlock>
-                    </Space>
-                </Col>
-                <Col span={10}>
-                    <Image.PreviewGroup>
-                        <Space>
-                            <OptionalBlock show={Boolean(step.shotBefore)}>
-                                <div>
-                                    <Typography.Text type='secondary' style={{ fontSize: 12 }}>
-                                        执行前
-                                    </Typography.Text>
-                                    <Image
-                                        width='100%'
-                                        src={screenshotSrc(step.shotBefore)}
-                                        alt='执行前截图'
-                                    />
-                                </div>
-                            </OptionalBlock>
-                            <OptionalBlock show={Boolean(step.shotAfter)}>
-                                <div>
-                                    <Typography.Text type='secondary' style={{ fontSize: 12 }}>
-                                        执行后
-                                    </Typography.Text>
-                                    <Image
-                                        width='100%'
-                                        src={screenshotSrc(step.shotAfter)}
-                                        alt='执行后截图'
-                                    />
-                                </div>
-                            </OptionalBlock>
-                        </Space>
-                    </Image.PreviewGroup>
-                </Col>
-            </Row>
-        </Card>
+            <div className='grid gap-4 lg:grid-cols-[7fr_5fr]'>
+                <div className='flex flex-col gap-2'>
+                    <OptionalBlock show={Boolean(step.url)}>
+                        <div>
+                            <span className='font-medium'>当时 URL：</span>
+                            <CopyText text={copyableText(step.url) ?? ''}>{step.url}</CopyText>
+                        </div>
+                    </OptionalBlock>
+                    <OptionalBlock show={Boolean(step.prompt)}>
+                        <div>
+                            <span className='font-medium'>目标：</span>
+                            <span>{step.prompt}</span>
+                        </div>
+                    </OptionalBlock>
+                    <OptionalBlock show={Boolean(step.aiResult)}>
+                        <div>
+                            <span className='font-medium'>AI 识别：</span>
+                            <pre className='my-1 rounded-md bg-muted p-2 whitespace-pre-wrap'>
+                                {formatAiResult(aiResultText(step.aiResult))}
+                            </pre>
+                        </div>
+                    </OptionalBlock>
+                    <OptionalBlock show={Boolean(step.error)}>
+                        <div>
+                            <span className='font-medium'>失败原因：</span>
+                            <span className='text-destructive'>{step.error}</span>
+                        </div>
+                    </OptionalBlock>
+                </div>
+                <div className='flex gap-3'>
+                    <OptionalBlock show={Boolean(step.shotBefore)}>
+                        <ShotPreview
+                            src={screenshotSrc(step.shotBefore)}
+                            alt='执行前截图'
+                            label='执行前'
+                        />
+                    </OptionalBlock>
+                    <OptionalBlock show={Boolean(step.shotAfter)}>
+                        <ShotPreview
+                            src={screenshotSrc(step.shotAfter)}
+                            alt='执行后截图'
+                            label='执行后'
+                        />
+                    </OptionalBlock>
+                </div>
+            </div>
+        </PageCard>
+    );
+}
+
+function ShotPreview({ src, alt, label }: { src: string; alt: string; label: string }) {
+    const [open, setOpen] = useState(false);
+    return (
+        <div className='flex-1'>
+            <p className='mb-1 text-xs text-muted-foreground'>{label}</p>
+            <button type='button' className='cursor-pointer' onClick={() => setOpen(true)}>
+                <img src={src} alt={alt} className='w-full rounded-md border' />
+            </button>
+            <Dialog open={open} onOpenChange={setOpen}>
+                <DialogContent className='max-w-4xl'>
+                    <DialogTitle>{label}</DialogTitle>
+                    <img src={src} alt={alt} className='w-full' />
+                </DialogContent>
+            </Dialog>
+        </div>
     );
 }
 

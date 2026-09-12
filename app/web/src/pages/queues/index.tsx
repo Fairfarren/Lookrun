@@ -1,16 +1,18 @@
-import { DeleteOutlined, EditOutlined, PlayCircleOutlined, PlusOutlined } from '@ant-design/icons';
-import { App as AntApp, Button, Card, Flex, Space, theme, Typography } from 'antd';
+import { Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type QueueDef } from './api';
+import { confirmAction } from '../../components/confirm';
+import { BusyButton } from '../../components/busy-button';
+import { notify } from '../../components/notify';
+import { PageCard } from '../../components/page-card';
+import { Button } from '../../components/ui/button';
 import { errorText } from '../../utils/error-text';
 import { queuesViewState } from '../../utils/queues-page';
-import { startQueueFeedback } from './utils';
+import { api, type QueueDef } from './api';
 import { QueuesEmpty, QueuesLoading, QueuesReady } from './components/list-state';
+import { startQueueFeedback } from './utils';
 
 export default function QueuesPage() {
-    const { message, modal } = AntApp.useApp();
-    const { token } = theme.useToken();
     const navigate = useNavigate();
     const [queues, setQueues] = useState<QueueDef[]>([]);
     const [loading, setLoading] = useState(true);
@@ -20,7 +22,7 @@ export default function QueuesPage() {
         setLoading(true);
         api.listQueues()
             .then((r) => setQueues(r.items))
-            .catch((e: Error) => message.error(e.message))
+            .catch((e: Error) => notify.error(e.message))
             .finally(() => setLoading(false));
     };
 
@@ -37,10 +39,10 @@ export default function QueuesPage() {
             errors: result.errors,
         });
         if (feedback.type === 'warning') {
-            message.warning(feedback.text);
+            notify.warning(feedback.text);
             return;
         }
-        message.success(feedback.text);
+        notify.success(feedback.text);
     };
 
     const submitStartQueue = async (queue: QueueDef) => {
@@ -49,7 +51,7 @@ export default function QueuesPage() {
             showStartFeedback(queue, result);
             navigate('/run');
         } catch (error) {
-            message.error(errorText(error));
+            notify.error(errorText(error));
         } finally {
             setStarting(null);
         }
@@ -60,30 +62,27 @@ export default function QueuesPage() {
         await submitStartQueue(queue);
     };
 
-    const confirmDelete = (queue: QueueDef) => {
-        modal.confirm({
+    const confirmDelete = async (queue: QueueDef) => {
+        const ok = await confirmAction({
             title: `删除队列「${queue.name}」？`,
-            content: '只删除队列定义，不影响里面的任务。',
-            okText: '删除',
-            okButtonProps: { danger: true },
-            cancelText: '取消',
-            onOk: async () => {
-                await api.deleteQueue(queue.id);
-                message.success('已删除');
-                load();
-            },
+            description: '只删除队列定义，不影响里面的任务。',
+            confirmLabel: '删除',
+            destructive: true,
         });
+        if (!ok) {
+            return;
+        }
+        await api.deleteQueue(queue.id);
+        notify.success('已删除');
+        load();
     };
 
     return (
-        <Card
+        <PageCard
             title='队列列表'
             extra={
-                <Button
-                    type='primary'
-                    icon={<PlusOutlined />}
-                    onClick={() => navigate('/queues/new')}
-                >
+                <Button onClick={() => navigate('/queues/new')}>
+                    <Plus />
                     新建队列
                 </Button>
             }
@@ -91,52 +90,50 @@ export default function QueuesPage() {
             <QueuesEmpty state={queuesViewState({ loading, count: queues.length })} />
             <QueuesLoading state={queuesViewState({ loading, count: queues.length })} />
             <QueuesReady state={queuesViewState({ loading, count: queues.length })}>
-                <Flex vertical>
+                <div className='flex flex-col'>
                     {queues.map((queue) => (
-                        <Flex
+                        <div
                             key={queue.id}
-                            justify='space-between'
-                            align='center'
-                            style={{
-                                padding: '12px 0',
-                                borderBottom: `1px solid ${token.colorBorderSecondary}`,
-                            }}
+                            className='flex flex-col gap-3 border-b py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between'
                         >
-                            <Space orientation='vertical' size={2}>
-                                <Typography.Text strong>{queue.name}</Typography.Text>
-                                <Typography.Text type='secondary'>
+                            <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                                <span className='font-medium'>{queue.name}</span>
+                                <span className='text-sm text-muted-foreground'>
                                     更新于{' '}
                                     {new Date(queue.updatedAt).toLocaleString('zh-CN', {
                                         hour12: false,
                                     })}
-                                </Typography.Text>
-                            </Space>
-                            <Space>
-                                <Button
-                                    type='primary'
-                                    ghost
-                                    icon={<PlayCircleOutlined />}
-                                    loading={starting === queue.id}
-                                    onClick={() => startQueue(queue)}
+                                </span>
+                            </div>
+                            <div className='flex flex-wrap gap-2'>
+                                <BusyButton
+                                    variant='outline'
+                                    busy={starting === queue.id}
+                                    onClick={() => void startQueue(queue)}
                                 >
+                                    <Play />
                                     开始
-                                </Button>
+                                </BusyButton>
                                 <Button
-                                    icon={<EditOutlined />}
+                                    variant='outline'
                                     onClick={() => navigate(`/queues/${queue.id}`)}
                                 >
+                                    <Pencil />
                                     编辑
                                 </Button>
                                 <Button
-                                    danger
-                                    icon={<DeleteOutlined />}
-                                    onClick={() => confirmDelete(queue)}
-                                />
-                            </Space>
-                        </Flex>
+                                    variant='destructive'
+                                    size='icon'
+                                    aria-label='删除队列'
+                                    onClick={() => void confirmDelete(queue)}
+                                >
+                                    <Trash2 />
+                                </Button>
+                            </div>
+                        </div>
                     ))}
-                </Flex>
+                </div>
             </QueuesReady>
-        </Card>
+        </PageCard>
     );
 }

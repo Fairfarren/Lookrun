@@ -1,14 +1,24 @@
-import { App as AntApp, Card, Table, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { RunRecord } from '@lookrun/shared';
-import { api } from './api';
 import { RunStatusTag, formatDuration, formatTime } from '../../components';
+import { LoadingBlock } from '../../components/loading-block';
+import { notify } from '../../components/notify';
+import { PageCard } from '../../components/page-card';
+import { Button } from '../../components/ui/button';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '../../components/ui/table';
+import { api } from './api';
 
 const PAGE_SIZE = 20;
 
 export default function HistoryPage() {
-    const { message } = AntApp.useApp();
     const [runs, setRuns] = useState<RunRecord[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -21,62 +31,87 @@ export default function HistoryPage() {
                 setRuns(result.list);
                 setTotal(result.total);
             })
-            .catch((error: Error) => message.error(error.message))
+            .catch((error: Error) => notify.error(error.message))
             .finally(() => setLoading(false));
     }, [page]);
 
+    const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
     return (
-        <Card title='历史记录'>
-            <Table<RunRecord>
-                rowKey='id'
-                loading={loading}
-                dataSource={runs}
-                pagination={{
-                    current: page,
-                    pageSize: PAGE_SIZE,
-                    total,
-                    onChange: setPage,
-                    showTotal: (count) => `共 ${count} 次运行`,
-                }}
-                columns={[
-                    { title: 'ID', dataIndex: 'id', width: 70 },
-                    {
-                        title: '任务',
-                        dataIndex: 'taskName',
-                        width: 200,
-                        render: (taskName: string, record) => (
-                            <Link to={`/history/${record.id}`}>{taskName}</Link>
-                        ),
-                    },
-                    {
-                        title: '状态',
-                        dataIndex: 'status',
-                        width: 100,
-                        render: (status: RunRecord['status']) => <RunStatusTag status={status} />,
-                    },
-                    { title: '模型', dataIndex: 'model', width: 180 },
-                    { title: '开始时间', dataIndex: 'startedAt', width: 180, render: formatTime },
-                    { title: '耗时', dataIndex: 'durationMs', width: 100, render: formatDuration },
-                    {
-                        title: 'Token',
-                        width: 120,
-                        render: (_, record) => (
-                            <Typography.Text type='secondary'>
-                                {record.tokenInput + record.tokenOutput > 0
-                                    ? `${record.tokenInput}/${record.tokenOutput}`
-                                    : '-'}
-                            </Typography.Text>
-                        ),
-                    },
-                    {
-                        title: '错误',
-                        dataIndex: 'error',
-                        ellipsis: true,
-                        render: (error: string | null) =>
-                            error ? <Typography.Text type='danger'>{error}</Typography.Text> : null,
-                    },
-                ]}
-            />
-        </Card>
+        <PageCard title='历史记录'>
+            {loading ? <LoadingBlock /> : <HistoryTable runs={runs} />}
+            <div className='mt-4 flex items-center justify-between text-sm text-muted-foreground'>
+                <span>{`共 ${total} 次运行`}</span>
+                <div className='flex items-center gap-2'>
+                    <Button
+                        variant='outline'
+                        size='sm'
+                        disabled={page <= 1}
+                        onClick={() => setPage((current) => current - 1)}
+                    >
+                        上一页
+                    </Button>
+                    <span>
+                        {page} / {pageCount}
+                    </span>
+                    <Button
+                        variant='outline'
+                        size='sm'
+                        disabled={page >= pageCount}
+                        onClick={() => setPage((current) => current + 1)}
+                    >
+                        下一页
+                    </Button>
+                </div>
+            </div>
+        </PageCard>
+    );
+}
+
+function HistoryTable({ runs }: { runs: RunRecord[] }) {
+    return (
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead className='w-[70px]'>ID</TableHead>
+                    <TableHead className='w-[200px]'>任务</TableHead>
+                    <TableHead className='w-[100px]'>状态</TableHead>
+                    <TableHead className='w-[180px]'>模型</TableHead>
+                    <TableHead className='w-[180px]'>开始时间</TableHead>
+                    <TableHead className='w-[100px]'>耗时</TableHead>
+                    <TableHead className='w-[120px]'>Token</TableHead>
+                    <TableHead>错误</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {runs.map((record) => (
+                    <TableRow key={record.id}>
+                        <TableCell>{record.id}</TableCell>
+                        <TableCell>
+                            <Link
+                                className='text-primary underline-offset-4 hover:underline'
+                                to={`/history/${record.id}`}
+                            >
+                                {record.taskName}
+                            </Link>
+                        </TableCell>
+                        <TableCell>
+                            <RunStatusTag status={record.status} />
+                        </TableCell>
+                        <TableCell>{record.model}</TableCell>
+                        <TableCell>{formatTime(record.startedAt)}</TableCell>
+                        <TableCell>{formatDuration(record.durationMs)}</TableCell>
+                        <TableCell className='text-muted-foreground'>
+                            {record.tokenInput + record.tokenOutput > 0
+                                ? `${record.tokenInput}/${record.tokenOutput}`
+                                : '-'}
+                        </TableCell>
+                        <TableCell className='max-w-[240px] truncate text-destructive'>
+                            {record.error}
+                        </TableCell>
+                    </TableRow>
+                ))}
+            </TableBody>
+        </Table>
     );
 }
