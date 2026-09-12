@@ -62,7 +62,7 @@ describe('restrictDirectNavigate', () => {
         const actions = [
             {
                 name: DIRECT_NAVIGATE_ACTION,
-                call: async () => {},
+                call: async (_param: { url?: string }) => {},
             },
         ];
         restrictDirectNavigate(actions, 'https://www.baidu.com/');
@@ -77,7 +77,7 @@ describe('restrictDirectNavigateFromAgent', () => {
     test('只包装 Agent 动作空间里的 Navigate', async () => {
         const opened: string[] = [];
         const actions = [
-            { name: 'Tap', call: async () => {} },
+            { name: 'Tap', call: async (_param: { url?: string }) => {} },
             {
                 name: DIRECT_NAVIGATE_ACTION,
                 call: async (param: { url?: string }) => {

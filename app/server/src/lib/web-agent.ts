@@ -2,7 +2,7 @@ export const DIRECT_NAVIGATE_ACTION = 'Navigate';
 
 export type ActionSpaceItem = {
     name?: string;
-    call?: (param: { url?: string }, context?: unknown) => Promise<unknown> | unknown;
+    call?: (param: { url?: string }, context?: unknown) => unknown;
 };
 
 export function siteKey(url: string) {
@@ -61,10 +61,14 @@ function wrapNavigateCall(action: ActionSpaceItem, openedUrl: string) {
 }
 
 export async function restrictDirectNavigateFromAgent(
-    agent: { getActionSpace: () => Promise<ActionSpaceItem[]> },
+    agent: { getActionSpace: () => Promise<unknown[]> },
     openedUrl: string,
 ) {
-    restrictDirectNavigate(await agent.getActionSpace(), openedUrl);
+    restrictDirectNavigate(asActionSpace(await agent.getActionSpace()), openedUrl);
+}
+
+function asActionSpace(actions: unknown[]) {
+    return actions as ActionSpaceItem[];
 }
 
 export function searchOnOpenedPageContext(url: string) {
