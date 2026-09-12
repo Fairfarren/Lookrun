@@ -2,6 +2,7 @@ import { Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { confirmAction } from '../../components/confirm';
+import { runConfirmedDelete } from '../../utils/confirmed-delete';
 import { BusyButton } from '../../components/busy-button';
 import { notify } from '../../components/notify';
 import { PageCard } from '../../components/page-card';
@@ -69,12 +70,17 @@ export default function QueuesPage() {
             confirmLabel: '删除',
             destructive: true,
         });
-        if (!ok) {
-            return;
-        }
-        await api.deleteQueue(queue.id);
-        notify.success('已删除');
-        load();
+        await runConfirmedDelete({
+            confirmed: ok,
+            remove: async () => {
+                await api.deleteQueue(queue.id);
+            },
+            onSuccess: () => {
+                notify.success('已删除');
+                load();
+            },
+            onError: (message) => notify.error(message),
+        });
     };
 
     return (

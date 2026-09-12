@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import type { TaskRecord } from '@lookrun/shared';
 import { confirmAction } from '../../components/confirm';
 import { formatTime } from '../../components';
+import { runConfirmedDelete } from '../../utils/confirmed-delete';
 import { BusyButton } from '../../components/busy-button';
 import { notify } from '../../components/notify';
 import { PageCard } from '../../components/page-card';
@@ -90,12 +91,17 @@ export default function TasksPage() {
             confirmLabel: '删除',
             destructive: true,
         });
-        if (!ok) {
-            return;
-        }
-        await api.deleteTask(task.id);
-        notify.success('已删除');
-        loadTasks();
+        await runConfirmedDelete({
+            confirmed: ok,
+            remove: async () => {
+                await api.deleteTask(task.id);
+            },
+            onSuccess: () => {
+                notify.success('已删除');
+                loadTasks();
+            },
+            onError: (message) => notify.error(message),
+        });
     };
 
     return (
