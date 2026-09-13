@@ -24,7 +24,7 @@
 
 - 已安装 Google Chrome（测网页时）
 - Android 设备已开 USB 调试，并授权这台电脑（测真机时；程序包自带 ADB）
-- 可用的视觉模型（OpenAI 兼容接口 + API Key）。可打进程序，也可用 `data/models.json` 覆盖
+- 可用的视觉模型（OpenAI 兼容接口 + API Key）。可在「设置 → AI 模型」中配置服务地址、API Key 和模型列表
 
 macOS 未签名：访达里右键 → 打开。Windows SmartScreen 选「仍要运行」。
 
@@ -65,7 +65,7 @@ bun scripts/e2e-smoke.ts
 ## 打包
 
 ```bash
-# 1. 模型配置会打进程序；换配置要么重打包，要么运行时用 data/models.json 覆盖
+# 1. 模型配置会打进程序；运行后可在「设置 → AI 模型」中修改，无需重新打包
 cp resources/models.example.json resources/models.json
 # 编辑 resources/models.json：baseUrl / apiKey / 模型列表
 
@@ -146,3 +146,9 @@ tasks:
 | `packages/shared` | 共享类型、YAML ↔ 表单 |
 | `scripts` | 打包、CRAP、E2E |
 | `resources` | `models.example.json`、视觉自检测试图 |
+
+### 在设置中配置模型
+
+进入「设置 → AI 模型」，填写兼容 OpenAI 的服务地址、API Key 和模型名称。可添加多个模型，所有模型共用服务地址和密钥。保存后再选择默认模型、运行视觉自检。使用「自由指令」时需按模型填写 family。
+
+配置保存在本机 `data/models.json`，后续任务立即使用新配置。API Key 不会回显，留空保存会保留原密钥。密钥在本机文件中以明文保存，请妥善保管数据目录。

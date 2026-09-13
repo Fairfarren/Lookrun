@@ -28,3 +28,17 @@ export const api = {
             method: 'POST',
         }),
 };
+
+export type ModelSettings = {
+    baseUrl: string;
+    hasApiKey: boolean;
+    models: { id: string; name: string; model: string; family: string }[];
+};
+export const modelSettingsApi = {
+    read: () => request<ModelSettings>('/api/models/config'),
+    save: (config: Omit<ModelSettings, 'hasApiKey'> & { apiKey: string }) =>
+        request<ModelSettings>('/api/models/config', {
+            method: 'PUT',
+            body: JSON.stringify(config),
+        }),
+};

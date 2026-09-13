@@ -1,3 +1,4 @@
+import { ModelSettingsEditor } from './model-settings';
 import { CheckCircle2, FlaskConical, Plus, Trash2, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { SystemInfo } from '@lookrun/shared';
@@ -175,13 +176,18 @@ export default function SettingsPage() {
             .catch(() => {});
     };
 
-    useEffect(() => {
+    const refreshModels = () => {
+        setCheckResult(null);
         api.listModels()
             .then((result) => {
                 setModels(result.models);
                 setSelectedModel(defaultModelId(result.selected, result.models[0]?.id));
             })
             .catch((error: Error) => notify.error(error.message));
+    };
+
+    useEffect(() => {
+        refreshModels();
         api.getVariables()
             .then((vars) => setVariables(variablesFromRecord(vars)))
             .catch((error: Error) => notify.error(error.message));
@@ -277,6 +283,7 @@ export default function SettingsPage() {
         <div className='flex flex-col gap-4'>
             <PageCard title='AI 模型'>
                 <div className='flex flex-col gap-4'>
+                    <ModelSettingsEditor onSaved={refreshModels} />
                     <div className='flex flex-wrap items-center gap-2'>
                         <span>默认模型：</span>
                         <SelectField
@@ -300,10 +307,8 @@ export default function SettingsPage() {
                     <CheckingHint checking={checking} />
                     <CheckResultAlert checkResult={checkResult} />
                     <p className='text-sm text-muted-foreground'>
-                        模型列表在打包时内置（resources/models.json），修改后需重新打包；运行时用
-                        data/models.json 可覆盖。 自检不通过的模型不要用于 UI
-                        自动化。「自由指令」动作需要模型带 family 配置，没有 family
-                        的模型在启动运行时会被直接拦截并提示。
+                        自检不通过的模型不要用于 UI 自动化。「自由指令」动作需要模型带 family
+                        配置，没有 family 的模型在启动运行时会被直接拦截并提示。
                     </p>
                 </div>
             </PageCard>

@@ -1,3 +1,5 @@
+import { readModelSettings, writeModelSettings } from '../services/model-settings';
+import { registerModelSettingsRoutes } from './model-settings';
 import type { Context, Hono } from 'hono';
 import { serveStatic } from 'hono/bun';
 import { errorText } from '../lib/error-text';
@@ -224,6 +226,13 @@ export function registerRoutes(app: Hono) {
     });
 
     // ---------- 模型 ----------
+    registerModelSettingsRoutes(app, {
+        read: readModelSettings,
+        write: writeModelSettings,
+        getSelected: () => getSetting(db, SELECTED_MODEL_KEY),
+        setSelected: (id) => setSetting(db, SELECTED_MODEL_KEY, id),
+    });
+
     app.get('/api/models', (c) => {
         const loaded = tryLoadModels();
         if (!loaded.ok) {
