@@ -1,3 +1,9 @@
+import {
+    prepareModelSettings,
+    publicModelSettings,
+    readModelSettings,
+    writeModelSettings,
+} from '../services/model-settings';
 import type { Context, Hono } from 'hono';
 import { serveStatic } from 'hono/bun';
 import { errorText } from '../lib/error-text';
@@ -224,6 +230,34 @@ export function registerRoutes(app: Hono) {
     });
 
     // ---------- 模型 ----------
+    app.get('/api/models/config', (c) => {
+        c.header('Cache-Control', 'no-store');
+        try {
+            return c.json(publicModelSettings(readModelSettings()));
+        } catch {
+            return jsonError(c, '模型配置文件无法读取，请检查 data/models.json', 500);
+        }
+    });
+
+    app.put('/api/models/config', async (c) => {
+        let config;
+        try {
+            config = prepareModelSettings(await c.req.json(), readModelSettings());
+        } catch (error) {
+            return jsonError(c, errorText(error), 400);
+        }
+        try {
+            await writeModelSettings(config);
+            const selected = getSetting(db, SELECTED_MODEL_KEY);
+            if (!config.models.some((model) => model.id === selected)) {
+                setSetting(db, SELECTED_MODEL_KEY, config.models[0]!.id);
+            }
+            return c.json(publicModelSettings(config));
+        } catch {
+            return jsonError(c, '模型配置保存失败，请检查数据目录写入权限', 500);
+        }
+    });
+
     app.get('/api/models', (c) => {
         const loaded = tryLoadModels();
         if (!loaded.ok) {
