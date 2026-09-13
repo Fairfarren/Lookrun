@@ -1,3 +1,4 @@
+import { ModelFamilyField } from './model-family-field';
 import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { BusyButton } from '../../components/busy-button';
@@ -79,6 +80,18 @@ export function ModelSettingsEditor({ onSaved }: { onSaved: () => void }) {
                     </span>
                 </label>
             </div>
+            <p className='text-sm text-muted-foreground'>
+                模型系列决定如何处理截图坐标和适配模型。请按实际模型选择，不能仅按接口服务商选择，也不会自动更改模型名称。
+                例如 qwen3-vl-plus 对应 qwen3-vl，kimi-k2.5 对应 kimi。
+                <a
+                    className='ml-1 underline underline-offset-4'
+                    href='https://www.midscenejs.com/model-common-config'
+                    target='_blank'
+                    rel='noreferrer'
+                >
+                    查看官方配置说明
+                </a>
+            </p>
             <div className='flex flex-col gap-3'>
                 {config.models.map((model, index) => (
                     <div
@@ -105,18 +118,12 @@ export function ModelSettingsEditor({ onSaved }: { onSaved: () => void }) {
                                 }
                             />
                         </label>
-                        <label className='flex flex-col gap-2 text-sm'>
-                            模型系列（family，可选）
-                            <Input
-                                value={model.family}
-                                placeholder='例如：qwen3-vl'
-                                onChange={(event) =>
-                                    updateModel(index, { family: event.target.value })
-                                }
-                            />
-                        </label>
+                        <ModelFamilyField
+                            value={model.family}
+                            onChange={(family) => updateModel(index, { family })}
+                        />
                         <Button
-                            className='self-end'
+                            className='self-start sm:mt-7'
                             variant='outline'
                             size='icon'
                             aria-label={`删除模型 ${model.name || index + 1}`}
