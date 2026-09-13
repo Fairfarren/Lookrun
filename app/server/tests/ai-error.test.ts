@@ -4,88 +4,58 @@ import {
     API_KEY_UNCONFIGURED_MESSAGE,
     formatErrorMessage,
     formatRunHistory,
-    formatStepError,
 } from '../src/lib/ai-error';
 
-describe('formatStepError', () => {
-    test('英文模型定位错误转换为中文失败原因', () => {
-        const error = new Error(
+describe('formatErrorMessage', () => {
+    test.each([
+        ['自由指令超时', 'AI model request timed out after 30000ms'],
+        [
+            '英文定位错误',
             "failed to locate element: I cannot find a red 'Log out' button in the screenshot.",
-        );
+        ],
+        ['输入框定位失败', 'cannot find input'],
+        ['断言失败', 'assert failed: expected welcome text, found login form'],
+        ['等待条件超时', 'aiWaitFor timeout after 10000ms'],
+        ['网络连接失败', 'Connection error: ECONNREFUSED'],
+        ['模型响应格式错误', 'Unexpected token in JSON at position 42'],
+        ['中英混合错误', '执行失败：The browser has disconnected unexpectedly'],
+        ['中文模型错误', '模型未找到登录按钮，请确认页面是否加载完成'],
+        ['非模型错误', 'sleep failed'],
+    ])('test_%s_保留真实错误', (_scenario, message) => {
+        const error = new Error(message);
 
-        const result = formatStepError(error, {
-            action: 'aiTap',
-            params: '红色的 Log out 按钮',
-        });
+        const result = formatErrorMessage(error);
 
-        expect(result).toBe('模型未能在当前页面中找到目标元素：红色的 Log out 按钮');
+        expect(result).toBe(message);
     });
 
-    test('已有中文模型错误保持原文', () => {
-        const error = new Error('模型未找到登录按钮，请确认页面是否加载完成');
+    test('test_字符串异常_保留错误文本', () => {
+        const result = formatErrorMessage('Request timed out');
 
-        const result = formatStepError(error, {
-            action: 'aiTap',
-            params: '登录按钮',
-        });
-
-        expect(result).toBe('模型未找到登录按钮，请确认页面是否加载完成');
+        expect(result).toBe('Request timed out');
     });
 
-    test('aiInput 用 locate 作为中文目标', () => {
-        const result = formatStepError(new Error('cannot find input'), {
-            action: 'aiInput',
-            params: { locate: '用户名输入框', value: 'alice' },
-        });
-        expect(result).toBe('模型未能在当前页面中找到目标元素：用户名输入框');
-    });
-
-    test('aiAssert 英文错误转成中文断言失败', () => {
-        const result = formatStepError(new Error('assert failed'), {
-            action: 'aiAssert',
-            params: '页面出现欢迎语',
-        });
-        expect(result).toBe('模型执行页面断言失败：页面出现欢迎语');
-    });
-
-    test('非 AI 步骤错误保持原文', () => {
-        const error = new Error('sleep failed');
-
-        const result = formatStepError(error, {
-            action: 'sleep',
-            params: 500,
-        });
-
-        expect(result).toBe('sleep failed');
-    });
-
-    test('未配置 API Key 的请求头错误不伪装成找不到元素', () => {
+    test('test_未配置密钥_保留配置错误提示', () => {
         const error = new Error(
             "failed to call AI model service: Header '14' has invalid value: 'Bearer 在这里填你的 API Key'",
         );
 
-        expect(formatErrorMessage(error)).toBe(API_KEY_UNCONFIGURED_MESSAGE);
-        expect(
-            formatStepError(error, {
-                action: 'aiTap',
-                params: '登录按钮',
-            }),
-        ).toBe(API_KEY_UNCONFIGURED_MESSAGE);
+        const result = formatErrorMessage(error);
+
+        expect(result).toBe(API_KEY_UNCONFIGURED_MESSAGE);
     });
 
-    test('错误 API Key 的 401 不伪装成找不到元素', () => {
+    test('test_密钥未授权_保留认证错误提示', () => {
         const error = new Error('failed to call AI model service: 401 Unauthorized');
 
-        expect(formatErrorMessage(error)).toBe(API_KEY_UNAUTHORIZED_MESSAGE);
-        expect(
-            formatStepError(error, {
-                action: 'aiTap',
-                params: '登录按钮',
-            }),
-        ).toBe(API_KEY_UNAUTHORIZED_MESSAGE);
-    });
+        const result = formatErrorMessage(error);
 
-    test('读取旧运行记录时同步转换步骤和运行错误', () => {
+        expect(result).toBe(API_KEY_UNAUTHORIZED_MESSAGE);
+    });
+});
+
+describe('formatRunHistory', () => {
+    test('test_读取历史记录_保留真实错误及独立任务内容', () => {
         const englishError =
             "failed to locate element: I cannot find a red 'Log out' button in the screenshot.";
 
@@ -127,11 +97,12 @@ describe('formatStepError', () => {
 
         expect(result).toMatchObject({
             run: {
-                error: '第 6 步（退出登陆）失败：模型未能在当前页面中找到目标元素：红色的 Log out 按钮',
+                error: `第 6 步（退出登陆）失败：${englishError}`,
             },
             steps: [
                 {
-                    error: '模型未能在当前页面中找到目标元素：红色的 Log out 按钮',
+                    error: englishError,
+                    prompt: '红色的 Log out 按钮',
                 },
             ],
         });

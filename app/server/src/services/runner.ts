@@ -6,7 +6,7 @@ import puppeteer from 'puppeteer-core';
 import type { Browser, Page } from 'puppeteer-core';
 import type { Database } from 'bun:sqlite';
 import type { ModelConfig, RunRecord, RunStepRecord } from '@lookrun/shared';
-import { formatErrorMessage, formatStepError } from '../lib/ai-error';
+import { formatErrorMessage } from '../lib/ai-error';
 import { startAndroidLivePreview } from './android-preview';
 import { detectChrome } from './chrome';
 import { REPORT_DIR, RUN_KEEP_COUNT, SCREENSHOT_DIR } from '../config';
@@ -808,7 +808,7 @@ export class Runner {
             input.stepDir,
             `${input.index}-after.jpg`,
         ).catch(() => null);
-        const message = formatStepError(input.error, input.item.step);
+        const message = formatErrorMessage(input.error);
         this.recordStep(
             input.runId,
             input.index,
