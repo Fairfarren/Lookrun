@@ -21,17 +21,7 @@ export function ModelSettingsEditor({ onSaved }: { onSaved: () => void }) {
             .catch((error) => setLoadError(errorText(error)));
     };
     useEffect(load, []);
-    if (!config)
-        return (
-            <div role='status'>
-                {loadError || '正在加载模型配置…'}
-                {loadError && (
-                    <Button variant='outline' onClick={load}>
-                        重试
-                    </Button>
-                )}
-            </div>
-        );
+    if (!config) return <ModelSettingsLoading error={loadError} onRetry={load} />;
     const updateModel = (index: number, patch: Partial<ModelSettings['models'][number]>) => {
         setConfig({
             ...config,
@@ -72,7 +62,7 @@ export function ModelSettingsEditor({ onSaved }: { onSaved: () => void }) {
                         type='password'
                         autoComplete='new-password'
                         value={apiKey}
-                        placeholder={config.hasApiKey ? '已配置，留空保留原密钥' : '请输入 API Key'}
+                        placeholder={apiKeyPlaceholder(config.hasApiKey)}
                         onChange={(event) => setApiKey(event.target.value)}
                     />
                     <span className='text-muted-foreground'>
@@ -165,4 +155,20 @@ export function ModelSettingsEditor({ onSaved }: { onSaved: () => void }) {
             </p>
         </fieldset>
     );
+}
+
+function ModelSettingsLoading({ error, onRetry }: { error: string; onRetry: () => void }) {
+    return (
+        <div role='status'>
+            {error || '正在加载模型配置…'}
+            {error && (
+                <Button variant='outline' onClick={onRetry}>
+                    重试
+                </Button>
+            )}
+        </div>
+    );
+}
+function apiKeyPlaceholder(hasApiKey: boolean) {
+    return hasApiKey ? '已配置，留空保留原密钥' : '请输入 API Key';
 }

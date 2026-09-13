@@ -33,16 +33,10 @@ export function publicModelSettings(value: unknown) {
         models: modelRows(config.models),
     };
 }
-export function prepareModelSettings(value: unknown, previous: unknown) {
-    const input = record(value);
-    const config = {
-        baseUrl: text(input.baseUrl),
-        apiKey: text(input.apiKey) || text(record(previous).apiKey),
-        models: modelRows(input.models),
-    };
+function validateBaseUrl(baseUrl: string) {
     let url: URL;
     try {
-        url = new URL(config.baseUrl);
+        url = new URL(baseUrl);
     } catch {
         throw new Error('服务地址必须是有效的 HTTP 或 HTTPS 地址');
     }
@@ -55,6 +49,16 @@ export function prepareModelSettings(value: unknown, previous: unknown) {
     ) {
         throw new Error('服务地址必须使用 HTTP 或 HTTPS，且不能包含凭据、查询参数或片段');
     }
+}
+
+export function prepareModelSettings(value: unknown, previous: unknown) {
+    const input = record(value);
+    const config = {
+        baseUrl: text(input.baseUrl),
+        apiKey: text(input.apiKey) || text(record(previous).apiKey),
+        models: modelRows(input.models),
+    };
+    validateBaseUrl(config.baseUrl);
     parseModelsConfig(config);
     if (new Set(config.models.map((model) => model.id)).size !== config.models.length) {
         throw new Error('模型标识不能重复');
