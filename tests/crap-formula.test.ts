@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { calculateCrap, CRAP_THRESHOLD, passesCrap } from '../scripts/crap/formula';
+import { calculateCrap, CRAP_THRESHOLD, passesCrap } from '@scripts/crap/formula';
 
 describe('calculateCrap', () => {
     test('测满时 CRAP 等于 CC', () => {

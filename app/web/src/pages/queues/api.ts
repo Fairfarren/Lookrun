@@ -1,5 +1,5 @@
-import { request } from '../../api/request';
-import type { QueueDef } from '../../api/types';
+import { request } from '@/api/request';
+import type { QueueDef } from '@/api/types';
 
 export type { QueueDef };
 

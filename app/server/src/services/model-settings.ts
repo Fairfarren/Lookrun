@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, renameSync, chmodSync } from 'node:fs';
 import path from 'node:path';
-import { DATA_DIR } from '../config';
-import embeddedModels from '../../../../resources/models.json';
+import { DATA_DIR } from '@server/config';
+import embeddedModels from '@resources/models.json';
 import { apiKeyConfigError, parseModelsConfig } from './models';
 
 function record(value: unknown): Record<string, unknown> {

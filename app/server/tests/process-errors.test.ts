@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import path from 'node:path';
-import { installProcessErrorHandlers, processErrorLogLine } from '../src/lib/process-errors';
+import { installProcessErrorHandlers, processErrorLogLine } from '@server/lib/process-errors';
 
 describe('processErrorLogLine', () => {
     test('Error 取 message', () => {

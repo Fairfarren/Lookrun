@@ -10,7 +10,7 @@ import {
     mockFailAtFromEnv,
     optionalLauncher,
     type StepAgent,
-} from '../src/services/step-dispatch';
+} from '@server/services/step-dispatch';
 
 function agentStub(overrides: Partial<NonNullable<StepAgent>> = {}): NonNullable<StepAgent> {
     return {

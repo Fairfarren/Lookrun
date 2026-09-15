@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { prepareModelSettings, publicModelSettings } from '../src/services/model-settings';
+import { prepareModelSettings, publicModelSettings } from '@server/services/model-settings';
 
 const config = () => ({
     baseUrl: 'https://example.com/v1',

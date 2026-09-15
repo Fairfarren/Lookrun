@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { EmptyState } from '../../../components/empty-state';
-import { LoadingBlock } from '../../../components/loading-block';
+import { EmptyState } from '@/components/empty-state';
+import { LoadingBlock } from '@/components/loading-block';
 
 export function QueuesLoading({ state }: { state: string }) {
     if (state !== 'loading') {

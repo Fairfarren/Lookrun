@@ -6,7 +6,7 @@ import {
     previewPublishData,
     previewTickBlocked,
     shouldReportPreviewError,
-} from '../src/services/android-preview';
+} from '@server/services/android-preview';
 
 function deferred<T>() {
     let resolve!: (value: T) => void;

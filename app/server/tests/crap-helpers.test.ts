@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { errorText } from '../src/lib/error-text';
-import { browserOpenCommand } from '../src/lib/open-browser';
+import { errorText } from '@server/lib/error-text';
+import { browserOpenCommand } from '@server/lib/open-browser';
 import {
     missingIdError,
     modelSelectError,
@@ -12,19 +12,19 @@ import {
     runStartBodyError,
     taskWriteError,
     variablesBodyError,
-} from '../src/lib/route-input';
-import { contentTypeFor, resolveStaticAsset } from '../src/lib/static';
-import { sendJsonToClients, trySendWs } from '../src/lib/ws';
-import { applyRuntimeAssetEnv } from '../src/lib/runtime-assets';
-import { ensurePortFreeWith, findPortPidsWith } from '../src/lib/port';
+} from '@server/lib/route-input';
+import { contentTypeFor, resolveStaticAsset } from '@server/lib/static';
+import { sendJsonToClients, trySendWs } from '@server/lib/ws';
+import { applyRuntimeAssetEnv } from '@server/lib/runtime-assets';
+import { ensurePortFreeWith, findPortPidsWith } from '@server/lib/port';
 import {
     applyQueueItemStart,
     namedQueueUnavailable,
     queueItemMissingError,
     queueItemStartError,
     startNamedQueueItems,
-} from '../src/routes/queue-start';
-import { ScriptInvalidError } from '../src/services/runner';
+} from '@server/routes/queue-start';
+import { ScriptInvalidError } from '@server/services/runner';
 
 describe('errorText', () => {
     test('Error 取 message', () => {

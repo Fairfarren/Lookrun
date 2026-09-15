@@ -4,7 +4,7 @@ import {
     API_KEY_UNCONFIGURED_MESSAGE,
     formatErrorMessage,
     formatRunHistory,
-} from '../src/lib/ai-error';
+} from '@server/lib/ai-error';
 
 describe('formatErrorMessage', () => {
     test.each([

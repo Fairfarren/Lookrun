@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { createAndroidAppOptions } from '../src/pages/task-edit/android-app-options';
+import { createAndroidAppOptions } from '@/pages/task-edit/android-app-options';
 
 describe('createAndroidAppOptions', () => {
     test('把每个可启动包名转换成可选择项', () => {

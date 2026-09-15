@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { API_KEY_UNCONFIGURED_MESSAGE } from '../src/lib/ai-error';
+import { API_KEY_UNCONFIGURED_MESSAGE } from '@server/lib/ai-error';
 import {
     apiKeyConfigError,
     modelVisionCheckTarget,
@@ -13,7 +13,7 @@ import {
     visionRequestError,
     visionResponseContent,
     visionTimeoutMs,
-} from '../src/services/models';
+} from '@server/services/models';
 
 describe('parseModelsConfig', () => {
     test('合法配置：baseUrl 和 apiKey 平铺到每个模型', () => {

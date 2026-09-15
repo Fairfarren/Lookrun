@@ -8,7 +8,7 @@ import {
     parseAndroidLauncherPackages,
     parseAndroidScreenSize,
     resolveAdbPath,
-} from '../src/services/android';
+} from '@server/services/android';
 
 const launcherXml = (name: string, bounds: string) =>
     `<hierarchy><node text="${name}" content-desc="${name}" clickable="true" enabled="true" bounds="${bounds}" /></hierarchy>`;

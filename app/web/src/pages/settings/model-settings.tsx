@@ -1,11 +1,11 @@
 import { ModelFamilyField } from './model-family-field';
 import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { BusyButton } from '../../components/busy-button';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { notify } from '../../components/notify';
-import { errorText } from '../../utils/error-text';
+import { BusyButton } from '@/components/busy-button';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { notify } from '@/components/notify';
+import { errorText } from '@/utils/error-text';
 import { modelSettingsApi, type ModelSettings } from './api';
 
 export function ModelSettingsEditor({ onSaved }: { onSaved: () => void }) {

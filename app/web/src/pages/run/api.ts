@@ -1,6 +1,6 @@
 import type { TaskRecord } from '@lookrun/shared';
-import { request } from '../../api/request';
-import type { CurrentRunState, ModelBrief, QueueItem } from '../../api/types';
+import { request } from '@/api/request';
+import type { CurrentRunState, ModelBrief, QueueItem } from '@/api/types';
 
 export type { ModelBrief };
 

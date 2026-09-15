@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { copyWithNotify } from '../src/utils/clipboard';
+import { copyWithNotify } from '@/utils/clipboard';
 
 test('复制成功时提示已复制', async () => {
     const messages: string[] = [];

@@ -1,7 +1,7 @@
 import type { Database } from 'bun:sqlite';
 import { existsSync, readdirSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { countRuns } from '../db';
+import { countRuns } from '@server/db';
 
 // 递归统计目录下所有文件大小，目录不存在返回 0
 export function dirSizeBytes(dir: string): number {

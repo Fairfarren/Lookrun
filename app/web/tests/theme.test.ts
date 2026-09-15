@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { getStoredTheme, setStoredTheme, THEME_STORAGE_KEY } from '../src/theme';
+import { getStoredTheme, setStoredTheme, THEME_STORAGE_KEY } from '@/theme';
 
 function createStorage(initialValue: string | null) {
     let value = initialValue;

@@ -14,7 +14,7 @@ import {
     SIDER_EXPANDED_CLASS,
     siderCollapsed,
     siderWidthClass,
-} from '../src/styles/layout';
+} from '@/styles/layout';
 
 describe('应用布局', () => {
     test('应用壳限制在视口内且不产生全局滚动', () => {

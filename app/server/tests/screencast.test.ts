@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { handleScreencastFrame, shouldSendScreencastFrame } from '../src/services/screencast';
+import { handleScreencastFrame, shouldSendScreencastFrame } from '@server/services/screencast';
 
 describe('screencast 帧间隔', () => {
     test('间隔不够不发送', () => {

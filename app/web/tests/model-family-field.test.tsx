@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ModelFamilyField } from '../src/pages/settings/model-family-field';
+import { ModelFamilyField } from '@/pages/settings/model-family-field';
 
 test('不设置时说明自由指令限制', () => {
     expect(renderToStaticMarkup(<ModelFamilyField value='' onChange={() => {}} />)).toContain(

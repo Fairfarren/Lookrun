@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { loadSources, shouldSkipSource } from '../scripts/crap/sources';
+import { loadSources, shouldSkipSource } from '@scripts/crap/sources';
 
 describe('shouldSkipSource', () => {
     test('跳过测试文件', () => {

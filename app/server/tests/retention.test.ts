@@ -3,8 +3,8 @@ import type { Database } from 'bun:sqlite';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { countRuns, createDb, insertRun, insertStep, listRuns } from '../src/db';
-import { cleanupOldRuns } from '../src/services/retention';
+import { countRuns, createDb, insertRun, insertStep, listRuns } from '@server/db';
+import { cleanupOldRuns } from '@server/services/retention';
 
 let db: Database;
 let tempDir: string;

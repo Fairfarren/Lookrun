@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { RunRecord, RunStepRecord } from '@lookrun/shared';
-import type { QueueItem } from '../../api/types';
+import type { QueueItem } from '@/api/types';
 
 export type WsMessage =
     | { type: 'frame'; data: string }

@@ -1,6 +1,6 @@
 import type { SystemInfo } from '@lookrun/shared';
-import { request } from '../../api/request';
-import type { ModelBrief, StorageStats } from '../../api/types';
+import { request } from '@/api/request';
+import type { ModelBrief, StorageStats } from '@/api/types';
 
 export type { ModelBrief, StorageStats };
 

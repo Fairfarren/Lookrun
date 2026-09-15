@@ -1,5 +1,5 @@
-import { Badge } from '../../../components/ui/badge';
-import { stepStatusTag } from '../utils';
+import { Badge } from '@/components/ui/badge';
+import { stepStatusTag } from '@/pages/history-detail/utils';
 
 export function StepStatus({ status }: { status: string }) {
     const tag = stepStatusTag(status);

@@ -19,7 +19,7 @@ import {
     listVariables,
     setVariable,
     updateTask,
-} from '../src/db';
+} from '@server/db';
 
 let db: Database;
 let tempDir: string;

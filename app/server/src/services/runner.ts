@@ -6,10 +6,10 @@ import puppeteer from 'puppeteer-core';
 import type { Browser, Page } from 'puppeteer-core';
 import type { Database } from 'bun:sqlite';
 import type { ModelConfig, RunRecord, RunStepRecord } from '@lookrun/shared';
-import { formatErrorMessage } from '../lib/ai-error';
+import { formatErrorMessage } from '@server/lib/ai-error';
 import { startAndroidLivePreview } from './android-preview';
 import { detectChrome } from './chrome';
-import { REPORT_DIR, RUN_KEEP_COUNT, SCREENSHOT_DIR } from '../config';
+import { REPORT_DIR, RUN_KEEP_COUNT, SCREENSHOT_DIR } from '@server/config';
 import {
     finishRun,
     getRun,
@@ -18,7 +18,7 @@ import {
     insertStep,
     listRunSteps,
     listVariables,
-} from '../db';
+} from '@server/db';
 import { getModelById, loadModels, tryLoadModels, toMidsceneModelConfig } from './models';
 import { enqueue, listQueue, nextPending, requeueInterrupted, setQueueStatus } from './queue';
 import { cleanupOldRuns } from './retention';
@@ -26,12 +26,12 @@ import {
     clickTargetForStep,
     type ClickTarget,
     markClickOnScreenshot,
-} from '../lib/screenshot-marker';
+} from '@server/lib/screenshot-marker';
 import { startScreencast } from './screencast';
-import { broadcast, hasWsClients } from '../lib/ws';
-import { activatePageSession } from '../lib/page-session';
-import { restrictDirectNavigateFromAgent, searchOnOpenedPageContext } from '../lib/web-agent';
-import { parseScript, type FlowStep, type ParsedScript } from '../lib/yamlflow';
+import { broadcast, hasWsClients } from '@server/lib/ws';
+import { activatePageSession } from '@server/lib/page-session';
+import { restrictDirectNavigateFromAgent, searchOnOpenedPageContext } from '@server/lib/web-agent';
+import { parseScript, type FlowStep, type ParsedScript } from '@server/lib/yamlflow';
 import {
     androidAdbPath,
     checkAndroidDevice,

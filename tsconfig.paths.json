@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "paths": {
+            "@/*": ["./app/web/src/*"],
+            "@server/*": ["./app/server/src/*"],
+            "@scripts/*": ["./scripts/*"],
+            "@resources/*": ["./resources/*"],
+            "@web-dist/*": ["./app/web/dist/*"],
+            "@project/package.json": ["./package.json"]
+        }
+    }
+}

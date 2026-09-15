@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { Hono } from 'hono';
-import { registerModelSettingsRoutes } from '../src/routes/model-settings';
+import { registerModelSettingsRoutes } from '@server/routes/model-settings';
 
 function setup() {
     let config = {

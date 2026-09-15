@@ -7,7 +7,7 @@ import {
     restrictDirectNavigateFromAgent,
     searchOnOpenedPageContext,
     siteKey,
-} from '../src/lib/web-agent';
+} from '@server/lib/web-agent';
 
 describe('siteKey', () => {
     test('去掉 www 后按主域识别站点', () => {

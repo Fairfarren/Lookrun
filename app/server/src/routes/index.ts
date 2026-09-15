@@ -1,8 +1,8 @@
-import { readModelSettings, writeModelSettings } from '../services/model-settings';
+import { readModelSettings, writeModelSettings } from '@server/services/model-settings';
 import { registerModelSettingsRoutes } from './model-settings';
 import type { Context, Hono } from 'hono';
 import { serveStatic } from 'hono/bun';
-import { errorText } from '../lib/error-text';
+import { errorText } from '@server/lib/error-text';
 import {
     missingIdError,
     modelSelectError,
@@ -13,11 +13,11 @@ import {
     runStartBodyError,
     taskWriteError,
     variablesBodyError,
-} from '../lib/route-input';
+} from '@server/lib/route-input';
 import { namedQueueUnavailable, startNamedQueueItems } from './queue-start';
-import { formatRunHistory } from '../lib/ai-error';
-import { detectChrome } from '../services/chrome';
-import { DB_PATH, REPORT_DIR, SCREENSHOT_DIR } from '../config';
+import { formatRunHistory } from '@server/lib/ai-error';
+import { detectChrome } from '@server/services/chrome';
+import { DB_PATH, REPORT_DIR, SCREENSHOT_DIR } from '@server/config';
 import {
     countRuns,
     createDb,
@@ -32,34 +32,34 @@ import {
     markStaleRunsStopped,
     replaceVariables,
     updateTask,
-} from '../db';
-import { Runner, ScriptInvalidError } from '../services/runner';
-import { cancelQueueItem, listQueue, moveQueueItem } from '../services/queue';
+} from '@server/db';
+import { Runner, ScriptInvalidError } from '@server/services/runner';
+import { cancelQueueItem, listQueue, moveQueueItem } from '@server/services/queue';
 import {
     createQueue,
     deleteQueue,
     getQueue,
     listQueues,
     updateQueue,
-} from '../services/queue-defs';
-import { broadcast } from '../lib/ws';
-import { cleanupAllRuns, storageStats } from '../services/storage';
+} from '@server/services/queue-defs';
+import { broadcast } from '@server/lib/ws';
+import { cleanupAllRuns, storageStats } from '@server/services/storage';
 import {
     checkModelVision,
     getModelById,
     modelVisionCheckTarget,
     tryLoadModels,
-} from '../services/models';
-import pkg from '../../../../package.json';
-import { getSetting, setSetting } from '../db';
+} from '@server/services/models';
+import pkg from '@project/package.json';
+import { getSetting, setSetting } from '@server/db';
 import type { SystemInfo } from '@lookrun/shared';
-import { parseScript } from '../lib/yamlflow';
+import { parseScript } from '@server/lib/yamlflow';
 import {
     checkAndroidDevice,
     listAndroidApps,
     listAndroidDevices,
-} from '../services/android-service';
-import { detectAdbPath } from '../services/android';
+} from '@server/services/android-service';
+import { detectAdbPath } from '@server/services/android';
 
 const SELECTED_MODEL_KEY = 'selectedModelId';
 

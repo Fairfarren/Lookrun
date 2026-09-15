@@ -4,7 +4,7 @@ import {
     findFromPackage,
     resolveFromPackage,
     SERVER_PACKAGE_JSON,
-} from '../scripts/workspace-module';
+} from '@scripts/workspace-module';
 
 describe('resolveFromPackage', () => {
     test('能从 server 包解析 sharp', () => {

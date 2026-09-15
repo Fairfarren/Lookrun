@@ -27,25 +27,25 @@ import {
     type FormStep,
     type FormTask,
 } from '@lookrun/shared';
-import { BusyButton } from '../../components/busy-button';
-import { notify } from '../../components/notify';
-import { NumberInput } from '../../components/number-input';
-import { PageCard } from '../../components/page-card';
-import { SelectField } from '../../components/select-field';
-import { SuggestInput } from '../../components/suggest-input';
-import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert';
-import { Button } from '../../components/ui/button';
-import { Card, CardAction, CardContent, CardHeader } from '../../components/ui/card';
-import { Input } from '../../components/ui/input';
-import { ToggleGroup, ToggleGroupItem } from '../../components/ui/toggle-group';
-import { CARD_ACTIONS_CLASS, CARD_HEADER_WRAP_CLASS } from '../../styles/layout';
-import { useThemeMode } from '../../theme/context';
+import { BusyButton } from '@/components/busy-button';
+import { notify } from '@/components/notify';
+import { NumberInput } from '@/components/number-input';
+import { PageCard } from '@/components/page-card';
+import { SelectField } from '@/components/select-field';
+import { SuggestInput } from '@/components/suggest-input';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardAction, CardContent, CardHeader } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { CARD_ACTIONS_CLASS, CARD_HEADER_WRAP_CLASS } from '@/styles/layout';
+import { useThemeMode } from '@/theme/context';
 import { createAndroidAppOptions } from './android-app-options';
 import { api } from './api';
-import { reorderById } from '../../utils/sortable-items';
-import { draggingItemStyle } from '../../utils/sortable-style';
-import { errorText } from '../../utils/error-text';
-import { androidCheckError, fieldLabelText, launchFieldPlaceholder } from '../../utils/ui-class';
+import { reorderById } from '@/utils/sortable-items';
+import { draggingItemStyle } from '@/utils/sortable-style';
+import { errorText } from '@/utils/error-text';
+import { androidCheckError, fieldLabelText, launchFieldPlaceholder } from '@/utils/ui-class';
 import { scriptValidationBanner } from './script-validation';
 import { createValidationErrorKey } from './validation-errors';
 import {

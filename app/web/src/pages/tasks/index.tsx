@@ -2,14 +2,14 @@ import { Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { TaskRecord } from '@lookrun/shared';
-import { confirmAction } from '../../components/confirm';
-import { formatTime } from '../../components';
-import { runConfirmedDelete } from '../../utils/confirmed-delete';
-import { BusyButton } from '../../components/busy-button';
-import { notify } from '../../components/notify';
-import { PageCard } from '../../components/page-card';
-import { SelectField } from '../../components/select-field';
-import { Button } from '../../components/ui/button';
+import { confirmAction } from '@/components/confirm';
+import { formatTime } from '@/components';
+import { runConfirmedDelete } from '@/utils/confirmed-delete';
+import { BusyButton } from '@/components/busy-button';
+import { notify } from '@/components/notify';
+import { PageCard } from '@/components/page-card';
+import { SelectField } from '@/components/select-field';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -17,13 +17,13 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '../../components/ui/dialog';
-import { errorText } from '../../utils/error-text';
-import { defaultModelId } from '../../utils/default-model-id';
-import { queuesViewState } from '../../utils/queues-page';
+} from '@/components/ui/dialog';
+import { errorText } from '@/utils/error-text';
+import { defaultModelId } from '@/utils/default-model-id';
+import { queuesViewState } from '@/utils/queues-page';
 import { api, type ModelBrief } from './api';
 import { TasksEmpty, TasksLoading, TasksReady } from './components/list-state';
-import { stayOnTasks } from '../../utils/ui-class';
+import { stayOnTasks } from '@/utils/ui-class';
 import { canStartTask, startTaskSuccess } from './utils';
 
 export default function TasksPage() {

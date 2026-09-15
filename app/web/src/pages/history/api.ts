@@ -1,5 +1,5 @@
 import type { RunRecord } from '@lookrun/shared';
-import { request } from '../../api/request';
+import { request } from '@/api/request';
 
 export const api = {
     listRuns: (page: { limit: number; offset: number }) =>
