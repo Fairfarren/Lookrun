@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { coverageInRange, parseLcov } from '../scripts/crap/lcov';
-import { formatCrapReport, scoreFromLcov } from '../scripts/crap/report';
+import { coverageInRange, parseLcov } from '@scripts/crap/lcov';
+import { formatCrapReport, scoreFromLcov } from '@scripts/crap/report';
 
 describe('parseLcov', () => {
     test('解析文件行命中次数', () => {

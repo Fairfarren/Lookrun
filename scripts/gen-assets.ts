@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 
 const WEB_DIST = 'app/web/dist';
 const GEN_DIR = 'app/server/src/gen';
-const ASSET_IMPORT_PREFIX = '../../../web/dist';
+const ASSET_IMPORT_PREFIX = '@web-dist';
 
 const files: string[] = [];
 if (existsSync(WEB_DIST)) {

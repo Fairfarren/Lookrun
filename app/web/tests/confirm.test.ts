@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { confirmAction, setConfirmHandler } from '../src/components/confirm';
+import { confirmAction, setConfirmHandler } from '@/components/confirm';
 
 test('未挂载确认框时调用会抛错', () => {
     setConfirmHandler(null);

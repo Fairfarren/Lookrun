@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { collectFunctions } from '../scripts/crap/complexity';
+import { collectFunctions } from '@scripts/crap/complexity';
 
 describe('collectFunctions', () => {
     test('无分支函数 CC 为 1', () => {

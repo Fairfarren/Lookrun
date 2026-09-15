@@ -3,7 +3,7 @@ import type { Database } from 'bun:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createDb } from '../src/db';
+import { createDb } from '@server/db';
 import {
     cancelQueueItem,
     enqueue,
@@ -12,7 +12,7 @@ import {
     nextPending,
     requeueInterrupted,
     setQueueStatus,
-} from '../src/services/queue';
+} from '@server/services/queue';
 
 let db: Database;
 let tempDir: string;

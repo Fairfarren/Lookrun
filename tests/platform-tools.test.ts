@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { platformToolsPackage, PLATFORM_TOOLS_VERSION } from '../scripts/platform-tools';
+import { platformToolsPackage, PLATFORM_TOOLS_VERSION } from '@scripts/platform-tools';
 
 describe('platformToolsPackage', () => {
     test('macOS 使用固定版本官方压缩包和 adb 文件', () => {

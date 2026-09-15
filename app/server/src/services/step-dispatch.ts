@@ -1,4 +1,4 @@
-import type { FlowStep } from '../lib/yamlflow';
+import type { FlowStep } from '@server/lib/yamlflow';
 
 const AI_WAIT_FOR_DEFAULT_TIMEOUT_MS = 15_000;
 const MOCK_STEP_DELAY_MS = 600;

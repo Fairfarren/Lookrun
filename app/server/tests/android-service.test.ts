@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { adbFailureMessage, assertAdbSuccess } from '../src/services/android-service';
+import { adbFailureMessage, assertAdbSuccess } from '@server/services/android-service';
 
 describe('adb 结果', () => {
     test('失败信息优先用 stderr', () => {

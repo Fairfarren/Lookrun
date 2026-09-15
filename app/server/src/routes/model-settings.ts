@@ -1,6 +1,6 @@
 import type { Hono } from 'hono';
-import { errorText } from '../lib/error-text';
-import { prepareModelSettings, publicModelSettings } from '../services/model-settings';
+import { errorText } from '@server/lib/error-text';
+import { prepareModelSettings, publicModelSettings } from '@server/services/model-settings';
 
 export function registerModelSettingsRoutes(
     app: Hono,

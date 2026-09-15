@@ -1,5 +1,5 @@
-import { ScriptInvalidError } from '../services/runner';
-import { errorText } from '../lib/error-text';
+import { ScriptInvalidError } from '@server/services/runner';
+import { errorText } from '@server/lib/error-text';
 
 export type QueueStartCounts = {
     started: number;

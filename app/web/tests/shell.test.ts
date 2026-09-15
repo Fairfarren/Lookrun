@@ -6,7 +6,7 @@ import {
     menuItemLabel,
     selectedMenuClass,
     sidebarBrand,
-} from '../src/utils/shell';
+} from '@/utils/shell';
 import {
     androidCheckError,
     fieldLabelText,
@@ -20,7 +20,7 @@ import {
     selectPopperOffsetClass,
     selectPopperViewportClass,
     stayOnTasks,
-} from '../src/utils/ui-class';
+} from '@/utils/ui-class';
 
 test('侧栏文案在收起时隐藏', () => {
     expect(sidebarBrand(true)).toBeNull();

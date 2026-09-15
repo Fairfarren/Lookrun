@@ -1,5 +1,5 @@
 import type { RunRecord, RunStepRecord } from '@lookrun/shared';
-import { request } from '../../api/request';
+import { request } from '@/api/request';
 
 export const api = {
     runDetail: (id: number) =>

@@ -10,7 +10,7 @@ import {
     queryChromeLinux,
     queryChromeMac,
     queryChromeWindows,
-} from '../src/services/chrome';
+} from '@server/services/chrome';
 
 // Windows 注册表 reg query 输出：取 REG_SZ 后面的路径
 test('parseWindowsRegOutput 从注册表输出中提取 chrome 路径', () => {

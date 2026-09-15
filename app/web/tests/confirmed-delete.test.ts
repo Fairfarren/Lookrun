@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { runConfirmedDelete } from '../src/utils/confirmed-delete';
+import { runConfirmedDelete } from '@/utils/confirmed-delete';
 
 test('未确认时不调用删除', async () => {
     let removed = false;

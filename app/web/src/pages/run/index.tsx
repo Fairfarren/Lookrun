@@ -1,16 +1,16 @@
 import { ArrowDown, ArrowUp, Plus, Square, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { TaskRecord } from '@lookrun/shared';
-import { RunStatusTag, formatDuration } from '../../components';
-import { EmptyState } from '../../components/empty-state';
-import { LoadingBlock } from '../../components/loading-block';
-import { notify } from '../../components/notify';
-import { PageCard } from '../../components/page-card';
-import { SelectField } from '../../components/select-field';
-import { Badge } from '../../components/ui/badge';
-import { Button } from '../../components/ui/button';
-import { RUN_FRAME_CLASS, RUN_LOG_CLASS } from '../../styles/layout';
-import { errorText } from '../../utils/error-text';
+import { RunStatusTag, formatDuration } from '@/components';
+import { EmptyState } from '@/components/empty-state';
+import { LoadingBlock } from '@/components/loading-block';
+import { notify } from '@/components/notify';
+import { PageCard } from '@/components/page-card';
+import { SelectField } from '@/components/select-field';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { RUN_FRAME_CLASS, RUN_LOG_CLASS } from '@/styles/layout';
+import { errorText } from '@/utils/error-text';
 import { api, type ModelBrief } from './api';
 import { useWebSocket, type WsMessage } from './hooks';
 import {
@@ -23,7 +23,7 @@ import {
     type LiveStep,
     type RunViewState,
 } from './run-ws';
-import { optionalIdString } from '../../utils/ui-class';
+import { optionalIdString } from '@/utils/ui-class';
 import { runProgressText } from './utils';
 
 const emptyView = (): RunViewState => ({

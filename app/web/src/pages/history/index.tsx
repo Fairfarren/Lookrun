@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { RunRecord } from '@lookrun/shared';
-import { RunStatusTag, formatDuration, formatTime } from '../../components';
-import { LoadingBlock } from '../../components/loading-block';
-import { notify } from '../../components/notify';
-import { PageCard } from '../../components/page-card';
-import { Button } from '../../components/ui/button';
+import { RunStatusTag, formatDuration, formatTime } from '@/components';
+import { LoadingBlock } from '@/components/loading-block';
+import { notify } from '@/components/notify';
+import { PageCard } from '@/components/page-card';
+import { Button } from '@/components/ui/button';
 import {
     Table,
     TableBody,
@@ -13,7 +13,7 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from '../../components/ui/table';
+} from '@/components/ui/table';
 import { api } from './api';
 
 const PAGE_SIZE = 20;

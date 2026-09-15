@@ -22,8 +22,8 @@ import {
     webChromePath,
     webViewportSize,
     WEB_VIEWPORT_DEFAULT,
-} from '../src/services/run-prepare';
-import type { ParsedScript } from '../src/lib/yamlflow';
+} from '@server/services/run-prepare';
+import type { ParsedScript } from '@server/lib/yamlflow';
 
 const webScript: ParsedScript = {
     target: { type: 'web', url: 'https://a.com' },

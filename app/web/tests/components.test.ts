@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { formatDuration, formatTime } from '../src/components';
+import { formatDuration, formatTime } from '@/components';
 
 describe('formatDuration', () => {
     test('空值显示横杠', () => {

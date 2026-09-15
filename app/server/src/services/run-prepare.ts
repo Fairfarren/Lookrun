@@ -1,6 +1,6 @@
 import type { ModelConfig } from '@lookrun/shared';
-import { extractLastAiResult } from '../lib/ai-result';
-import type { FlowStep, ParsedScript } from '../lib/yamlflow';
+import { extractLastAiResult } from '@server/lib/ai-result';
+import type { FlowStep, ParsedScript } from '@server/lib/yamlflow';
 
 export function stepNeedsModelFamily(input: { targetType: 'web' | 'android'; action: string }) {
     if (input.targetType === 'android') {

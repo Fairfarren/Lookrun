@@ -1,5 +1,5 @@
 import type { AndroidAppRecord, AndroidDeviceRecord, TaskRecord } from '@lookrun/shared';
-import { request } from '../../api/request';
+import { request } from '@/api/request';
 
 export const api = {
     getTask: (id: number) => request<TaskRecord>(`/api/tasks/${id}`),

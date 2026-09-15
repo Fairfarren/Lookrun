@@ -2,22 +2,22 @@ import { ModelSettingsEditor } from './model-settings';
 import { CheckCircle2, FlaskConical, Plus, Trash2, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { SystemInfo } from '@lookrun/shared';
-import { BusyButton } from '../../components/busy-button';
-import { confirmAction } from '../../components/confirm';
-import { CopyText } from '../../components/copy-text';
-import { notify } from '../../components/notify';
-import { PageCard } from '../../components/page-card';
-import { SelectField } from '../../components/select-field';
-import { Alert, AlertTitle } from '../../components/ui/alert';
-import { Badge } from '../../components/ui/badge';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { LoadingBlock } from '../../components/loading-block';
-import { errorText } from '../../utils/error-text';
-import { defaultModelId } from '../../utils/default-model-id';
+import { BusyButton } from '@/components/busy-button';
+import { confirmAction } from '@/components/confirm';
+import { CopyText } from '@/components/copy-text';
+import { notify } from '@/components/notify';
+import { PageCard } from '@/components/page-card';
+import { SelectField } from '@/components/select-field';
+import { Alert, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { LoadingBlock } from '@/components/loading-block';
+import { errorText } from '@/utils/error-text';
+import { defaultModelId } from '@/utils/default-model-id';
 import { api, type ModelBrief, type StorageStats } from './api';
 import { formatBytes } from './format-bytes';
-import { modelCheckVariant } from '../../utils/ui-class';
+import { modelCheckVariant } from '@/utils/ui-class';
 import {
     checkResultFromError,
     emptyVariableName,

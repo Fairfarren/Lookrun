@@ -17,15 +17,15 @@ import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { TaskRecord } from '@lookrun/shared';
-import { BusyButton } from '../../components/busy-button';
-import { notify } from '../../components/notify';
-import { PageCard } from '../../components/page-card';
-import { SelectField } from '../../components/select-field';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { errorText } from '../../utils/error-text';
-import { reorderById } from '../../utils/sortable-items';
-import { draggingItemStyle } from '../../utils/sortable-style';
+import { BusyButton } from '@/components/busy-button';
+import { notify } from '@/components/notify';
+import { PageCard } from '@/components/page-card';
+import { SelectField } from '@/components/select-field';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { errorText } from '@/utils/error-text';
+import { reorderById } from '@/utils/sortable-items';
+import { draggingItemStyle } from '@/utils/sortable-style';
 import { api, type ModelBrief, type QueueDefWithItems } from './api';
 import {
     createQueueThenSaveItems,

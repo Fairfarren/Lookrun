@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { scriptValidationBanner } from '../src/pages/task-edit/script-validation';
+import { scriptValidationBanner } from '@/pages/task-edit/script-validation';
 
 describe('scriptValidationBanner', () => {
     test('尚未校验时不显示通过', () => {
