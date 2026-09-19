@@ -401,7 +401,7 @@ export class Runner {
             try {
                 await runtime?.cleanup();
             } finally {
-                await this.afterExecute(queueItemId);
+                await this.afterExecute({ runId, queueItemId });
             }
         }
     }
@@ -429,13 +429,19 @@ export class Runner {
         );
     }
 
-    private async afterExecute(queueItemId?: number) {
+    private async afterExecute(input: { runId: number; queueItemId?: number }) {
         try {
             await Promise.all([this.closeBrowser(), this.runActiveCleanup()]);
         } finally {
             this.state = null;
-            if (queueItemId) setQueueStatus(this.db, queueItemId, 'done');
-            this.dependencies.cleanupOldRuns(this.db, SCREENSHOT_DIR, RUN_KEEP_COUNT);
+            if (input.queueItemId) setQueueStatus(this.db, input.queueItemId, 'done');
+            try {
+                this.dependencies.cleanupOldRuns(this.db, SCREENSHOT_DIR, RUN_KEEP_COUNT);
+            } catch (error) {
+                this.dependencies.error(
+                    `运行 #${input.runId} 收尾失败：${formatErrorMessage(error)}`,
+                );
+            }
             this.dependencies.broadcast({ type: 'queue', items: listQueue(this.db) });
             this.scheduleNext();
         }

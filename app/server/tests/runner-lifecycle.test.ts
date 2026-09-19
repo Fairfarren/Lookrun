@@ -604,6 +604,30 @@ test('历史清理异常释放当前状态并留下诊断', async () => {
     });
 });
 
+test('历史清理失败也释放状态并继续队列', async () => {
+    const paused = Promise.withResolvers<void>();
+    const state = setup({ pause: paused.promise, retentionError: true });
+
+    state.start();
+    await state.stepStarted;
+    state.start();
+    state.runner.resumeQueue();
+    paused.resolve();
+    await state.completed;
+
+    expect({
+        current: state.runner.current(),
+        statuses: listRuns(state.db, { limit: 10, offset: 0 }).map((run) => run.status),
+        resources: state.resources,
+        diagnostic: state.diagnostics[0],
+    }).toEqual({
+        current: null,
+        statuses: ['success', 'success'],
+        resources: { browserClosed: true, screencastStopped: true, retained: true },
+        diagnostic: '运行 #1 收尾失败：历史清理失败',
+    });
+});
+
 test.each(['cleanupError', 'foregroundError'] as const)(
     '切页时%s不阻止新页面继续执行',
     async (failure) => {
