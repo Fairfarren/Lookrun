@@ -4,9 +4,13 @@ const WEB_DIST = 'app/web/dist';
 const GEN_DIR = 'app/server/src/gen';
 const ASSET_IMPORT_PREFIX = '../../../web/dist';
 
+function webAssetPath(file: string) {
+    // Windows Glob 相对路径带反斜杠，嵌入键必须与 HTTP 路径使用同一套斜杠。
+    return file.replaceAll('\\', '/');
+}
+
 export async function generateAssets(io: BuildIO) {
-    const files = io.exists(WEB_DIST) ? await io.files(WEB_DIST) : [];
-    files.sort();
+    const files = (io.exists(WEB_DIST) ? await io.files(WEB_DIST) : []).map(webAssetPath).sort();
     const lines = [
         '// 由 scripts/gen-assets.ts 自动生成，请勿手改',
         '// @ts-nocheck',

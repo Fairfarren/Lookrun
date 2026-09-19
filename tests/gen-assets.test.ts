@@ -26,6 +26,32 @@ test('生成资源模块按路径排序并转义特殊文件名', async () => {
     });
 });
 
+test('Windows 反斜杠路径写成 HTTP 资源键', async () => {
+    const fixture = createBuildFixture();
+    fixture.files.set('app/web/dist/index.html', '首页');
+
+    const files = await generateAssets({
+        ...fixture.io,
+        files: async () => ['index.html', 'assets\\index-hash.js'],
+    });
+
+    expect({ files, module: fixture.files.get('app/server/src/gen/assets.ts') }).toEqual({
+        files: ['assets/index-hash.js', 'index.html'],
+        module: [
+            '// 由 scripts/gen-assets.ts 自动生成，请勿手改',
+            '// @ts-nocheck',
+            'import f0 from "../../../web/dist/assets/index-hash.js" with { type: \'file\' };',
+            'import f1 from "../../../web/dist/index.html" with { type: \'file\' };',
+            '',
+            'export const embeddedAssets: Record<string, string> = {',
+            '  "/assets/index-hash.js": f0,',
+            '  "/index.html": f1,',
+            '};',
+            '',
+        ].join('\n'),
+    });
+});
+
 test('前端产物缺失时生成空映射供开发服务导入', async () => {
     const fixture = createBuildFixture();
 
