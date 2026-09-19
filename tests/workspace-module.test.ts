@@ -1,44 +1,72 @@
 import { describe, expect, test } from 'bun:test';
-import path from 'node:path';
-import {
-    findFromPackage,
-    resolveFromPackage,
-    SERVER_PACKAGE_JSON,
-} from '../scripts/workspace-module';
+import { createPackageResolver } from '../scripts/workspace-module';
 
-describe('resolveFromPackage', () => {
-    test('能从 server 包解析 sharp', () => {
-        const resolved = resolveFromPackage(SERVER_PACKAGE_JSON, 'sharp/package.json');
+describe('工作区依赖解析', () => {
+    test('同名依赖从指定包的解析树返回', () => {
+        const packages = new Map([
+            ['/server/package.json:sharp', '/server/node_modules/sharp/index.js'],
+            ['/web/package.json:sharp', '/web/node_modules/sharp/index.js'],
+        ]);
+        const resolver = createPackageResolver((fromFile) => ({
+            resolve: (moduleId) => packages.get(`${fromFile}:${moduleId}`)!,
+        }));
 
-        expect(resolved.endsWith(`${path.sep}sharp${path.sep}package.json`)).toBe(true);
+        const resolved = resolver.resolve('/server/package.json', 'sharp');
+
+        expect(resolved).toBe('/server/node_modules/sharp/index.js');
     });
 
-    test('解析不到时抛出 MODULE_NOT_FOUND', () => {
-        expect(() => resolveFromPackage(SERVER_PACKAGE_JSON, 'missing-pkg-lookrun')).toThrow();
-    });
-});
+    test('可选依赖存在时返回其路径', () => {
+        const resolver = createPackageResolver(() => ({ resolve: () => '/native/package.json' }));
 
-describe('findFromPackage', () => {
-    test('能从 sharp 解析当前平台 native 包', () => {
-        const sharpPkg = resolveFromPackage(SERVER_PACKAGE_JSON, 'sharp/package.json');
-        const nativeId = `@img/sharp-${process.platform}-${process.arch}/package.json`;
-
-        expect(findFromPackage(sharpPkg, nativeId)?.endsWith(`${path.sep}package.json`)).toBe(true);
-    });
-
-    test('能从 ffmpeg 安装器解析当前平台包', () => {
-        const ffmpegPkg = resolveFromPackage(
-            SERVER_PACKAGE_JSON,
-            '@ffmpeg-installer/ffmpeg/package.json',
+        const resolved = resolver.find(
+            '/sharp/package.json',
+            '@img/sharp-darwin-arm64/package.json',
         );
-        const nativeId = `@ffmpeg-installer/${process.platform}-${process.arch}/package.json`;
 
-        expect(findFromPackage(ffmpegPkg, nativeId)?.endsWith(`${path.sep}package.json`)).toBe(
-            true,
-        );
+        expect(resolved).toBe('/native/package.json');
     });
 
-    test('找不到模块时返回 undefined', () => {
-        expect(findFromPackage(SERVER_PACKAGE_JSON, 'missing-pkg-lookrun')).toBeUndefined();
+    test('可选依赖缺失时返回 undefined', () => {
+        const resolver = createPackageResolver(() => ({
+            resolve: () => {
+                throw { code: 'MODULE_NOT_FOUND' };
+            },
+        }));
+
+        const resolved = resolver.find('/sharp/package.json', '不存在');
+
+        expect(resolved).toBeUndefined();
+    });
+
+    test.each([null, '解析失败', new Error('无权限'), { code: 'EACCES' }])(
+        '非模块缺失错误原样抛出：%p',
+        (failure) => {
+            const resolver = createPackageResolver(() => ({
+                resolve: () => {
+                    throw failure;
+                },
+            }));
+            let result: unknown;
+
+            try {
+                resolver.find('/sharp/package.json', '异常包');
+            } catch (error) {
+                result = error;
+            }
+
+            expect(result).toBe(failure);
+        },
+    );
+
+    test('必需依赖缺失时抛出原错误', () => {
+        const failure = new Error('缺少 sharp');
+        const resolver = createPackageResolver(() => ({
+            resolve: () => {
+                throw failure;
+            },
+        }));
+
+        expect(() => resolver.resolve('/server/package.json', 'sharp')).toThrow(failure);
     });
 });

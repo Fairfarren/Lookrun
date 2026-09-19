@@ -9,7 +9,7 @@ interface RuntimeAssetInput {
 }
 
 export function resolveBundledRuntimeAssets(input: RuntimeAssetInput) {
-    const pathApi = input.platform === 'win32' ? path.win32 : path;
+    const pathApi = input.platform === 'win32' ? path.win32 : path.posix;
     const executableName = pathApi.basename(input.executablePath).toLowerCase();
     const executableDir = executableName.startsWith('bun')
         ? input.cwd
@@ -38,13 +38,23 @@ export function applyRuntimeAssetEnv(
     }
 }
 
-export function configureBundledRuntimeAssets() {
-    const assets = resolveBundledRuntimeAssets({
-        platform: process.platform,
-        executablePath: process.execPath,
-        cwd: process.cwd(),
-        exists: existsSync,
-    });
-    applyRuntimeAssetEnv(assets, process.env);
-    return assets;
+export function createRuntimeAssetConfigurator(
+    input: Omit<RuntimeAssetInput, 'cwd'> & {
+        cwd: () => string;
+        env: Record<string, string | undefined>;
+    },
+) {
+    return function configureBundledRuntimeAssets() {
+        const assets = resolveBundledRuntimeAssets({ ...input, cwd: input.cwd() });
+        applyRuntimeAssetEnv(assets, input.env);
+        return assets;
+    };
 }
+
+export const configureBundledRuntimeAssets = createRuntimeAssetConfigurator({
+    platform: process.platform,
+    executablePath: process.execPath,
+    cwd: process.cwd,
+    exists: existsSync,
+    env: process.env,
+});

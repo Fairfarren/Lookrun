@@ -1,133 +1,122 @@
-// 编译单文件可执行程序并附上 sharp 的 native 资产
-// 产物按平台分别输出到 dist-mac / dist-win / dist-linux
-// 用法：bun scripts/build-exe.ts [--target=bun-windows-x64|bun-darwin-arm64|...]
-//
-// 背景：sharp 是 native addon（依赖 libvips），bun build --compile 无法把它的 .node
-// 嵌入单文件。这里把 sharp 的 JS（含 patch）bundle 进 exe，native .node + libvips
-// 动态库外置到 exe 同级的 node_modules/@img/，运行时由 patched sharp.js 从磁盘加载
-import { $ } from 'bun';
-import { mkdirSync, existsSync, cpSync, readFileSync, rmSync } from 'node:fs';
+// sharp 的 native addon 无法嵌入单文件，必须随可执行文件携带平台对应的 .node 和 libvips。
 import path from 'node:path';
-import { installPlatformTools } from './platform-tools';
-import { installRuntimeAssets } from './runtime-assets';
-import { findFromPackage, resolveFromPackage, SERVER_PACKAGE_JSON } from './workspace-module';
+import { buildIO, type BuildIO } from './build-io';
+import { createPlatformToolsInstaller } from './platform-tools';
+import { createRuntimeAssetInstaller } from './runtime-assets';
+import { SERVER_PACKAGE_JSON } from './workspace-module';
 
-const targetArg = process.argv.find((arg) => arg.startsWith('--target='));
-const target = targetArg?.split('=')[1];
+type BuildInput = { argv: string[]; platform: string; arch: string };
 
-// 平台 key：bun-darwin-arm64 → darwin-arm64，bun-windows-x64 → win32-x64
-function platformKey(): string {
-    const t = target ?? `bun-${process.platform}-${process.arch}`;
-    return t.replace(/^bun-/, '').replace('windows', 'win32');
-}
-
-function pickOutDir(): string {
-    const pk = platformKey();
-    if (pk.startsWith('win32')) {
-        return 'dist-win';
-    }
-    if (pk.startsWith('darwin')) {
-        return 'dist-mac';
-    }
+function outputDirectory(platformKey: string) {
+    if (platformKey.startsWith('win32')) return 'dist-win';
+    if (platformKey.startsWith('darwin')) return 'dist-mac';
     return 'dist-linux';
 }
 
-const outDir = pickOutDir();
-const ext = outDir === 'dist-win' ? '.exe' : '';
-const outFile = `${outDir}/test-web-use-ai${ext}`;
-mkdirSync(outDir, { recursive: true });
-
-const args = ['bun', 'build', 'app/server/src/index.ts', '--compile', '--outfile', outFile];
-if (target) {
-    args.push('--target', target);
+export function executableBuildPlan(input: BuildInput) {
+    const target = input.argv.find((arg) => arg.startsWith('--target='))?.slice('--target='.length);
+    const platformKey = (target ?? `bun-${input.platform}-${input.arch}`)
+        .replace(/^bun-/, '')
+        .replace('windows', 'win32');
+    const outDir = outputDirectory(platformKey);
+    const outFile = `${outDir}/test-web-use-ai${outDir === 'dist-win' ? '.exe' : ''}`;
+    const args = ['bun', 'build', 'app/server/src/index.ts', '--compile', '--outfile', outFile];
+    if (target) args.push('--target', target);
+    return { outDir, outFile, platformKey, args };
 }
-console.log(`编译中：${args.join(' ')}`);
-await $`${args}`;
-console.log(`产物：${outFile}`);
 
-// ---------- 拷贝 sharp native 资产 ----------
-// sharp 的 native 包按平台分包：@img/sharp-{plat}（含 .node）和 @img/sharp-libvips-{plat}（libvips 动态库）
-// 版本从已装 sharp 的 optionalDependencies 读取，保证和 bundle 进 exe 的 sharp JS 版本一致
-async function copySharpNative() {
-    const platKey = platformKey();
-    const sharpPkgName = `@img/sharp-${platKey}`;
-    const libvipsPkgName = `@img/sharp-libvips-${platKey}`;
-    const sharpOpt = (() => {
-        try {
-            const pkg = JSON.parse(
-                readFileSync(resolveFromPackage(SERVER_PACKAGE_JSON, 'sharp/package.json'), 'utf8'),
-            ) as {
-                optionalDependencies?: Record<string, string>;
-            };
-            return pkg.optionalDependencies ?? {};
-        } catch (error) {
-            throw new Error(
-                `读取 sharp/package.json 失败：${error instanceof Error ? error.message : String(error)}`,
-            );
-        }
-    })();
-    const sharpVer = sharpOpt[sharpPkgName];
-    const libvipsVer = sharpOpt[libvipsPkgName];
-    if (!sharpVer) {
+function sharpDependencies(io: BuildIO) {
+    try {
+        const packagePath = io.resolve(SERVER_PACKAGE_JSON, 'sharp/package.json');
+        const pkg = io.readJson(packagePath) as { optionalDependencies?: Record<string, string> };
+        return { packagePath, dependencies: pkg.optionalDependencies ?? {} };
+    } catch (error) {
         throw new Error(
-            `无法从 sharp optionalDependencies 解析平台 ${platKey} 的 sharp native 版本（${sharpPkgName}=${sharpVer}）`,
+            `读取 sharp/package.json 失败：${error instanceof Error ? error.message : String(error)}`,
         );
-    }
-
-    const dstImgDir = path.join(outDir, 'node_modules', '@img');
-    mkdirSync(dstImgDir, { recursive: true });
-
-    // windows 的 libvips 已内嵌在 sharp-win32-x64 包里，optionalDependencies 不含独立的 libvips 包，
-    // 此时 libvipsVer 为 undefined，跳过即可
-    const nativePkgs: Array<[string, string]> = [[sharpPkgName, sharpVer]];
-    if (libvipsVer) {
-        nativePkgs.push([libvipsPkgName, libvipsVer]);
-    }
-
-    for (const [pkg, ver] of nativePkgs) {
-        const pkgDirName = pkg.replace('@img/', '');
-        const srcPkg = findFromPackage(
-            resolveFromPackage(SERVER_PACKAGE_JSON, 'sharp/package.json'),
-            `${pkg}/package.json`,
-        );
-        const srcDir = srcPkg ? path.dirname(srcPkg) : undefined;
-        const dstDir = path.join(dstImgDir, pkgDirName);
-        rmSync(dstDir, { recursive: true, force: true });
-        if (srcDir && existsSync(path.join(srcDir, 'lib'))) {
-            // 本机已装该平台包（如 mac 打 mac 包），直接拷
-            cpSync(srcDir, dstDir, { recursive: true });
-            console.log(`native 拷贝(本地)：${pkg}@${ver}`);
-        } else {
-            // 交叉编译目标平台包未装，从 npm registry 下载 tarball 解压
-            await downloadAndExtract(pkg, ver, dstDir);
-            console.log(`native 下载(registry)：${pkg}@${ver}`);
-        }
     }
 }
 
-// 从 npm registry 下载 scoped 包 tarball 并解压到目标目录（strip package/ 前缀）
-async function downloadAndExtract(pkg: string, ver: string, dstDir: string) {
-    const fileName = `${pkg.replace(/^@[^/]+\//, '')}-${ver}.tgz`;
-    const url = `https://registry.npmjs.org/${pkg}/-/${fileName}`;
-    console.log(`下载 ${url}`);
-    const res = await fetch(url);
-    if (!res.ok) {
-        throw new Error(`下载 ${pkg}@${ver} 失败：HTTP ${res.status}`);
-    }
-    const tgzPath = path.join(dstDir + '-download.tgz');
-    await Bun.write(tgzPath, Buffer.from(await res.arrayBuffer()));
-    mkdirSync(dstDir, { recursive: true });
-    // tar 解压并去掉顶层 package/ 目录前缀
-    await $`tar xzf ${tgzPath} -C ${dstDir} --strip-components=1`;
-    rmSync(tgzPath, { force: true });
-    if (!existsSync(path.join(dstDir, 'lib'))) {
-        throw new Error(`${pkg}@${ver} 解压后未找到 lib/ 目录`);
+type NativePackage = { name: string; version: string; directory: string; sharpPackage: string };
+
+async function downloadNativePackage(pkg: NativePackage, io: BuildIO) {
+    const fileName = `${pkg.name.replace(/^@[^/]+\//, '')}-${pkg.version}.tgz`;
+    const url = `https://registry.npmjs.org/${pkg.name}/-/${fileName}`;
+    const tarball = `${pkg.directory}-download.tgz`;
+    io.log(`下载 ${url}`);
+    try {
+        await io.download({ url, destination: tarball, label: `${pkg.name}@${pkg.version}` });
+        io.mkdir(pkg.directory);
+        await io.run(['tar', 'xzf', tarball, '-C', pkg.directory, '--strip-components=1']);
+        if (!io.exists(path.join(pkg.directory, 'lib')))
+            throw new Error(`${pkg.name}@${pkg.version} 解压后未找到 lib/ 目录`);
+    } finally {
+        io.remove(tarball);
     }
 }
 
-await copySharpNative();
-await installPlatformTools(outDir, platformKey());
-await installRuntimeAssets(outDir, platformKey());
-console.log(
-    `完成：${outDir}/（exe + sharp native + Android Platform Tools + FFmpeg + scrcpy-server）`,
+async function copyNativePackage(pkg: NativePackage, io: BuildIO) {
+    const packagePath = io.find(pkg.sharpPackage, `${pkg.name}/package.json`);
+    const source = packagePath ? path.dirname(packagePath) : undefined;
+    io.remove(pkg.directory);
+    if (source && io.exists(path.join(source, 'lib'))) {
+        io.copy(source, pkg.directory);
+        io.log(`native 拷贝(本地)：${pkg.name}@${pkg.version}`);
+    } else {
+        await downloadNativePackage(pkg, io);
+        io.log(`native 下载(registry)：${pkg.name}@${pkg.version}`);
+    }
+}
+
+async function copySharpNative(plan: ReturnType<typeof executableBuildPlan>, io: BuildIO) {
+    const { dependencies, packagePath } = sharpDependencies(io);
+    const sharpName = `@img/sharp-${plan.platformKey}`;
+    const sharpVersion = dependencies[sharpName];
+    if (!sharpVersion)
+        throw new Error(
+            `无法从 sharp optionalDependencies 解析平台 ${plan.platformKey} 的 sharp native 版本（${sharpName}=${sharpVersion}）`,
+        );
+    const packages: Array<[string, string]> = [[sharpName, sharpVersion]];
+    const libvipsName = `@img/sharp-libvips-${plan.platformKey}`;
+    const libvipsVersion = dependencies[libvipsName];
+    // Windows 的 libvips 包含在 sharp native 包内，没有独立依赖。
+    if (libvipsVersion) packages.push([libvipsName, libvipsVersion]);
+    const imageDirectory = path.join(plan.outDir, 'node_modules', '@img');
+    io.mkdir(imageDirectory);
+    for (const [name, version] of packages) {
+        await copyNativePackage(
+            {
+                name,
+                version,
+                directory: path.join(imageDirectory, name.replace('@img/', '')),
+                sharpPackage: packagePath,
+            },
+            io,
+        );
+    }
+}
+
+export async function buildExecutable(input: BuildInput, io: BuildIO) {
+    const plan = executableBuildPlan(input);
+    io.mkdir(plan.outDir);
+    io.log(`编译中：${plan.args.join(' ')}`);
+    await io.run(plan.args);
+    io.log(`产物：${plan.outFile}`);
+    await copySharpNative(plan, io);
+    await createPlatformToolsInstaller(io)(plan.outDir, plan.platformKey);
+    await createRuntimeAssetInstaller(io).installRuntimeAssets(plan.outDir, plan.platformKey);
+    io.log(
+        `完成：${plan.outDir}/（exe + sharp native + Android Platform Tools + FFmpeg + scrcpy-server）`,
+    );
+    return plan;
+}
+
+export async function runBuildCommand(input: BuildInput & { main: boolean }, io: BuildIO) {
+    if (!input.main) return;
+    return buildExecutable(input, io);
+}
+
+await runBuildCommand(
+    { main: import.meta.main, argv: process.argv, platform: process.platform, arch: process.arch },
+    buildIO,
 );

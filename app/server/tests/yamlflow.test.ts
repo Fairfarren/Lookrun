@@ -295,3 +295,89 @@ tasks:
         expect(result.errors.length).toBeGreaterThanOrEqual(3);
     });
 });
+
+test('网页视口尺寸完整保留', () => {
+    const result = parseScript(
+        'target: https://example.test\nviewportWidth: 640\nviewportHeight: 480\ntasks:\n  - name: 视口\n    flow:\n      - sleep: 1',
+        {},
+    );
+
+    expect(result).toMatchObject({
+        ok: true,
+        script: {
+            target: {
+                type: 'web',
+                url: 'https://example.test',
+                viewportWidth: 640,
+                viewportHeight: 480,
+            },
+        },
+    });
+});
+
+test('网页视口错误同时返回而不在正则后漏掉校验', () => {
+    const result = parseScript(
+        'target: ftp://example.test\nviewportWidth: wide\nviewportHeight: tall\ntasks:\n  - name: 视口\n    flow:\n      - sleep: 1',
+        {},
+    );
+
+    expect(result).toEqual({
+        ok: false,
+        errors: [
+            'target 必须是 http(s) 地址，当前是：ftp://example.test',
+            'viewportWidth 必须是数字',
+            'viewportHeight 必须是数字',
+        ],
+    });
+});
+
+test.each([
+    ['target: https://page.test\ntasks: [null]', '任务 1：必须是对象'],
+    [
+        'target: https://page.test\ntasks:\n  - name: 测试\n    flow: [null]',
+        '步骤必须是一个动作对象',
+    ],
+    ['target: https://page.test\nandroid: {deviceId: dev}\ntasks: []', '只能配置一个'],
+    [
+        'target: https://page.test\ntasks:\n  - name: 测试\n    flow:\n      - aiWaitFor: 完成\n        timeout: 0',
+        'timeout 必须是正数毫秒',
+    ],
+    [
+        'target: https://page.test\ntasks:\n  - name: 测试\n    flow:\n      - ai: 操作\n        name: 1',
+        'name 必须是字符串',
+    ],
+    [
+        'android: {deviceId: dev}\ntasks:\n  - name: 测试\n    flow:\n      - aiHover: 按钮',
+        'Android 任务不支持该动作',
+    ],
+    [
+        'target: https://page.test\ntasks:\n  - name: 测试\n    flow:\n      - aiInput: {locate: "", value: text}',
+        '需要 locate 字段',
+    ],
+    [
+        'target: https://page.test\ntasks:\n  - name: 测试\n    flow:\n      - ai: ""',
+        '缺少指令内容',
+    ],
+    ['target: https://page.test\ntasks: *missing', 'YAML 语法错误'],
+])('脚本边界返回可定位错误：%s', (yaml, expected) => {
+    const result = parseScript(yaml, {});
+
+    expect(result).toMatchObject({
+        ok: false,
+        errors: expect.arrayContaining([expect.stringContaining(expected)]),
+    });
+});
+
+test.each([
+    ['- 数组脚本', '脚本内容必须是一个 YAML 对象'],
+    ['android: {deviceId: dev}\ntasks: [{name: 流程, flow: [{launch: ""}]}]', '需要填写 App 名称'],
+    [
+        'target: https://page.test\ntasks: [{name: 流程, url: " ", flow: [{ai: 操作}]}]',
+        'url 必须是非空字符串',
+    ],
+])('脚本根结构与目标边界：%s', (yaml, expected) => {
+    expect(parseScript(yaml, {})).toMatchObject({
+        ok: false,
+        errors: expect.arrayContaining([expect.stringContaining(expected)]),
+    });
+});

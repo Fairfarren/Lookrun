@@ -188,3 +188,94 @@ describe('collectFunctions', () => {
         expect(fn.cc).toBe(3);
     });
 });
+
+test('正则包含斜杠、花括号和决策词时不截断函数', () => {
+    const source = `function parseWebTarget(value: string): { valid: boolean } {
+    const pattern = /^https?:\\/\\/(?:if|case|catch){1,2}/;
+    if (!pattern.test(value)) return { valid: false };
+    return { valid: true };
+}`;
+
+    const functions = collectFunctions(source, 'yamlflow.ts');
+
+    expect(functions).toEqual([
+        { name: 'parseWebTarget', file: 'yamlflow.ts', startLine: 1, endLine: 5, cc: 2 },
+    ]);
+});
+
+test('类型签名和重载不增加函数数目或决策点', () => {
+    const source = `type Handler = (arg?: string) => { next?: () => void };
+interface Config { read(value: string): number; }
+declare function external(value: string): void;
+function read(value: string): number;
+function read(value: string | undefined) {
+    return value?.length ?? 0;
+}`;
+
+    const functions = collectFunctions(source, 'types.ts');
+
+    expect(functions).toEqual([
+        { name: 'read', file: 'types.ts', startLine: 5, endLine: 7, cc: 2 },
+    ]);
+});
+
+test('TSX 文本不会引入决策点，回调独立计分', () => {
+    const source = `const View = () => <button onClick={() => ready ? accept() : reject()}>
+    if for while catch ? &amp;&amp;
+</button>;`;
+
+    const functions = collectFunctions(source, 'view.tsx');
+
+    expect(functions.map(({ name, cc }) => ({ name, cc }))).toEqual([
+        { name: 'View', cc: 1 },
+        { name: '(anonymous:1)', cc: 2 },
+    ]);
+});
+
+test('异步泛型、生成器、访问器、私有方法和类属性都计入', () => {
+    const source = `class Reader {
+    async *read<T>(value: T) { yield value; }
+    get value() { return 1; }
+    set value(next: number) { if (next) this.#check(); }
+    #check() { return true; }
+    handler = async (value: boolean) => value ? 1 : 0;
+}
+const object = { 'named': function () { return 1; }, 2() { return 2; } };`;
+
+    const functions = collectFunctions(source, 'methods.ts');
+
+    expect(functions.map(({ name, cc }) => ({ name, cc }))).toEqual([
+        { name: 'read', cc: 1 },
+        { name: 'value', cc: 1 },
+        { name: 'value', cc: 2 },
+        { name: '#check', cc: 1 },
+        { name: 'handler', cc: 2 },
+        { name: 'named', cc: 1 },
+        { name: '2', cc: 1 },
+    ]);
+});
+
+test('模板表达式与循环完整计分且嵌套函数不累计到父函数', () => {
+    const source =
+        'function outer(items) { for (const item of items) { while (item) break; } do {} while (false); for (;;) break; for (const key in items) {} return `${items ? (() => 1 || 2)() : 0}`; }';
+
+    const functions = collectFunctions(source, 'loops.ts');
+
+    expect(functions.map(({ name, cc }) => ({ name, cc }))).toEqual([
+        { name: 'outer', cc: 7 },
+        { name: '(anonymous:1)', cc: 2 },
+    ]);
+});
+
+test('语法错误直接失败，禁止输出不完整的通过报告', () => {
+    expect(() => collectFunctions('function broken( {', 'broken.ts')).toThrow();
+});
+
+test('赋值函数和计算属性名称无法静态确定时仍计入', () => {
+    const functions = collectFunctions(
+        'let assigned; assigned = () => 1; const object = { [Symbol.iterator]() { return this; } };',
+        'assigned.ts',
+    );
+
+    expect(functions.map(({ name }) => name)).toEqual(['assigned', '(anonymous:1)']);
+});

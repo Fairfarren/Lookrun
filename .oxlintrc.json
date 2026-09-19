@@ -3,7 +3,7 @@
   "ignorePatterns": [
     "**/node_modules/**",
     "**/dist*/**",
-    "**/coverage/**",
+    "coverage/**",
     "**/reports/**",
     "**/data/**",
     "**/midscene_run/**",

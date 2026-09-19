@@ -232,8 +232,6 @@ export const ACTION_OPTIONS: {
     },
 ];
 
-const SUPPORTED_FORM_ACTIONS = ACTION_OPTIONS.map((option) => option.action);
-
 export function actionOptionsForTarget(targetType: FormTarget['type']) {
     return ACTION_OPTIONS.filter(
         (option) => !option.platforms || option.platforms.includes(targetType),
@@ -405,7 +403,7 @@ function yamlStepParams(action: string, raw: unknown, timeout: number | undefine
         sleep: () => (typeof raw === 'number' ? { ms: raw } : null),
     };
     const parseParams = parsers[action];
-    if (!parseParams) {
+    if (!Object.hasOwn(parsers, action)) {
         return null;
     }
     return parseParams();
@@ -494,7 +492,7 @@ function yamlStepToForm(step: unknown, targetType: FormTarget['type']): FormStep
         return null;
     }
     const actionKeys = stepActionKeys(step);
-    if (actionKeys.length !== 1 || !SUPPORTED_FORM_ACTIONS.includes(actionKeys[0])) {
+    if (actionKeys.length !== 1) {
         return null;
     }
     const action = actionKeys[0];

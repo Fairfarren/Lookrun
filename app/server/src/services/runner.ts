@@ -110,13 +110,46 @@ type RunRuntime = {
 
 class RunEnded extends Error {}
 
+const runnerDependencies = {
+    detectChrome,
+    tryLoadModels,
+    loadModels,
+    launchBrowser: puppeteer.launch.bind(puppeteer),
+    PuppeteerAgent,
+    AndroidAgent,
+    AndroidDevice,
+    startScreencast,
+    startAndroidLivePreview,
+    checkAndroidDevice,
+    androidAdbPath,
+    createDeviceAndroidAppLauncher,
+    broadcast,
+    hasWsClients,
+    cleanupOldRuns,
+    mkdirSync,
+    write: Bun.write,
+    file: Bun.file,
+    markClickOnScreenshot,
+    mockAi: MOCK_AI,
+    dispatchStep,
+    warn: console.warn,
+    error: console.error,
+};
+
 export class Runner {
     private state: RunningState | null = null;
     private stopRequested = false;
     private browser: Browser | null = null;
     private activeCleanup: (() => Promise<void>) | null = null;
 
-    constructor(private db: Database) {}
+    private dependencies: typeof runnerDependencies;
+
+    constructor(
+        private db: Database,
+        dependencies?: Partial<typeof runnerDependencies>,
+    ) {
+        this.dependencies = { ...runnerDependencies, ...dependencies };
+    }
 
     current() {
         return this.state;
@@ -129,7 +162,7 @@ export class Runner {
         const chromePath = webChromePath({
             parseOk: Boolean(script),
             targetType: script?.target.type,
-            detect: () => detectChrome().path,
+            detect: () => this.dependencies.detectChrome().path,
         });
         const errors = runStartErrors({
             parseOk: Boolean(script),
@@ -153,7 +186,7 @@ export class Runner {
     }
 
     private modelForStart(modelId: string) {
-        const loaded = tryLoadModels();
+        const loaded = this.dependencies.tryLoadModels();
         if (!loaded.ok) {
             throw new ScriptInvalidError([loaded.error]);
         }
@@ -174,7 +207,7 @@ export class Runner {
                 modelId: input.model.id,
                 model: input.model.model,
             });
-            broadcast({ type: 'queue', items: listQueue(this.db) });
+            this.dependencies.broadcast({ type: 'queue', items: listQueue(this.db) });
             return { queued: true as const, queueItem };
         }
         const runId = this.runNow(input);
@@ -216,14 +249,14 @@ export class Runner {
         modelId: string;
     }) {
         const task = getTask(this.db, next.taskId);
-        const model = getModelById(loadModels(), next.modelId);
+        const model = getModelById(this.dependencies.loadModels(), next.modelId);
         const script = scriptFromParseResult(
             parseQueueTaskYaml(task, listVariables(this.db), parseScript),
         );
         const chromePath = webChromePath({
             parseOk: Boolean(script),
             targetType: script?.target.type,
-            detect: () => detectChrome().path,
+            detect: () => this.dependencies.detectChrome().path,
         });
         if (
             !queueItemCanStart({
@@ -249,7 +282,7 @@ export class Runner {
 
     private skipQueueItem(id: number) {
         setQueueStatus(this.db, id, 'cancelled');
-        broadcast({ type: 'queue', items: listQueue(this.db) });
+        this.dependencies.broadcast({ type: 'queue', items: listQueue(this.db) });
         this.scheduleNext();
     }
 
@@ -264,7 +297,7 @@ export class Runner {
         });
         this.finish(runId, 'failed', error, Date.now(), 0, 0);
         setQueueStatus(this.db, next.id, 'done', runId);
-        broadcast({ type: 'queue', items: listQueue(this.db) });
+        this.dependencies.broadcast({ type: 'queue', items: listQueue(this.db) });
         this.scheduleNext();
     }
 
@@ -290,7 +323,7 @@ export class Runner {
         if (input.queueItemId) {
             setQueueStatus(this.db, input.queueItemId, 'running', runId);
         }
-        this.state = {
+        const state: RunningState = {
             runId,
             taskName: input.taskName,
             model: input.model.model,
@@ -298,17 +331,21 @@ export class Runner {
             currentStepIndex: -1,
             totalSteps: 0,
         };
+        this.state = state;
         this.stopRequested = false;
-        broadcast({ type: 'run', run: getRun(this.db, runId) });
-        broadcast({ type: 'queue', items: listQueue(this.db) });
+        this.dependencies.broadcast({ type: 'run', run: getRun(this.db, runId) });
+        this.dependencies.broadcast({ type: 'queue', items: listQueue(this.db) });
 
-        void this.execute(
+        void this.execute({
             runId,
-            input.script,
-            toMidsceneModelConfig(input.model),
-            input.chromePath,
-            input.queueItemId,
-        ).catch((error) => this.recoverFailedExecute(runId, error, input.queueItemId));
+            script: input.script,
+            modelConfig: toMidsceneModelConfig(input.model),
+            chromePath: input.chromePath,
+            queueItemId: input.queueItemId,
+            state,
+        }).catch((error) => {
+            this.dependencies.error(`运行 #${runId} 收尾失败：${formatErrorMessage(error)}`);
+        });
         return runId;
     }
 
@@ -321,50 +358,52 @@ export class Runner {
     }
 
     private async closeBrowser() {
-        if (!this.browser) {
-            return;
+        const browser = this.browser;
+        this.browser = null;
+        if (!browser) return;
+        try {
+            await browser.close();
+        } catch (error) {
+            this.dependencies.warn(`浏览器清理失败：${formatErrorMessage(error)}`);
         }
-        await this.browser.close().catch(() => {});
     }
 
     private async runActiveCleanup() {
-        if (!this.activeCleanup) {
-            return;
+        const cleanup = this.activeCleanup;
+        this.activeCleanup = null;
+        if (!cleanup) return;
+        try {
+            await cleanup();
+        } catch (error) {
+            this.dependencies.warn(`设备清理失败：${formatErrorMessage(error)}`);
         }
-        await this.activeCleanup().catch(() => {});
     }
 
-    private async execute(
-        runId: number,
-        script: ParsedScript,
-        modelConfig: Record<string, string>,
-        chromePath: string | null,
-        queueItemId?: number,
-    ) {
+    private async execute(input: {
+        runId: number;
+        script: ParsedScript;
+        modelConfig: Record<string, string>;
+        chromePath: string | null;
+        queueItemId?: number;
+        state: RunningState;
+    }) {
+        const { runId, script, modelConfig, chromePath, queueItemId, state } = input;
         const startedAt = Date.now();
         const usage = { input: 0, output: 0 };
         let runtime: RunRuntime | null = null;
         try {
             runtime = await this.openRuntime(script, modelConfig, chromePath, usage);
-            await this.walkSteps(runId, script, runtime, startedAt, usage);
+            await this.walkSteps({ runId, script, runtime, startedAt, usage, state });
             this.finish(runId, 'success', null, startedAt, usage.input, usage.output);
         } catch (error) {
             this.handleExecuteError(runId, error, startedAt, usage);
         } finally {
-            await runtime?.cleanup();
-            await this.afterExecute(queueItemId);
+            try {
+                await runtime?.cleanup();
+            } finally {
+                await this.afterExecute({ runId, queueItemId });
+            }
         }
-    }
-
-    private recoverFailedExecute(runId: number, error: unknown, queueItemId?: number) {
-        console.error(`运行 #${runId} 未捕获错误：${formatErrorMessage(error)}`);
-        if (this.state?.runId !== runId) {
-            return;
-        }
-        this.handleExecuteError(runId, error, Date.now(), { input: 0, output: 0 });
-        void this.afterExecute(queueItemId).catch((cleanupError) => {
-            console.error(`运行 #${runId} 清理失败：${formatErrorMessage(cleanupError)}`);
-        });
     }
 
     private handleExecuteError(
@@ -390,18 +429,22 @@ export class Runner {
         );
     }
 
-    private async afterExecute(queueItemId?: number) {
-        await this.closeBrowser();
-        await this.runActiveCleanup();
-        this.browser = null;
-        this.activeCleanup = null;
-        this.state = null;
-        if (queueItemId) {
-            setQueueStatus(this.db, queueItemId, 'done');
+    private async afterExecute(input: { runId: number; queueItemId?: number }) {
+        try {
+            await Promise.all([this.closeBrowser(), this.runActiveCleanup()]);
+        } finally {
+            this.state = null;
+            if (input.queueItemId) setQueueStatus(this.db, input.queueItemId, 'done');
+            try {
+                this.dependencies.cleanupOldRuns(this.db, SCREENSHOT_DIR, RUN_KEEP_COUNT);
+            } catch (error) {
+                this.dependencies.error(
+                    `运行 #${input.runId} 收尾失败：${formatErrorMessage(error)}`,
+                );
+            }
+            this.dependencies.broadcast({ type: 'queue', items: listQueue(this.db) });
+            this.scheduleNext();
         }
-        cleanupOldRuns(this.db, SCREENSHOT_DIR, RUN_KEEP_COUNT);
-        broadcast({ type: 'queue', items: listQueue(this.db) });
-        this.scheduleNext();
     }
 
     private async openRuntime(
@@ -432,7 +475,7 @@ export class Runner {
     ): Promise<RunRuntime> {
         const target = webTargetOf(script);
         const executablePath = requireChromePath(chromePath);
-        this.browser = await puppeteer.launch({
+        this.browser = await this.dependencies.launchBrowser({
             executablePath,
             headless: true,
             args: ['--no-first-run', '--no-default-browser-check', '--mute-audio'],
@@ -458,7 +501,7 @@ export class Runner {
             currentPageKey: initial.key,
             activePage: initial.session.page,
             agent: initial.session.agent,
-            stopScreencast: await startScreencast(initial.session.page),
+            stopScreencast: await this.dependencies.startScreencast(initial.session.page),
         };
         return {
             get agent() {
@@ -512,10 +555,10 @@ export class Runner {
         usage: { input: number; output: number },
         pageUrl: string,
     ) {
-        if (MOCK_AI) {
+        if (this.dependencies.mockAi) {
             return null;
         }
-        const agent = new PuppeteerAgent(
+        const agent = new this.dependencies.PuppeteerAgent(
             page as unknown as AgentPage,
             {
                 modelConfig,
@@ -551,7 +594,7 @@ export class Runner {
         web.activePage = next.session.page;
         web.agent = next.session.agent;
         await web.stopScreencast?.().catch(() => {});
-        web.stopScreencast = await startScreencast(web.activePage);
+        web.stopScreencast = await this.dependencies.startScreencast(web.activePage);
         await web.activePage.bringToFront().catch(() => {});
     }
 
@@ -561,26 +604,21 @@ export class Runner {
         usage: { input: number; output: number },
     ): Promise<RunRuntime> {
         const target = androidTargetOf(script);
-        const checkResult = await checkAndroidDevice(target.deviceId);
+        const checkResult = await this.dependencies.checkAndroidDevice(target.deviceId);
         if (!checkResult.ok) {
             throw new Error(checkResult.message);
         }
-        const device = new AndroidDevice(target.deviceId, {
-            androidAdbPath: androidAdbPath(),
+        const device = new this.dependencies.AndroidDevice(target.deviceId, {
+            androidAdbPath: this.dependencies.androidAdbPath(),
             scrcpyConfig: { enabled: true },
         });
         await device.connect();
-        const androidAgent = new AndroidAgent(device, {
+        const androidAgent = new this.dependencies.AndroidAgent(device, {
             modelConfig,
             onLLMUsage: this.trackUsage(usage),
         });
         const stopLivePreview = await this.startAndroidPreview(device);
-        let cleaned = false;
         this.activeCleanup = async () => {
-            if (cleaned) {
-                return;
-            }
-            cleaned = true;
             try {
                 await stopLivePreview?.();
             } finally {
@@ -591,7 +629,7 @@ export class Runner {
             agent: androidAgent,
             captureScreenshot: () => device.screenshotBase64(),
             currentLocation: () => device.url().then((url) => url || null),
-            launchAndroidApp: createDeviceAndroidAppLauncher({
+            launchAndroidApp: this.dependencies.createDeviceAndroidAppLauncher({
                 deviceId: target.deviceId,
                 directLaunch: (target) => androidAgent.launch(target),
             }),
@@ -616,87 +654,67 @@ export class Runner {
         if (!frameSource) {
             return null;
         }
-        return startAndroidLivePreview({
+        return this.dependencies.startAndroidLivePreview({
             source: frameSource,
-            hasViewer: hasWsClients,
-            publish: (data) => broadcast({ type: 'frame', data }),
+            hasViewer: this.dependencies.hasWsClients,
+            publish: (data) => this.dependencies.broadcast({ type: 'frame', data }),
             onError: (error) => {
                 console.warn(`Android 实时预览帧解码失败：${formatErrorMessage(error)}`);
             },
         });
     }
 
-    private async walkSteps(
-        runId: number,
-        script: ParsedScript,
-        runtime: RunRuntime,
-        startedAt: number,
-        usage: { input: number; output: number },
-    ) {
+    private async walkSteps(input: {
+        runId: number;
+        script: ParsedScript;
+        runtime: RunRuntime;
+        startedAt: number;
+        usage: { input: number; output: number };
+        state: RunningState;
+    }) {
+        const { runId, script, runtime, startedAt, usage, state } = input;
         const steps = flattenSteps(script);
-        this.setTotalSteps(steps.length);
+        state.totalSteps = steps.length;
         for (let index = 0; index < steps.length; index++) {
-            await this.processOneStepOrStop(runId, index, steps, runtime, startedAt, usage);
+            if (this.stopRequested) {
+                this.finish(runId, 'stopped', '手动停止', startedAt, usage.input, usage.output);
+                throw new RunEnded();
+            }
+            state.currentStepIndex = index;
+            await this.processOneStep({
+                runId,
+                index,
+                item: steps[index],
+                runtime,
+                startedAt,
+                usage,
+                totalSteps: steps.length,
+            });
         }
     }
 
-    private setTotalSteps(totalSteps: number) {
-        if (!this.state) {
-            return;
-        }
-        this.state.totalSteps = totalSteps;
-    }
-
-    private async processOneStepOrStop(
-        runId: number,
-        index: number,
-        steps: ReturnType<typeof flattenSteps>,
-        runtime: RunRuntime,
-        startedAt: number,
-        usage: { input: number; output: number },
-    ) {
-        if (this.stopRequested) {
-            this.finish(runId, 'stopped', '手动停止', startedAt, usage.input, usage.output);
-            throw new RunEnded();
-        }
-        await this.processOneStep(runId, index, steps[index], runtime, startedAt, usage);
-    }
-
-    private markCurrentStep(index: number) {
-        if (!this.state) {
-            return;
-        }
-        this.state.currentStepIndex = index;
-    }
-
-    private stateTotalSteps() {
-        if (!this.state) {
-            return 0;
-        }
-        return this.state.totalSteps;
-    }
-
-    private async processOneStep(
-        runId: number,
-        index: number,
-        item: ReturnType<typeof flattenSteps>[number],
-        runtime: RunRuntime,
-        startedAt: number,
-        usage: { input: number; output: number },
-    ) {
-        this.markCurrentStep(index);
+    private async processOneStep(input: {
+        runId: number;
+        index: number;
+        item: ReturnType<typeof flattenSteps>[number];
+        runtime: RunRuntime;
+        startedAt: number;
+        usage: { input: number; output: number };
+        totalSteps: number;
+    }) {
+        const { runId, index, item, runtime, startedAt, usage, totalSteps } = input;
         await runtime.activateStepPage(item.taskUrl);
-        broadcast({
+        this.dependencies.broadcast({
             type: 'step-start',
             runId,
             stepIndex: index,
             stepName: stepLabel(item.taskName, item.step),
             action: item.step.action,
-            totalSteps: this.stateTotalSteps(),
+            totalSteps,
         });
         const stepDir = path.join(SCREENSHOT_DIR, String(runId));
-        mkdirSync(stepDir, { recursive: true });
-        const shotBefore = await takeScreenshot(
+        this.dependencies.mkdirSync(stepDir, { recursive: true });
+        const shotBefore = await this.takeScreenshot(
             runtime.captureScreenshot,
             stepDir,
             `${index}-before.jpg`,
@@ -744,13 +762,13 @@ export class Runner {
         usage: { input: number; output: number };
         usageBefore: { input: number; output: number };
     }) {
-        const dispatched = await dispatchStep(
+        const dispatched = await this.dependencies.dispatchStep(
             input.runtime.agent,
             input.item.step,
             input.index,
             input.runtime.launchAndroidApp,
         );
-        const shotAfter = await takeScreenshot(
+        const shotAfter = await this.takeScreenshot(
             input.runtime.captureScreenshot,
             input.stepDir,
             `${input.index}-after.jpg`,
@@ -759,7 +777,7 @@ export class Runner {
         const aiResult = resolvedAiResult(dispatched, dump);
         const clickTarget = clickTargetForStep(input.item.step.action, aiResult);
         if (clickTarget) {
-            await markStoredScreenshots(
+            await this.markStoredScreenshots(
                 [input.shotBefore, shotAfter].map((shot) => path.join(SCREENSHOT_DIR, shot)),
                 clickTarget,
             );
@@ -803,7 +821,7 @@ export class Runner {
         usageBefore: { input: number; output: number };
         error: unknown;
     }) {
-        const shotAfter = await takeScreenshot(
+        const shotAfter = await this.takeScreenshot(
             input.runtime.captureScreenshot,
             input.stepDir,
             `${input.index}-after.jpg`,
@@ -875,7 +893,7 @@ export class Runner {
             error: result.error,
         });
         const steps = listRunSteps(this.db, runId);
-        broadcast({ type: 'step', step: steps.find((s) => s.id === id) });
+        this.dependencies.broadcast({ type: 'step', step: steps.find((s) => s.id === id) });
     }
 
     private finish(
@@ -893,25 +911,27 @@ export class Runner {
             tokenInput,
             tokenOutput,
         });
-        broadcast({ type: 'run', run: getRun(this.db, runId) });
+        this.dependencies.broadcast({ type: 'run', run: getRun(this.db, runId) });
     }
-}
 
-async function takeScreenshot(capture: CaptureScreenshot, dir: string, fileName: string) {
-    const base64 = (await capture()).replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
-    broadcast({ type: 'frame', data: base64 });
-    await Bun.write(path.join(dir, fileName), Buffer.from(base64, 'base64'));
-    return `${path.basename(dir)}/${fileName}`;
-}
+    private async takeScreenshot(capture: CaptureScreenshot, dir: string, fileName: string) {
+        const base64 = (await capture()).replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '');
+        this.dependencies.broadcast({ type: 'frame', data: base64 });
+        await this.dependencies.write(path.join(dir, fileName), Buffer.from(base64, 'base64'));
+        return `${path.basename(dir)}/${fileName}`;
+    }
 
-async function markStoredScreenshots(filePaths: string[], target: ClickTarget) {
-    await Promise.all(
-        filePaths.map(async (filePath) => {
-            const screenshot = Buffer.from(await Bun.file(filePath).arrayBuffer());
-            const marked = await markClickOnScreenshot(screenshot, target);
-            await Bun.write(filePath, marked);
-        }),
-    );
+    private async markStoredScreenshots(filePaths: string[], target: ClickTarget) {
+        await Promise.all(
+            filePaths.map(async (filePath) => {
+                const screenshot = Buffer.from(
+                    await this.dependencies.file(filePath).arrayBuffer(),
+                );
+                const marked = await this.dependencies.markClickOnScreenshot(screenshot, target);
+                await this.dependencies.write(filePath, marked);
+            }),
+        );
+    }
 }
 
 export async function dispatchStep(
@@ -927,6 +947,6 @@ export async function dispatchStep(
         launchAndroidApp: optionalLauncher(launchAndroidApp),
         mockAi: MOCK_AI,
         mockFailAt: mockFailAtFromEnv(process.env.MOCK_FAIL_AT),
-        sleep: (ms) => Bun.sleep(ms),
+        sleep: Bun.sleep,
     });
 }

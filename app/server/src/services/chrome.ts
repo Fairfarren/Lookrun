@@ -14,7 +14,7 @@ export function chromeCandidatePaths(input: {
     if (input.platform === 'darwin') {
         return [
             '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-            path.join(
+            path.posix.join(
                 input.env.HOME ?? '',
                 'Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
             ),
@@ -26,13 +26,11 @@ export function chromeCandidatePaths(input: {
             input.env['PROGRAMFILES(X86)'],
             input.env.LOCALAPPDATA,
         ].filter((item): item is string => Boolean(item));
-        return prefixes.map((prefix) => path.join(prefix, 'Google/Chrome/Application/chrome.exe'));
+        return prefixes.map((prefix) =>
+            path.win32.join(prefix, 'Google/Chrome/Application/chrome.exe'),
+        );
     }
     return ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium-browser'];
-}
-
-function candidatePaths() {
-    return chromeCandidatePaths({ platform: process.platform, env: process.env });
 }
 
 export function firstExistingPath(paths: string[], exists: (filePath: string) => boolean) {
@@ -63,7 +61,7 @@ export function parseMdfindOutput(output: string): string | null {
         .filter(Boolean);
     for (const line of lines) {
         if (line.endsWith('Google Chrome.app')) {
-            return path.join(line, 'Contents/MacOS/Google Chrome');
+            return path.posix.join(line, 'Contents/MacOS/Google Chrome');
         }
     }
     return null;
@@ -145,18 +143,6 @@ export function queryChromeBySystem(input: {
     }
 }
 
-function spawnOutput(argv: string[]) {
-    return Bun.spawnSync(argv).stdout?.toString() ?? '';
-}
-
-function queryBySystem() {
-    return queryChromeBySystem({
-        platform: process.platform,
-        run: spawnOutput,
-        exists: existsSync,
-    });
-}
-
 export function detectChromeWith(input: {
     envPath: string | undefined;
     exists: (filePath: string) => boolean;
@@ -173,12 +159,40 @@ export function detectChromeWith(input: {
     return input.queryBySystem();
 }
 
-// 探测系统 Chrome：环境变量 → 固定安装路径 → 系统命令查询（注册表/Spotlight/which）
-export function detectChrome(): ChromeDetection {
-    return detectChromeWith({
-        envPath: process.env.CHROME_PATH ?? process.env.MIDSCENE_CHROME_PATH,
-        exists: existsSync,
-        candidates: candidatePaths(),
-        queryBySystem,
-    });
+type ChromeRuntime = {
+    platform: string;
+    env: Record<string, string | undefined>;
+    exists: (file: string) => boolean;
+    spawn: (argv: string[]) => { stdout?: { toString: () => string } | null };
+};
+
+export function createChromeDetector(runtime: ChromeRuntime) {
+    function spawnOutput(argv: string[]) {
+        return runtime.spawn(argv).stdout?.toString() ?? '';
+    }
+
+    function queryBySystem() {
+        return queryChromeBySystem({
+            platform: runtime.platform,
+            run: spawnOutput,
+            exists: runtime.exists,
+        });
+    }
+
+    // 环境变量 → 固定安装路径 → 系统命令查询（注册表/Spotlight/which）。
+    return function detectChrome(): ChromeDetection {
+        return detectChromeWith({
+            envPath: runtime.env.CHROME_PATH ?? runtime.env.MIDSCENE_CHROME_PATH,
+            exists: runtime.exists,
+            candidates: chromeCandidatePaths(runtime),
+            queryBySystem,
+        });
+    };
 }
+
+export const detectChrome = createChromeDetector({
+    platform: process.platform,
+    env: process.env,
+    exists: existsSync,
+    spawn: Bun.spawnSync,
+});
