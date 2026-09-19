@@ -270,3 +270,12 @@ test('模板表达式与循环完整计分且嵌套函数不累计到父函数',
 test('语法错误直接失败，禁止输出不完整的通过报告', () => {
     expect(() => collectFunctions('function broken( {', 'broken.ts')).toThrow();
 });
+
+test('赋值函数和计算属性名称无法静态确定时仍计入', () => {
+    const functions = collectFunctions(
+        'let assigned; assigned = () => 1; const object = { [Symbol.iterator]() { return this; } };',
+        'assigned.ts',
+    );
+
+    expect(functions.map(({ name }) => name)).toEqual(['assigned', '(anonymous:1)']);
+});

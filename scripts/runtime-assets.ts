@@ -1,91 +1,80 @@
-import { $ } from 'bun';
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { findFromPackage, resolveFromPackage, SERVER_PACKAGE_JSON } from './workspace-module';
+import { buildIO, type BuildIO } from './build-io';
+import { SERVER_PACKAGE_JSON } from './workspace-module';
 
-export function ffmpegPackageForPlatform(platformKey: string) {
-    const packageName = `@ffmpeg-installer/${platformKey}`;
-    const ffmpegInstallerPkg = resolveFromPackage(
-        SERVER_PACKAGE_JSON,
-        '@ffmpeg-installer/ffmpeg/package.json',
-    );
-    const packageJson = JSON.parse(readFileSync(ffmpegInstallerPkg, 'utf8')) as {
-        optionalDependencies?: Record<string, string>;
-    };
-    const version = packageJson.optionalDependencies?.[packageName];
-    if (!version) {
-        throw new Error(`不支持为 ${platformKey} 打包 FFmpeg`);
+export function createRuntimeAssetInstaller(io: BuildIO) {
+    function ffmpegPackageForPlatform(platformKey: string) {
+        const packageName = `@ffmpeg-installer/${platformKey}`;
+        const installer = io.resolve(SERVER_PACKAGE_JSON, '@ffmpeg-installer/ffmpeg/package.json');
+        const packageJson = io.readJson(installer) as {
+            optionalDependencies?: Record<string, string>;
+        };
+        const version = packageJson.optionalDependencies?.[packageName];
+        if (!version) throw new Error(`不支持为 ${platformKey} 打包 FFmpeg`);
+        return {
+            packageName,
+            version,
+            binaryName: platformKey.startsWith('win32') ? 'ffmpeg.exe' : 'ffmpeg',
+        };
     }
-    return {
-        packageName,
-        version,
-        binaryName: platformKey.startsWith('win32') ? 'ffmpeg.exe' : 'ffmpeg',
-    };
-}
 
-async function downloadFfmpeg(
-    outDir: string,
-    packageInfo: ReturnType<typeof ffmpegPackageForPlatform>,
-) {
-    const packageDirName = packageInfo.packageName.replace(/^@[^/]+\//, '');
-    const tarballName = `${packageDirName}-${packageInfo.version}.tgz`;
-    const url = `https://registry.npmjs.org/${packageInfo.packageName}/-/${tarballName}`;
-    const tempDir = path.join(outDir, '.runtime-assets-download');
-    const tarballPath = path.join(tempDir, tarballName);
-    rmSync(tempDir, { recursive: true, force: true });
-    mkdirSync(tempDir, { recursive: true });
-    try {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(
-                `下载 ${packageInfo.packageName}@${packageInfo.version} 失败：HTTP ${response.status}`,
-            );
-        }
-        await Bun.write(tarballPath, Buffer.from(await response.arrayBuffer()));
-        await $`tar xzf ${tarballPath} -C ${tempDir} --strip-components=1`;
-        const binaryPath = path.join(tempDir, packageInfo.binaryName);
-        if (!existsSync(binaryPath)) {
-            throw new Error(`FFmpeg 压缩包中缺少 ${packageInfo.binaryName}`);
-        }
-        return binaryPath;
-    } catch (error) {
-        rmSync(tempDir, { recursive: true, force: true });
-        throw error;
-    }
-}
-
-export async function installRuntimeAssets(outDir: string, platformKey: string) {
-    const packageInfo = ffmpegPackageForPlatform(platformKey);
-    const targetDir = path.join(outDir, 'runtime-tools');
-    rmSync(targetDir, { recursive: true, force: true });
-    mkdirSync(targetDir, { recursive: true });
-
-    const ffmpegInstallerPkg = resolveFromPackage(
-        SERVER_PACKAGE_JSON,
-        '@ffmpeg-installer/ffmpeg/package.json',
-    );
-    const localPlatformPkg = findFromPackage(
-        ffmpegInstallerPkg,
-        `${packageInfo.packageName}/package.json`,
-    );
-    const localFfmpegPath = localPlatformPkg
-        ? path.join(path.dirname(localPlatformPkg), packageInfo.binaryName)
-        : undefined;
-    const downloaded = localFfmpegPath === undefined;
-    const ffmpegSource = localFfmpegPath ?? (await downloadFfmpeg(outDir, packageInfo));
-    cpSync(ffmpegSource, path.join(targetDir, packageInfo.binaryName));
-    const androidPkg = resolveFromPackage(SERVER_PACKAGE_JSON, '@midscene/android/package.json');
-    cpSync(
-        path.join(path.dirname(androidPkg), 'bin', 'scrcpy-server'),
-        path.join(targetDir, 'scrcpy-server'),
-    );
-    if (downloaded) {
-        rmSync(path.join(outDir, '.runtime-assets-download'), {
-            recursive: true,
-            force: true,
+    async function downloadFfmpeg(
+        outDir: string,
+        packageInfo: ReturnType<typeof ffmpegPackageForPlatform>,
+    ) {
+        const packageDirName = packageInfo.packageName.replace(/^@[^/]+\//, '');
+        const tarballName = `${packageDirName}-${packageInfo.version}.tgz`;
+        const tempDir = path.join(outDir, '.runtime-assets-download');
+        const tarballPath = path.join(tempDir, tarballName);
+        io.remove(tempDir);
+        io.mkdir(tempDir);
+        await io.download({
+            url: `https://registry.npmjs.org/${packageInfo.packageName}/-/${tarballName}`,
+            destination: tarballPath,
+            label: `${packageInfo.packageName}@${packageInfo.version}`,
         });
+        await io.run(['tar', 'xzf', tarballPath, '-C', tempDir, '--strip-components=1']);
+        const binaryPath = path.join(tempDir, packageInfo.binaryName);
+        if (!io.exists(binaryPath))
+            throw new Error(`FFmpeg 压缩包中缺少 ${packageInfo.binaryName}`);
+        return binaryPath;
     }
-    console.log(
-        `运行时资源已安装：${packageInfo.packageName}@${packageInfo.version} + scrcpy-server`,
-    );
+
+    function localFfmpegPath(packageInfo: ReturnType<typeof ffmpegPackageForPlatform>) {
+        const installer = io.resolve(SERVER_PACKAGE_JSON, '@ffmpeg-installer/ffmpeg/package.json');
+        const localPackage = io.find(installer, `${packageInfo.packageName}/package.json`);
+        return localPackage
+            ? path.join(path.dirname(localPackage), packageInfo.binaryName)
+            : undefined;
+    }
+
+    async function installRuntimeAssets(outDir: string, platformKey: string) {
+        const packageInfo = ffmpegPackageForPlatform(platformKey);
+        const targetDir = path.join(outDir, 'runtime-tools');
+        const localPath = localFfmpegPath(packageInfo);
+        io.remove(targetDir);
+        io.mkdir(targetDir);
+        try {
+            const ffmpegSource = localPath ?? (await downloadFfmpeg(outDir, packageInfo));
+            io.copy(ffmpegSource, path.join(targetDir, packageInfo.binaryName));
+            const androidPackage = io.resolve(
+                SERVER_PACKAGE_JSON,
+                '@midscene/android/package.json',
+            );
+            io.copy(
+                path.join(path.dirname(androidPackage), 'bin', 'scrcpy-server'),
+                path.join(targetDir, 'scrcpy-server'),
+            );
+            io.log(
+                `运行时资源已安装：${packageInfo.packageName}@${packageInfo.version} + scrcpy-server`,
+            );
+        } finally {
+            if (!localPath) io.remove(path.join(outDir, '.runtime-assets-download'));
+        }
+    }
+
+    return { ffmpegPackageForPlatform, installRuntimeAssets };
 }
+
+export const { ffmpegPackageForPlatform, installRuntimeAssets } =
+    createRuntimeAssetInstaller(buildIO);

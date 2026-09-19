@@ -108,3 +108,11 @@ describe('cleanupAllRuns', () => {
         expect(dirSizeBytes(path.join(tempDir, 'midscene-report'))).toBe(0);
     });
 });
+
+test('清理不存在的截图和报告目录仍能清空历史记录', () => {
+    insertRun(db, { taskId: null, taskName: '记录', model: '模型' });
+
+    cleanupAllRuns(db, path.join(tempDir, 'missing-shots'), path.join(tempDir, 'missing-reports'));
+
+    expect(countRuns(db)).toBe(0);
+});
