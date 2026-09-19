@@ -3,7 +3,7 @@
 - **问题描述**: 运行收尾时 cleanupOldRuns 抛错会跳过 scheduleNext，已排队任务卡住。
 - **修改方案**: 历史清理失败只记录诊断，广播与调度仍执行；补「清理失败也继续队列」回归。
 - **验证状态**: 已通过
-- **说明**: `bun test app/server/tests/runner-lifecycle.test.ts` 与 `bun run check` 通过。
+- **说明**: 补「收尾广播失败」覆盖 execute 的 `.catch`。本地 `bun run test:quality` 行 3719/3719、函数 1288/1288，CRAP 通过。
 
 # [2026-09-19 19:50:00] Windows 打包产物静态资源 404
 

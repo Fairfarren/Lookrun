@@ -28,6 +28,7 @@ function setup(options: {
     mockAi?: boolean;
     retentionError?: boolean;
     foregroundError?: boolean;
+    broadcastError?: boolean;
 }) {
     // 内存 SQLite 验证真实运行记录和队列状态；浏览器、模型和截图文件均使用桩。
     const db = createDb(':memory:');
@@ -193,11 +194,10 @@ function setup(options: {
             diagnosticReceived.resolve();
         },
         broadcast: (message) => {
-            if (
-                (message as { type: string }).type === 'queue' &&
-                runner.current() === null &&
-                listQueue(db).length === 0
-            )
+            const isQueue = (message as { type: string }).type === 'queue';
+            if (options.broadcastError && isQueue && runner.current() === null)
+                throw new Error('队列广播失败');
+            if (isQueue && runner.current() === null && listQueue(db).length === 0)
                 completed.resolve();
         },
     };
@@ -601,6 +601,18 @@ test('历史清理异常释放当前状态并留下诊断', async () => {
     expect({ current: state.runner.current(), diagnostic: state.diagnostics[0] }).toEqual({
         current: null,
         diagnostic: '运行 #1 收尾失败：历史清理失败',
+    });
+});
+
+test('收尾广播失败仍记录诊断并释放状态', async () => {
+    const state = setup({ broadcastError: true });
+
+    state.start();
+    await state.diagnosticReceived;
+
+    expect({ current: state.runner.current(), diagnostic: state.diagnostics[0] }).toEqual({
+        current: null,
+        diagnostic: '运行 #1 收尾失败：队列广播失败',
     });
 });
 
