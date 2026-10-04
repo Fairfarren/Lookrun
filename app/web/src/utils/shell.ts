@@ -2,21 +2,21 @@ export function sidebarBrand(collapsed: boolean) {
     if (collapsed) {
         return null;
     }
-    return 'AI 自动化测试';
+    return t('AI 自动化测试');
 }
 
 export function collapseButtonLabel(collapsed: boolean) {
     if (collapsed) {
         return null;
     }
-    return '收起';
+    return t('收起');
 }
 
 export function collapseAriaLabel(collapsed: boolean) {
     if (collapsed) {
-        return '展开侧栏';
+        return t('展开侧栏');
     }
-    return '收起侧栏';
+    return t('收起侧栏');
 }
 
 export function selectedMenuClass(selected: boolean) {
@@ -39,3 +39,4 @@ export function menuItemLabel(collapsed: boolean, label: string) {
     }
     return label;
 }
+import { t } from '../i18n';

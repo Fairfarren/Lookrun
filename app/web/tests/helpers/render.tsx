@@ -25,6 +25,7 @@ export function useDomTests() {
     beforeEach(() => {
         document.body.innerHTML = '';
         testBrowser.localStorage.clear();
+        testBrowser.localStorage.setItem('lookrun-language', 'zh-CN');
     });
     afterEach(async () => {
         await act(async () => {

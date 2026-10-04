@@ -21,7 +21,7 @@ test('应用默认进入任务页，导航队列后标题与实际页面一起�
     await click(document.querySelector<HTMLAnchorElement>('a[href="/queues"]')!);
 
     expect({
-        header: document.querySelector('[data-testid="app-header"]')?.textContent,
+        header: document.querySelector('[data-testid="page-title"]')?.textContent,
         content: document.querySelector('[data-testid="app-content"]')?.textContent,
     }).toEqual({ header: '队列', content: expect.stringContaining('队列列表') });
 });

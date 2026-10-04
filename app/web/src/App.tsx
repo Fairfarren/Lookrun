@@ -16,6 +16,7 @@ import { Toaster } from './components/ui/sonner';
 import { Switch } from './components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/tooltip';
 import { cn } from './lib/utils';
+import { setLocale, t, useLocale, type Locale } from './i18n';
 import { AppRoutes } from './routes';
 import {
     APP_SHELL_CLASS,
@@ -66,6 +67,7 @@ function AppContent({
     themeMode: ThemeMode;
     onThemeChange: (themeMode: ThemeMode) => void;
 }) {
+    const locale = useLocale();
     const location = useLocation();
     const [collapsed, setCollapsed] = useState(() => siderCollapsed(window.innerWidth));
     const selectedKey = selectedMenuKey(location.pathname);
@@ -75,6 +77,11 @@ function AppContent({
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
     }, []);
+
+    useEffect(() => {
+        document.documentElement.lang = locale;
+        document.title = t('AI 自动化测试');
+    }, [locale]);
 
     return (
         <ThemeModeContext.Provider value={themeMode}>
@@ -116,23 +123,34 @@ function AppContent({
                     </aside>
                     <div className={MAIN_LAYOUT_CLASS}>
                         <header data-testid='app-header' className={HEADER_CLASS}>
-                            <span>{PAGE_TITLES[selectedKey]}</span>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <span className='inline-flex items-center gap-2'>
-                                        <Sun className='size-4 text-muted-foreground' />
-                                        <Switch
-                                            aria-label='黑夜模式'
-                                            checked={themeMode === 'dark'}
-                                            onCheckedChange={(checked) =>
-                                                onThemeChange(themeFromSwitch(checked))
-                                            }
-                                        />
-                                        <Moon className='size-4 text-muted-foreground' />
-                                    </span>
-                                </TooltipTrigger>
-                                <TooltipContent>{themeSwitchTitle(themeMode)}</TooltipContent>
-                            </Tooltip>
+                            <span data-testid='page-title'>{t(PAGE_TITLES[selectedKey]!)}</span>
+                            <div className='flex items-center gap-3'>
+                                <select
+                                    aria-label={t('语言')}
+                                    value={locale}
+                                    onChange={(event) => setLocale(event.target.value as Locale)}
+                                    className='h-8 rounded-md border border-input bg-background px-2 text-sm'
+                                >
+                                    <option value='en'>English</option>
+                                    <option value='zh-CN'>中文</option>
+                                </select>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className='inline-flex items-center gap-2'>
+                                            <Sun className='size-4 text-muted-foreground' />
+                                            <Switch
+                                                aria-label={t('黑夜模式')}
+                                                checked={themeMode === 'dark'}
+                                                onCheckedChange={(checked) =>
+                                                    onThemeChange(themeFromSwitch(checked))
+                                                }
+                                            />
+                                            <Moon className='size-4 text-muted-foreground' />
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{themeSwitchTitle(themeMode)}</TooltipContent>
+                                </Tooltip>
+                            </div>
                         </header>
                         <main data-testid='app-content' className={CONTENT_CLASS}>
                             <AppRoutes />
@@ -160,7 +178,7 @@ function MenuLink({
     return (
         <Tooltip>
             <TooltipTrigger asChild>{link}</TooltipTrigger>
-            <TooltipContent side='right'>{item.label}</TooltipContent>
+            <TooltipContent side='right'>{t(item.label)}</TooltipContent>
         </Tooltip>
     );
 }
@@ -185,7 +203,7 @@ function NavItemLink({
             )}
         >
             <Icon className='size-4 shrink-0' />
-            {menuItemLabel(collapsed, item.label)}
+            {menuItemLabel(collapsed, t(item.label))}
         </Link>
     );
 }

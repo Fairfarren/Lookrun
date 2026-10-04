@@ -1,0 +1,15 @@
+export const englishMessages: Record<string, string> = {
+    任务: 'Tasks',
+    队列: 'Queues',
+    实时运行: 'Live run',
+    历史记录: 'History',
+    设置: 'Settings',
+    'AI 自动化测试': 'AI automation',
+    黑夜模式: 'Dark mode',
+    切换到亮色模式: 'Switch to light mode',
+    切换到黑夜模式: 'Switch to dark mode',
+    收起: 'Collapse',
+    展开侧栏: 'Expand sidebar',
+    收起侧栏: 'Collapse sidebar',
+    语言: 'Language',
+};
