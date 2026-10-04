@@ -3,8 +3,6 @@ name: 质量与交付检查
 on:
   pull_request:
     branches: [master]
-  push:
-    branches: [master]
 
 permissions:
   contents: read

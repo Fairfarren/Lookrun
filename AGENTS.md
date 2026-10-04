@@ -4,6 +4,12 @@ globs: "*.ts, *.tsx, *.html, *.css, *.js, *.jsx, package.json"
 alwaysApply: false
 ---
 
+## 分支策略
+
+- 禁止直接向 `master` 提交或推送代码。
+- 修改必须在独立分支提交，通过指向 `master` 的 PR 合并。
+- CI 仅监听指向 `master` 的 `pull_request`，合并后不重复运行。
+
 默认使用 Bun，不要使用 Node.js。
 
 - 使用 `bun <file>`，不要使用 `node <file>` 或 `ts-node <file>`
