@@ -1,8 +1,8 @@
 import { runInNewContext } from 'node:vm';
 import { expect, test } from 'bun:test';
-import { existsSync } from 'node:fs';
 import { instrumentSources } from '../scripts/coverage/instrument';
-import { coverageReport, writeCoverageReports } from '../scripts/coverage/report';
+import { coverageReport, coverageReportWriter } from '../scripts/coverage/report';
+import { memoryReportContext } from './helpers/coverage-fixture';
 import type { CoverageMapData } from 'istanbul-lib-coverage';
 
 function execute(source: string, calls: string) {
@@ -205,14 +205,16 @@ test('重复生成报告不会重复累计原始命中次数', () => {
     expect(second).toEqual(first);
 });
 
-test('未传入上下文工厂时仍写出覆盖率报告', () => {
+test('报告写入器通过注入上下文生成 LCOV', () => {
+    const files = new Map<string, string>();
+    const writeReports = coverageReportWriter(memoryReportContext(files));
     const { entries, data } = execute(fixture, 'choose(true); choose(false); unused();');
     const report = coverageReport(
         data,
         entries.map((entry) => entry.coverage),
     );
 
-    writeCoverageReports(report);
+    writeReports(report);
 
-    expect(existsSync('coverage/lcov.info')).toBe(true);
+    expect(files.get('coverage/lcov.info')).toContain('SF:fixture.ts');
 });

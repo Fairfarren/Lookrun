@@ -3,7 +3,7 @@ import {
     type CoverageMapData,
     type FileCoverageData,
 } from 'istanbul-lib-coverage';
-import { createContext } from 'istanbul-lib-report';
+import type { createContext } from 'istanbul-lib-report';
 import { create } from 'istanbul-reports';
 
 function validateRecord(expected: FileCoverageData, actual: FileCoverageData) {
@@ -51,12 +51,11 @@ export function coverageReport(data: CoverageMapData, baseline: FileCoverageData
     return { map, summary: summary.data, files, passed };
 }
 
-export function writeCoverageReports(
-    report: ReturnType<typeof coverageReport>,
-    contextFactory: typeof createContext = createContext,
-) {
-    const context = contextFactory({ dir: 'coverage', coverageMap: report.map });
-    create('lcovonly').execute(context);
-    create('json-summary').execute(context);
-    create('text-summary').execute(context);
+export function coverageReportWriter(contextFactory: typeof createContext) {
+    return (report: ReturnType<typeof coverageReport>) => {
+        const context = contextFactory({ dir: 'coverage', coverageMap: report.map });
+        create('lcovonly').execute(context);
+        create('json-summary').execute(context);
+        create('text-summary').execute(context);
+    };
 }

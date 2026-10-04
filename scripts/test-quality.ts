@@ -2,7 +2,8 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { loadSources } from './crap/sources';
 import { formatCrapReport, scoreFromLcov } from './crap/report';
 import { instrumentSources } from './coverage/instrument';
-import { coverageReport, writeCoverageReports } from './coverage/report';
+import { coverageReport, coverageReportWriter } from './coverage/report';
+import { createContext } from 'istanbul-lib-report';
 import { createCoverageMap, type CoverageMapData } from 'istanbul-lib-coverage';
 import { TEST_GROUPS } from './coverage/test-groups';
 
@@ -13,7 +14,7 @@ const qualityIO = {
     write: Bun.write,
     file: Bun.file,
     spawn: Bun.spawn,
-    writeReports: writeCoverageReports,
+    writeReports: coverageReportWriter(createContext),
     log: console.log,
     process,
 };

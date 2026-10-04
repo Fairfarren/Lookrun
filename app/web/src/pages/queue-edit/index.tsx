@@ -264,7 +264,9 @@ export default function QueueEditPage() {
                     sensors={sensors}
                     collisionDetection={closestCenter}
                     onDragEnd={({ active, over }) => {
-                        setItems((currentItems) => applyDroppedSort(currentItems, over, active));
+                        setItems((currentItems) =>
+                            applyDroppedSort(currentItems, { over, active }),
+                        );
                     }}
                 >
                     <SortableContext
