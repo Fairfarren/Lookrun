@@ -93,6 +93,23 @@ test('test_时间格式_遵循英语选择', () => {
     expect(result).toBe(new Date(date).toLocaleString('en', { hour12: false }));
 });
 
+test.each(['en', 'zh-CN'] as const)('test_队列更新时间_遵循语言选择_%s', async (locale) => {
+    setLocale(locale);
+    const updatedAt = '2026-01-02T13:14:15Z';
+    useHttp(() => ({ items: [{ id: 1, name: '每日回归', updatedAt }] }));
+    await render(
+        <MemoryRouter initialEntries={['/queues']}>
+            <App />
+        </MemoryRouter>,
+    );
+
+    const text = document.querySelector('main')?.textContent;
+
+    expect(text).toContain(
+        `${t('更新于')} ${new Date(updatedAt).toLocaleString(locale, { hour12: false })}`,
+    );
+});
+
 test('test_准备中的运行_保留用户任务名', () => {
     setLocale('en');
 

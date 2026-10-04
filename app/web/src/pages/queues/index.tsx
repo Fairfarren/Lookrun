@@ -3,6 +3,7 @@ import { Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { confirmAction } from '../../components/confirm';
+import { formatTime } from '../../components';
 import { runConfirmedDelete } from '../../utils/confirmed-delete';
 import { BusyButton } from '../../components/busy-button';
 import { notify } from '../../components/notify';
@@ -108,10 +109,7 @@ export default function QueuesPage() {
                             <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
                                 <span className='font-medium'>{queue.name}</span>
                                 <span className='text-sm text-muted-foreground'>
-                                    {t('更新于')}{' '}
-                                    {new Date(queue.updatedAt).toLocaleString('zh-CN', {
-                                        hour12: false,
-                                    })}
+                                    {t('更新于')} {formatTime(queue.updatedAt)}
                                 </span>
                             </div>
                             <div className='flex flex-wrap gap-2'>
