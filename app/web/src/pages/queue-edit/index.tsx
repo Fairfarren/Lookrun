@@ -24,7 +24,7 @@ import { SelectField } from '../../components/select-field';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { errorText } from '../../utils/error-text';
-import { reorderById } from '../../utils/sortable-items';
+import { applyDroppedSort } from '../../utils/sortable-items';
 import { draggingItemStyle } from '../../utils/sortable-style';
 import { api, type ModelBrief, type QueueDefWithItems } from './api';
 import {
@@ -264,10 +264,7 @@ export default function QueueEditPage() {
                     sensors={sensors}
                     collisionDetection={closestCenter}
                     onDragEnd={({ active, over }) => {
-                        if (!over) return;
-                        setItems((currentItems) =>
-                            reorderById(currentItems, String(active.id), String(over.id)),
-                        );
+                        setItems((currentItems) => applyDroppedSort(currentItems, over, active));
                     }}
                 >
                     <SortableContext

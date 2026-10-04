@@ -81,6 +81,35 @@ test('资源返回首页时失败', async () => {
     await expect(checkPackagedHttp(client)).rejects.toThrow('静态资源被错误回退到首页');
 });
 
+test('首页缺少 Content-Type 时按空字符串校验', async () => {
+    const { client } = smokeFixture();
+    const original = client.io.fetch;
+    client.io.fetch = (async (url, init) => {
+        const response = await original(url, init);
+        if (new URL(String(url), client.base).pathname === '/') {
+            return new Response(await response.text(), { status: 200 });
+        }
+        return response;
+    }) as typeof original;
+
+    await expect(checkPackagedHttp(client)).rejects.toThrow('首页 MIME');
+});
+
+test('静态资源缺少 Content-Type 时按空字符串校验', async () => {
+    const { client } = smokeFixture();
+    const original = client.io.fetch;
+    client.io.fetch = (async (url, init) => {
+        const response = await original(url, init);
+        const pathname = new URL(String(url), client.base).pathname;
+        if (pathname.startsWith('/assets/')) {
+            return new Response(await response.arrayBuffer(), { status: 200 });
+        }
+        return response;
+    }) as typeof original;
+
+    await expect(checkPackagedHttp(client)).rejects.toThrow('MIME');
+});
+
 test('页面路由回退内容错误时失败', async () => {
     const { client, state } = smokeFixture();
     state.fallback = '错误页面';

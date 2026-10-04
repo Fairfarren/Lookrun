@@ -255,3 +255,24 @@ test('实时预览按虚拟时钟刷新且停止后清除定时任务', async ()
         published: [],
     });
 });
+
+test('未注入时钟时使用系统定时器并可以停止', async () => {
+    const { startAndroidLivePreview } = await import('../src/services/android-preview');
+    let stopped = false;
+    const stop = startAndroidLivePreview({
+        source: {
+            latest: () => null,
+            decode: async () => [],
+            stop: () => {
+                stopped = true;
+            },
+        },
+        hasViewer: () => false,
+        publish: () => {},
+        onError: () => {},
+    });
+
+    await stop();
+
+    expect(stopped).toBe(true);
+});

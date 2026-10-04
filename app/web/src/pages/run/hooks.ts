@@ -18,6 +18,11 @@ export type WsMessage =
 
 const RECONNECT_DELAY_MS = 2000;
 
+export function websocketUrl(location: { protocol: string; host: string }) {
+    const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+    return `${protocol}://${location.host}/ws`;
+}
+
 // 连接后端 WebSocket，断线自动重连；消息通过 onMessage 回调分发
 export function useWebSocket(onMessage: (message: WsMessage) => void) {
     const handlerRef = useRef(onMessage);
@@ -29,8 +34,8 @@ export function useWebSocket(onMessage: (message: WsMessage) => void) {
         let retryTimer: ReturnType<typeof setTimeout>;
 
         const connect = () => {
-            const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-            ws = new WebSocket(`${protocol}://${location.host}/ws`);
+            ws = new WebSocket(websocketUrl(location));
+
             ws.onmessage = (event) => {
                 try {
                     handlerRef.current(JSON.parse(String(event.data)));

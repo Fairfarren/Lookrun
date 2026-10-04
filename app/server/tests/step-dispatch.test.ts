@@ -234,6 +234,23 @@ test('等待动作使用步骤指定的超时', async () => {
     expect(input).toEqual({ prompt: '加载完成', timeoutMs: 500 });
 });
 
+test('等待动作未指定超时时使用默认值', async () => {
+    let input: unknown;
+    const agent = agentStub({
+        aiWaitFor: async (prompt, options) => {
+            input = { prompt, ...options };
+        },
+    });
+
+    await dispatchLiveStep({
+        agent,
+        step: { action: 'aiWaitFor', params: '加载完成' },
+        sleep: async () => {},
+    });
+
+    expect(input).toEqual({ prompt: '加载完成', timeoutMs: 15_000 });
+});
+
 test('查询动作返回可保存的数据', async () => {
     const agent = agentStub({ aiQuery: async () => ({ count: 3 }) });
 

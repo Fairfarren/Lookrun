@@ -1,4 +1,5 @@
 import { parseDocument } from 'yaml';
+import { errorText } from './error-text';
 
 // 当前支持的 flow 动作，与 Midscene 的 YAML 脚本格式对齐
 export const SUPPORTED_ACTIONS = [
@@ -342,7 +343,7 @@ function parseTask(
 }
 
 function yamlErrorMessage(error: unknown) {
-    return error instanceof Error ? error.message.split('\n')[0] : String(error);
+    return errorText(error).split('\n')[0];
 }
 
 function loadYamlDoc(input: {

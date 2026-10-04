@@ -29,6 +29,7 @@ function setup(options: {
     retentionError?: boolean;
     foregroundError?: boolean;
     broadcastError?: boolean;
+    emptyLocation?: boolean;
 }) {
     // 内存 SQLite 验证真实运行记录和队列状态；浏览器、模型和截图文件均使用桩。
     const db = createDb(':memory:');
@@ -97,7 +98,7 @@ function setup(options: {
             return Buffer.from('设备截图').toString('base64');
         }
         async url() {
-            return 'app.test';
+            return options.emptyLocation ? '' : 'app.test';
         }
         async openFrameSource() {
             if (options.previewFailure) throw new Error('预览不可用');
@@ -426,6 +427,15 @@ test('预览清理失败不会留下运行中状态', async () => {
         status: getRun(state.db, 1)?.status,
         retained: state.resources.retained,
     }).toEqual({ current: null, status: 'success', retained: true });
+});
+
+test('Android 空页面地址记为无地址并完成运行', async () => {
+    const state = setup({ android: true, emptyLocation: true });
+
+    state.start();
+    await state.completed;
+
+    expect(getRun(state.db, 1)?.status).toBe('success');
 });
 
 test('Android运行打开应用并在结束时释放设备与预览', async () => {

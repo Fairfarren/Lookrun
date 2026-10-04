@@ -156,3 +156,10 @@ test('键盘拖拽调整队列顺序，保存结果遵循新顺序', async () =>
         ],
     });
 });
+
+test('无编号路由按新建队列生成条目', async () => {
+    useHttp(({ path }) => initial(path));
+    await renderPage(<QueueEditPage />, { path: '/queues/new', url: '/queues/new' });
+
+    expect(document.querySelector('[data-slot="card-title"]')?.textContent).toContain('新建队列');
+});

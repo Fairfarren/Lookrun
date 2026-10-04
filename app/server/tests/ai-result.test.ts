@@ -72,6 +72,12 @@ describe('extractLastAiResult', () => {
         expect(extractLastAiResult(dump)).toMatchObject({ action: 'aiAssert' });
     });
 
+    test('执行名不是字符串时记为 unknown', () => {
+        expect(
+            extractLastAiResult(JSON.stringify({ executions: [{ name: 1, tasks: [{}] }] })),
+        ).toMatchObject({ action: 'unknown' });
+    });
+
     test('dump 为空或损坏时返回 null', () => {
         expect(extractLastAiResult('not json')).toBeNull();
         expect(extractLastAiResult('{}')).toBeNull();

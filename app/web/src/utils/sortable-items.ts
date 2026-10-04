@@ -1,3 +1,16 @@
+export function dragOverId(over: { id: unknown } | null, active: { id: unknown }) {
+    return String((over ?? active).id);
+}
+
+export function applyDroppedSort<T extends { id: string }>(
+    items: T[],
+    over: { id: unknown } | null,
+    active: { id: unknown },
+) {
+    if (!over) return items;
+    return reorderById(items, String(active.id), String(over.id));
+}
+
 export function reorderById<T extends { id: string }>(
     items: T[],
     activeId: string,

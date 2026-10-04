@@ -1,7 +1,8 @@
 import { runInNewContext } from 'node:vm';
 import { expect, test } from 'bun:test';
+import { existsSync } from 'node:fs';
 import { instrumentSources } from '../scripts/coverage/instrument';
-import { coverageReport } from '../scripts/coverage/report';
+import { coverageReport, writeCoverageReports } from '../scripts/coverage/report';
 import type { CoverageMapData } from 'istanbul-lib-coverage';
 
 function execute(source: string, calls: string) {
@@ -50,6 +51,24 @@ test('所有函数调用但漏掉可执行行仍不通过', () => {
         100,
         66.66,
     ]);
+});
+
+test('漏掉短路分支即使行和函数全覆盖也不通过', () => {
+    const source = `function pick(flag: boolean, fallback: number) {
+    return flag || fallback;
+}`;
+    const { entries, data } = execute(source, 'pick(true, 1);');
+    const report = coverageReport(
+        data,
+        entries.map((entry) => entry.coverage),
+    );
+
+    expect({
+        passed: report.passed,
+        lines: report.summary.lines.pct,
+        functions: report.summary.functions.pct,
+        branches: report.summary.branches.pct,
+    }).toEqual({ passed: false, lines: 100, functions: 100, branches: 50 });
 });
 
 test('删除关键测试会使函数和行覆盖率真实下降', () => {
@@ -184,4 +203,16 @@ test('重复生成报告不会重复累计原始命中次数', () => {
     const second = coverageReport(data, baseline).map.toJSON();
 
     expect(second).toEqual(first);
+});
+
+test('未传入上下文工厂时仍写出覆盖率报告', () => {
+    const { entries, data } = execute(fixture, 'choose(true); choose(false); unused();');
+    const report = coverageReport(
+        data,
+        entries.map((entry) => entry.coverage),
+    );
+
+    writeCoverageReports(report);
+
+    expect(existsSync('coverage/lcov.info')).toBe(true);
 });

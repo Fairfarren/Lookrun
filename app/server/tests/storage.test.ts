@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import type { Database } from 'bun:sqlite';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { countRuns, createDb, insertRun, insertStep } from '../src/db';
@@ -37,6 +37,13 @@ describe('dirSizeBytes', () => {
     test('目录不存在时返回 0', () => {
         expect(dirSizeBytes(path.join(tempDir, 'not-exist'))).toBe(0);
     });
+
+    test('符号链接既不当文件也不当目录累计', () => {
+        writeFile('a/1.jpg', 100);
+        symlinkSync(path.join(tempDir, 'a/1.jpg'), path.join(tempDir, 'a/link.jpg'));
+
+        expect(dirSizeBytes(path.join(tempDir, 'a'))).toBe(100);
+    });
 });
 
 describe('storageStats', () => {
@@ -58,6 +65,18 @@ describe('storageStats', () => {
             stats.screenshotsBytes + stats.reportsBytes + stats.databaseBytes,
         );
         expect(stats.runCount).toBe(1);
+    });
+
+    test('数据库没有 WAL 文件时只统计主库', () => {
+        writeFile('plain.db', 50);
+
+        const stats = storageStats(db, {
+            dbPath: path.join(tempDir, 'plain.db'),
+            screenshotDir: path.join(tempDir, 'missing-shots'),
+            reportDir: path.join(tempDir, 'missing-reports'),
+        });
+
+        expect(stats.databaseBytes).toBe(50);
     });
 });
 

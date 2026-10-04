@@ -13,7 +13,24 @@ import {
     visionRequestError,
     visionResponseContent,
     visionTimeoutMs,
+    toMidsceneModelConfig,
 } from '../src/services/models';
+
+test('没有系列时不写入 Midscene 系列参数', () => {
+    expect(
+        toMidsceneModelConfig({
+            id: 'a',
+            name: '模型',
+            model: 'vision',
+            apiKey: 'key',
+            baseUrl: 'https://model.test',
+        }),
+    ).toEqual({
+        MIDSCENE_MODEL_NAME: 'vision',
+        MIDSCENE_MODEL_API_KEY: 'key',
+        MIDSCENE_MODEL_BASE_URL: 'https://model.test',
+    });
+});
 
 describe('parseModelsConfig', () => {
     test('合法配置：baseUrl 和 apiKey 平铺到每个模型', () => {

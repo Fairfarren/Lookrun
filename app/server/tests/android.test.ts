@@ -219,6 +219,19 @@ describe('resolveAdbPath', () => {
 
         expect(result).toBe('D:\\sdk\\adb.exe');
     });
+
+    test('候选路径都不存在时返回空', () => {
+        expect(
+            resolveAdbPath({
+                platform: 'linux',
+                executableDir: '/app',
+                environmentPath: undefined,
+                sdkRoot: undefined,
+                pathAdb: undefined,
+                exists: () => false,
+            }),
+        ).toBeNull();
+    });
 });
 
 test('开发模式从工作目录检测ADB且回退SDK根目录', async () => {
@@ -249,4 +262,19 @@ test('打包模式优先使用可执行文件旁的ADB', async () => {
     });
 
     expect(result).toBe('/app/platform-tools/adb');
+});
+
+test('Windows 打包程序使用 adb.exe 名称查询 PATH', async () => {
+    const { detectAdbPath } = await import('../src/services/android');
+
+    const result = detectAdbPath({
+        platform: 'win32',
+        execPath: 'C:\\app\\lookrun.exe',
+        cwd: () => 'C:\\workspace',
+        env: {},
+        which: () => 'C:\\platform-tools\\adb.exe',
+        exists: (file) => file === 'C:\\platform-tools\\adb.exe',
+    });
+
+    expect(result).toBe('C:\\platform-tools\\adb.exe');
 });

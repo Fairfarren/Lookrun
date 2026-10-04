@@ -107,6 +107,7 @@ test('标签关联输入框，切换按钮传递状态，分隔线保留语义',
                 启用筛选
             </Toggle>
             <Separator decorative={false} orientation='vertical' />
+            <Separator />
         </>,
     );
 

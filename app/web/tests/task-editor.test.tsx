@@ -184,6 +184,17 @@ test('切换 Android 自动读取设备与应用，编辑应用并检查连接',
     expect(saved?.yaml).toContain('launch: org.example.demo');
 });
 
+test('切换回网页并点已选编辑模式不会改掉当前模式', async () => {
+    stubDelay(800);
+    useHttp(({ path }) => initial(path));
+    await renderPage(<TaskEditPage />, { path: '/tasks/:id', url: '/tasks/1' });
+    await click(button('Android'));
+    await click(button('网页'));
+    await click(button('表单编辑'));
+
+    expect(field('起始页面地址，如 https://h5.example.com')).toBeTruthy();
+});
+
 test.each([
     { response: { ok: false, message: '设备未授权' }, expected: '设备未授权' },
     {

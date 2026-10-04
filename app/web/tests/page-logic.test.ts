@@ -172,6 +172,12 @@ describe('页面逻辑', () => {
         };
         expect(androidDeviceId(form)).toBe('');
         expect(canCheckAndroidDevice(form)).toBe(false);
+        expect(
+            canCheckAndroidDevice({
+                ...form,
+                target: { type: 'android', deviceId: 'dev' },
+            }),
+        ).toBe(true);
         expect(withDefaultAndroidDevice(form, 'dev').target).toEqual({
             type: 'android',
             deviceId: 'dev',

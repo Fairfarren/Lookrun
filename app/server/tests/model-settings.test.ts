@@ -46,3 +46,11 @@ test('拒绝纯空白模型名称', () => {
 test('未配置密钥仍可读取模型并修复', () => {
     expect(publicModelSettings({ ...config(), apiKey: '' }).hasApiKey).toBe(false);
 });
+
+test('非对象配置按空对象读取', () => {
+    expect(publicModelSettings(null)).toEqual({
+        baseUrl: '',
+        hasApiKey: false,
+        models: [],
+    });
+});
