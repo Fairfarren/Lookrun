@@ -1,3 +1,4 @@
+import { t, useLocale } from '../i18n';
 import { Copy } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { notify } from './notify';
@@ -5,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { copyWithNotify } from '@/utils/clipboard';
 
 export function CopyText({ text, children }: { text: string; children?: ReactNode }) {
+    useLocale();
+
     return (
         <span className='inline-flex items-center gap-1 break-all'>
             {children ?? text}
@@ -12,7 +15,7 @@ export function CopyText({ text, children }: { text: string; children?: ReactNod
                 type='button'
                 variant='ghost'
                 size='icon-xs'
-                aria-label='复制'
+                aria-label={t('复制')}
                 onClick={() => {
                     void copyWithNotify({
                         text,

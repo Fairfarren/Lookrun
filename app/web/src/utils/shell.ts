@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+
 export function sidebarBrand(collapsed: boolean) {
     if (collapsed) {
         return null;
@@ -39,4 +41,3 @@ export function menuItemLabel(collapsed: boolean, label: string) {
     }
     return label;
 }
-import { t } from '../i18n';

@@ -159,7 +159,7 @@ test('对话框触发和显式关闭按钮透传交互，页脚关闭选项有�
     await click(button('关闭详情'));
     await click(button('打开详情'));
 
-    await click(button('Close'));
+    await click(button('关闭'));
 
     expect(document.querySelector('[role="dialog"]')).toBeNull();
 });

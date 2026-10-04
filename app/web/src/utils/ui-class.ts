@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 export function scrollBarOrientationClass(orientation: string) {
     if (orientation === 'horizontal') {
         return 'h-2.5 flex-col border-t border-t-transparent';
@@ -58,7 +59,7 @@ export function androidCheckError(message?: string) {
     if (message) {
         return message;
     }
-    return '检查失败';
+    return t('检查失败');
 }
 
 export function launchFieldPlaceholder(

@@ -37,6 +37,7 @@ export function useDomTests() {
         globalThis.WebSocket = originalWebSocket;
         for (const cleanup of cleanupCallbacks.splice(0)) cleanup();
         await testBrowser.happyDOM.abort();
+        testBrowser.localStorage.setItem('lookrun-language', 'zh-CN');
     });
 }
 

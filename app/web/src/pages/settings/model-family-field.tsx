@@ -1,3 +1,4 @@
+import { t, useLocale } from '../../i18n';
 // 与 Midscene 1.10.6 的 MODEL_FAMILY_VALUES 对齐；升级依赖时对照官方文档更新。
 const MODEL_FAMILIES = [
     { value: 'doubao-seed', label: '豆包 Seed', description: '适用于豆包 Seed 系列视觉模型。' },
@@ -84,30 +85,36 @@ export function ModelFamilyField({
     value: string;
     onChange: (value: string) => void;
 }) {
+    useLocale();
+
     const selected = MODEL_FAMILIES.find((family) => family.value === value);
     return (
         <label className='flex min-w-0 flex-col gap-2 text-sm'>
-            模型系列（family，可选）
+            {t('模型系列（family，可选）')}
             <select
                 className='h-9 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50'
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
             >
-                <option value=''>不设置</option>
+                <option value=''>{t('不设置')}</option>
                 {value && !selected && (
-                    <option value={value}>已有配置：{value}（当前版本未支持）</option>
+                    <option value={value}>
+                        {t('已有配置：{p0}（当前版本未支持）', { p0: value })}
+                    </option>
                 )}
                 {MODEL_FAMILIES.map((family) => (
                     <option key={family.value} value={family.value}>
-                        {family.label}（{family.value}）
+                        {t(family.label)} ({family.value})
                     </option>
                 ))}
             </select>
             <span className='text-muted-foreground'>
-                {selected?.description ??
-                    (value
-                        ? '此值不在当前版本支持列表中，请重新选择对应系列。'
-                        : '可暂不设置；使用「自由指令」前必须选择实际模型所属系列。')}
+                {t(
+                    selected?.description ??
+                        (value
+                            ? '此值不在当前版本支持列表中，请重新选择对应系列。'
+                            : '可暂不设置；使用「自由指令」前必须选择实际模型所属系列。'),
+                )}
             </span>
         </label>
     );

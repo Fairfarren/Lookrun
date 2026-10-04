@@ -1,3 +1,5 @@
+import { t, useLocale } from '../../i18n';
+import { translateError } from '../../i18n/errors';
 import { ModelSettingsEditor } from './model-settings';
 import { CheckCircle2, FlaskConical, Plus, Trash2, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -32,18 +34,22 @@ interface VariableRow {
 }
 
 function CheckingHint({ checking }: { checking: boolean }) {
+    useLocale();
+
     if (!checking) {
         return null;
     }
     return (
         <div className='flex items-center gap-2 text-sm text-muted-foreground'>
             <LoadingBlock className='py-0' />
-            正在向模型发送测试截图，验证能否返回元素坐标，可能需要几十秒...
+            {t('正在向模型发送测试截图，验证能否返回元素坐标，可能需要几十秒...')}
         </div>
     );
 }
 
 function CheckResultIcon({ ok }: { ok: boolean }) {
+    useLocale();
+
     if (ok) {
         return <CheckCircle2 className='size-4' />;
     }
@@ -55,6 +61,8 @@ function CheckResultAlert({
 }: {
     checkResult: { ok: boolean; message: string } | null;
 }) {
+    useLocale();
+
     if (!checkResult) {
         return null;
     }
@@ -62,42 +70,49 @@ function CheckResultAlert({
         <Alert variant={modelCheckVariant(checkResult.ok)}>
             <AlertTitle className='flex items-center gap-2'>
                 <CheckResultIcon ok={checkResult.ok} />
-                {checkResult.message}
+                {translateError(checkResult.message)}
             </AlertTitle>
         </Alert>
     );
 }
 
 function EmptyVariablesHint({ count }: { count: number }) {
+    useLocale();
+
     if (count > 0) {
         return null;
     }
-    return <p className='text-sm text-muted-foreground'>还没有变量</p>;
+    return <p className='text-sm text-muted-foreground'>{t('还没有变量')}</p>;
 }
 
 function StorageBody({ storage }: { storage: StorageStats | null }) {
+    useLocale();
+
     if (!storage) {
         return <LoadingBlock className='py-4' />;
     }
     return (
         <dl className='grid grid-cols-2 gap-x-6 gap-y-3 text-sm'>
             <div>
-                <dt className='text-muted-foreground'>步骤截图</dt>
+                <dt className='text-muted-foreground'>{t('步骤截图')}</dt>
                 <dd>{formatBytes(storage.screenshotsBytes)}</dd>
             </div>
             <div>
-                <dt className='text-muted-foreground'>Midscene 报告</dt>
+                <dt className='text-muted-foreground'>{t('Midscene 报告')}</dt>
                 <dd>{formatBytes(storage.reportsBytes)}</dd>
             </div>
             <div>
-                <dt className='text-muted-foreground'>数据库</dt>
+                <dt className='text-muted-foreground'>{t('数据库')}</dt>
                 <dd>{formatBytes(storage.databaseBytes)}</dd>
             </div>
             <div>
-                <dt className='text-muted-foreground'>总计</dt>
+                <dt className='text-muted-foreground'>{t('总计')}</dt>
                 <dd>
                     <span className='font-medium'>{formatBytes(storage.totalBytes)}</span>
-                    <span className='text-muted-foreground'> （{storage.runCount} 次运行）</span>
+                    <span className='text-muted-foreground'>
+                        {' '}
+                        {t('（{p0} 次运行）', { p0: storage.runCount })}
+                    </span>
                 </dd>
             </div>
         </dl>
@@ -105,6 +120,8 @@ function StorageBody({ storage }: { storage: StorageStats | null }) {
 }
 
 function DetectedPath({ path, missingTitle }: { path: string | null; missingTitle: string }) {
+    useLocale();
+
     if (!path) {
         return (
             <Alert variant='destructive'>
@@ -114,24 +131,28 @@ function DetectedPath({ path, missingTitle }: { path: string | null; missingTitl
     }
     return (
         <div className='flex flex-wrap items-center gap-2'>
-            <Badge variant='success'>已检测到</Badge>
+            <Badge variant='success'>{t('已检测到')}</Badge>
             <CopyText text={path} />
         </div>
     );
 }
 
 function SystemBody({ system }: { system: SystemInfo | null }) {
+    useLocale();
+
     if (!system) {
         return <LoadingBlock className='py-4' />;
     }
     return (
         <dl className='flex flex-col gap-4 text-sm'>
             <div>
-                <dt className='mb-1 text-muted-foreground'>Chrome 浏览器</dt>
+                <dt className='mb-1 text-muted-foreground'>{t('Chrome 浏览器')}</dt>
                 <dd>
                     <DetectedPath
                         path={system.chromePath}
-                        missingTitle='未检测到系统 Chrome，请先安装 Google Chrome：https://www.google.com/chrome/'
+                        missingTitle={t(
+                            '未检测到系统 Chrome，请先安装 Google Chrome：https://www.google.com/chrome/',
+                        )}
                     />
                 </dd>
             </div>
@@ -140,16 +161,16 @@ function SystemBody({ system }: { system: SystemInfo | null }) {
                 <dd>
                     <DetectedPath
                         path={system.adbPath}
-                        missingTitle='未检测到 ADB，请使用包含 platform-tools 的完整程序包'
+                        missingTitle={t('未检测到 ADB，请使用包含 platform-tools 的完整程序包')}
                     />
                 </dd>
             </div>
             <div>
-                <dt className='mb-1 text-muted-foreground'>数据目录</dt>
+                <dt className='mb-1 text-muted-foreground'>{t('数据目录')}</dt>
                 <dd>{system.dataDir}</dd>
             </div>
             <div>
-                <dt className='mb-1 text-muted-foreground'>版本</dt>
+                <dt className='mb-1 text-muted-foreground'>{t('版本')}</dt>
                 <dd>{system.version}</dd>
             </div>
         </dl>
@@ -157,6 +178,8 @@ function SystemBody({ system }: { system: SystemInfo | null }) {
 }
 
 export default function SettingsPage() {
+    useLocale();
+
     const [models, setModels] = useState<ModelBrief[]>([]);
     const [selectedModel, setSelectedModel] = useState<string>();
     const [checkResult, setCheckResult] = useState<{
@@ -201,7 +224,10 @@ export default function SettingsPage() {
         try {
             const result = await api.cleanupStorage();
             notify.success(
-                `已清空 ${result.deletedRuns} 次运行，释放 ${formatBytes(result.freedBytes)}`,
+                t('已清空 {p0} 次运行，释放 {p1}', {
+                    p0: result.deletedRuns,
+                    p1: formatBytes(result.freedBytes),
+                }),
             );
             loadStorage();
         } catch (error) {
@@ -213,9 +239,11 @@ export default function SettingsPage() {
 
     const confirmCleanup = async () => {
         const ok = await confirmAction({
-            title: '清空全部历史记录？',
-            description: '将删除所有运行记录、步骤日志和截图，任务与变量不受影响。此操作不可恢复。',
-            confirmLabel: '全部清空',
+            title: t('清空全部历史记录？'),
+            description: t(
+                '将删除所有运行记录、步骤日志和截图，任务与变量不受影响。此操作不可恢复。',
+            ),
+            confirmLabel: t('全部清空'),
             destructive: true,
         });
         if (!ok) {
@@ -230,7 +258,7 @@ export default function SettingsPage() {
         setCheckResult(null);
         try {
             await api.selectModel(id);
-            notify.success('默认模型已更新');
+            notify.success(t('默认模型已更新'));
         } catch (error) {
             notify.error(errorText(error));
         }
@@ -258,7 +286,7 @@ export default function SettingsPage() {
     const persistVariables = async () => {
         try {
             await api.saveVariables(variablesToRecord(variables));
-            notify.success('变量已保存');
+            notify.success(t('变量已保存'));
         } catch (error) {
             notify.error(errorText(error));
         } finally {
@@ -268,7 +296,7 @@ export default function SettingsPage() {
 
     const saveVariables = async () => {
         if (emptyVariableName(variables)) {
-            notify.warning('变量名不能为空');
+            notify.warning(t('变量名不能为空'));
             return;
         }
         setSavingVariables(true);
@@ -281,11 +309,11 @@ export default function SettingsPage() {
 
     return (
         <div className='flex flex-col gap-4'>
-            <PageCard title='AI 模型'>
+            <PageCard title={t('AI 模型')}>
                 <div className='flex flex-col gap-4'>
                     <ModelSettingsEditor onSaved={refreshModels} />
                     <div className='flex flex-wrap items-center gap-2'>
-                        <span>默认模型：</span>
+                        <span>{t('默认模型：')}</span>
                         <SelectField
                             className='w-full max-w-full sm:w-[320px]'
                             value={selectedModel}
@@ -301,20 +329,21 @@ export default function SettingsPage() {
                             onClick={() => void checkModel()}
                         >
                             <FlaskConical />
-                            视觉自检
+                            {t('视觉自检')}
                         </BusyButton>
                     </div>
                     <CheckingHint checking={checking} />
                     <CheckResultAlert checkResult={checkResult} />
                     <p className='text-sm text-muted-foreground'>
-                        自检不通过的模型不要用于 UI 自动化。「自由指令」动作需要模型带 family
-                        配置，没有 family 的模型在启动运行时会被直接拦截并提示。
+                        {t(
+                            '自检不通过的模型不要用于 UI 自动化。「自由指令」动作需要模型带 family 配置，没有 family 的模型在启动运行时会被直接拦截并提示。',
+                        )}
                     </p>
                 </div>
             </PageCard>
 
             <PageCard
-                title='变量'
+                title={t('变量')}
                 extra={
                     <div className='flex gap-2'>
                         <Button
@@ -322,17 +351,18 @@ export default function SettingsPage() {
                             onClick={() => setVariables((prev) => [...prev, emptyVariableRow()])}
                         >
                             <Plus />
-                            添加变量
+                            {t('添加变量')}
                         </Button>
                         <BusyButton busy={savingVariables} onClick={() => void saveVariables()}>
-                            保存变量
+                            {t('保存变量')}
                         </BusyButton>
                     </div>
                 }
             >
                 <p className='mb-3 text-sm text-muted-foreground'>
-                    YAML 脚本里用 {'{{变量名}}'} 引用，例如账号密码（USERNAME /
-                    PASSWORD），避免明文写在任务里。
+                    {t(
+                        'YAML 脚本里用 {{变量名}} 引用，例如账号密码（USERNAME / PASSWORD），避免明文写在任务里。',
+                    )}
                 </p>
                 <div className='flex flex-col gap-2'>
                     <EmptyVariablesHint count={variables.length} />
@@ -340,20 +370,20 @@ export default function SettingsPage() {
                         <div key={index} className='flex flex-wrap gap-2'>
                             <Input
                                 className='w-[240px]'
-                                placeholder='变量名，如 USERNAME'
+                                placeholder={t('变量名，如 USERNAME')}
                                 value={row.key}
                                 onChange={(e) => updateRow(index, { key: e.target.value })}
                             />
                             <Input
                                 className='w-[360px]'
-                                placeholder='变量值'
+                                placeholder={t('变量值')}
                                 value={row.value}
                                 onChange={(e) => updateRow(index, { value: e.target.value })}
                             />
                             <Button
                                 variant='destructive'
                                 size='icon'
-                                aria-label='删除变量'
+                                aria-label={t('删除变量')}
                                 onClick={() =>
                                     setVariables((prev) => prev.filter((_, i) => i !== index))
                                 }
@@ -366,24 +396,24 @@ export default function SettingsPage() {
             </PageCard>
 
             <PageCard
-                title='存储占用'
+                title={t('存储占用')}
                 extra={
                     <BusyButton
                         variant='destructive'
                         busy={cleaning}
                         onClick={() => void confirmCleanup()}
                     >
-                        清空历史记录
+                        {t('清空历史记录')}
                     </BusyButton>
                 }
             >
                 <StorageBody storage={storage} />
                 <p className='mt-3 text-sm text-muted-foreground'>
-                    系统会自动保留最近 100 次运行并清理更早的；也可以手动清空全部历史。
+                    {t('系统会自动保留最近 100 次运行并清理更早的；也可以手动清空全部历史。')}
                 </p>
             </PageCard>
 
-            <PageCard title='系统状态'>
+            <PageCard title={t('系统状态')}>
                 <SystemBody system={system} />
             </PageCard>
         </div>

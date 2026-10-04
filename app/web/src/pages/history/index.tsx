@@ -1,3 +1,5 @@
+import { t, useLocale } from '../../i18n';
+import { translateError } from '../../i18n/errors';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { RunRecord } from '@lookrun/shared';
@@ -19,6 +21,8 @@ import { api } from './api';
 const PAGE_SIZE = 20;
 
 export default function HistoryPage() {
+    useLocale();
+
     const [runs, setRuns] = useState<RunRecord[]>([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -38,10 +42,10 @@ export default function HistoryPage() {
     const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
     return (
-        <PageCard title='历史记录'>
+        <PageCard title={t('历史记录')}>
             {loading ? <LoadingBlock /> : <HistoryTable runs={runs} />}
             <div className='mt-4 flex items-center justify-between text-sm text-muted-foreground'>
-                <span>{`共 ${total} 次运行`}</span>
+                <span>{t('共 {p0} 次运行', { p0: total })}</span>
                 <div className='flex items-center gap-2'>
                     <Button
                         variant='outline'
@@ -49,7 +53,7 @@ export default function HistoryPage() {
                         disabled={page <= 1}
                         onClick={() => setPage((current) => current - 1)}
                     >
-                        上一页
+                        {t('上一页')}
                     </Button>
                     <span>
                         {page} / {pageCount}
@@ -60,7 +64,7 @@ export default function HistoryPage() {
                         disabled={page >= pageCount}
                         onClick={() => setPage((current) => current + 1)}
                     >
-                        下一页
+                        {t('下一页')}
                     </Button>
                 </div>
             </div>
@@ -69,18 +73,20 @@ export default function HistoryPage() {
 }
 
 function HistoryTable({ runs }: { runs: RunRecord[] }) {
+    useLocale();
+
     return (
         <Table>
             <TableHeader>
                 <TableRow>
                     <TableHead className='w-[70px]'>ID</TableHead>
-                    <TableHead className='w-[200px]'>任务</TableHead>
-                    <TableHead className='w-[100px]'>状态</TableHead>
-                    <TableHead className='w-[180px]'>模型</TableHead>
-                    <TableHead className='w-[180px]'>开始时间</TableHead>
-                    <TableHead className='w-[100px]'>耗时</TableHead>
+                    <TableHead className='w-[200px]'>{t('任务')}</TableHead>
+                    <TableHead className='w-[100px]'>{t('状态')}</TableHead>
+                    <TableHead className='w-[180px]'>{t('模型')}</TableHead>
+                    <TableHead className='w-[180px]'>{t('开始时间')}</TableHead>
+                    <TableHead className='w-[100px]'>{t('耗时')}</TableHead>
                     <TableHead className='w-[120px]'>Token</TableHead>
-                    <TableHead>错误</TableHead>
+                    <TableHead>{t('错误')}</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -107,7 +113,7 @@ function HistoryTable({ runs }: { runs: RunRecord[] }) {
                                 : '-'}
                         </TableCell>
                         <TableCell className='max-w-[240px] truncate text-destructive'>
-                            {record.error}
+                            {record.error && translateError(record.error)}
                         </TableCell>
                     </TableRow>
                 ))}

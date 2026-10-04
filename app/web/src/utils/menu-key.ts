@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+
 const MENU_PATHS = ['/tasks', '/queues', '/run', '/history', '/settings'];
 
 export function selectedMenuKey(pathname: string) {
@@ -21,4 +23,3 @@ export function themeFromSwitch(checked: boolean) {
     }
     return 'light';
 }
-import { t } from '../i18n';

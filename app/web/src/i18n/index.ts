@@ -34,7 +34,7 @@ function subscribe(onChange: () => void) {
 }
 
 export function useLocale() {
-    return useSyncExternalStore(subscribe, getLocale);
+    return useSyncExternalStore(subscribe, getLocale, getLocale);
 }
 
 export function t(message: string, values?: Record<string, string | number>) {

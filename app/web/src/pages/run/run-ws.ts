@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import type { RunStepRecord } from '@lookrun/shared';
 import type { CurrentRunState, QueueItem } from '../../api/types';
 import type { WsMessage } from './hooks';
@@ -137,9 +138,9 @@ export function queueAddMissing(taskId: number | undefined, modelId: string | un
 
 export function startRunSuccessText(queued: boolean) {
     if (queued) {
-        return '已加入队列';
+        return t('已加入队列');
     }
-    return '已开始运行';
+    return t('已开始运行');
 }
 
 export function pendingQueueItems(items: QueueItem[]) {
@@ -148,14 +149,14 @@ export function pendingQueueItems(items: QueueItem[]) {
 
 export function queueCardTitle(pendingCount: number) {
     if (pendingCount > 0) {
-        return `任务队列（${pendingCount} 个待执行）`;
+        return t('任务队列（{p0} 个待执行）', { p0: pendingCount });
     }
-    return '任务队列';
+    return t('任务队列');
 }
 
 export function stepLogPlaceholder(running: boolean) {
     if (running) {
-        return '准备中...';
+        return t('准备中...');
     }
-    return '暂无步骤';
+    return t('暂无步骤');
 }

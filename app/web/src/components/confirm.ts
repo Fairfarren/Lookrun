@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 export interface ConfirmRequest {
     title: string;
     description: string;
@@ -15,7 +16,7 @@ export function setConfirmHandler(handler: ConfirmHandler | null) {
 
 export function confirmAction(request: ConfirmRequest) {
     if (!confirmHandler) {
-        throw new Error('确认框尚未挂载');
+        throw new Error(t('确认框尚未挂载'));
     }
     return confirmHandler(request);
 }

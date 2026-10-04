@@ -1,3 +1,4 @@
+import { t, useLocale } from '../../i18n';
 import {
     DndContext,
     KeyboardSensor,
@@ -61,6 +62,8 @@ function SortableTaskItem({
     onUpdate,
     onDelete,
 }: SortableTaskItemProps) {
+    useLocale();
+
     const {
         attributes,
         listeners,
@@ -88,8 +91,8 @@ function SortableTaskItem({
                 type='button'
                 variant='ghost'
                 size='icon-sm'
-                aria-label={`拖拽第 ${index + 1} 个任务进行排序`}
-                title='拖拽排序'
+                aria-label={t('拖拽第 {p0} 个任务进行排序', { p0: index + 1 })}
+                title={t('拖拽排序')}
                 style={{ cursor: draggingItemStyle(isDragging).cursor, touchAction: 'none' }}
                 {...attributes}
                 {...listeners}
@@ -99,14 +102,14 @@ function SortableTaskItem({
             <span className='text-muted-foreground'>{`${index + 1}.`}</span>
             <SelectField
                 className='w-[200px]'
-                placeholder='选择任务'
+                placeholder={t('选择任务')}
                 value={item.taskId === undefined ? undefined : String(item.taskId)}
                 onValueChange={(taskId) => onUpdate({ taskId: Number(taskId) })}
                 options={tasks.map((task) => ({ label: task.name, value: String(task.id) }))}
             />
             <SelectField
                 className='w-[180px]'
-                placeholder='选择模型'
+                placeholder={t('选择模型')}
                 value={item.modelId}
                 onValueChange={(modelId) => onUpdate({ modelId })}
                 options={models.map((model) => ({
@@ -118,7 +121,7 @@ function SortableTaskItem({
                 size='icon-sm'
                 variant='destructive'
                 disabled={!canDelete}
-                aria-label='删除任务项'
+                aria-label={t('删除任务项')}
                 onClick={onDelete}
             >
                 <Trash2 />
@@ -128,6 +131,8 @@ function SortableTaskItem({
 }
 
 export default function QueueEditPage() {
+    useLocale();
+
     const { id } = useParams();
     const isNew = isNewQueueRoute(id);
     const navigate = useNavigate();
@@ -174,7 +179,7 @@ export default function QueueEditPage() {
     }) => {
         try {
             await writeQueue(payload);
-            notify.success('已保存');
+            notify.success(t('已保存'));
             navigate('/queues');
         } catch (error) {
             notify.error(errorText(error));
@@ -241,25 +246,25 @@ export default function QueueEditPage() {
             extra={
                 <div className='flex gap-2'>
                     <Button variant='outline' onClick={() => navigate('/queues')}>
-                        返回
+                        {t('返回')}
                     </Button>
                     <BusyButton busy={saving} onClick={() => void save()}>
-                        保存
+                        {t('保存')}
                     </BusyButton>
                 </div>
             }
         >
             <div className='flex flex-col gap-4'>
                 <div>
-                    <div className='font-medium'>队列名</div>
+                    <div className='font-medium'>{t('队列名')}</div>
                     <Input
                         className='mt-2'
-                        placeholder='例如：每日冒烟测试'
+                        placeholder={t('例如：每日冒烟测试')}
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                     />
                 </div>
-                <div className='font-medium'>任务列表（按顺序串行执行）</div>
+                <div className='font-medium'>{t('任务列表（按顺序串行执行）')}</div>
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -304,7 +309,7 @@ export default function QueueEditPage() {
                     }
                 >
                     <Plus />
-                    添加任务
+                    {t('添加任务')}
                 </Button>
             </div>
         </PageCard>
