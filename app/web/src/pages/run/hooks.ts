@@ -35,7 +35,6 @@ export function useWebSocket(onMessage: (message: WsMessage) => void) {
 
         const connect = () => {
             ws = new WebSocket(websocketUrl(location));
-
             ws.onmessage = (event) => {
                 try {
                     handlerRef.current(JSON.parse(String(event.data)));

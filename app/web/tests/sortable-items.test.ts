@@ -16,13 +16,19 @@ test('有放置目标时使用目标编号', () => {
 });
 
 test('没有放置目标时保持原顺序', () => {
-    expect(applyDroppedSort(items, { over: null, active: { id: 'a' } })).toBe(items);
+    const current = [{ id: 'a' }];
+
+    const result = applyDroppedSort(current, { over: null, active: { id: 'a' } });
+
+    expect(result).toBe(current);
 });
 
 test('有放置目标时按编号重排', () => {
-    expect(
-        applyDroppedSort(items, { over: { id: 'c' }, active: { id: 'a' } }).map((item) => item.id),
-    ).toEqual(['b', 'c', 'a']);
+    const current = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+
+    const result = applyDroppedSort(current, { over: { id: 'c' }, active: { id: 'a' } });
+
+    expect(result.map((item) => item.id)).toEqual(['b', 'c', 'a']);
 });
 
 describe('任务拖拽排序', () => {

@@ -435,7 +435,7 @@ test('Android 空页面地址记为无地址并完成运行', async () => {
     state.start();
     await state.completed;
 
-    expect(getRun(state.db, 1)?.status).toBe('success');
+    expect(listRunSteps(state.db, 1).map((step) => step.url)).toEqual([null, null]);
 });
 
 test('Android运行打开应用并在结束时释放设备与预览', async () => {

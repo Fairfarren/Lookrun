@@ -71,6 +71,24 @@ test('漏掉短路分支即使行和函数全覆盖也不通过', () => {
     }).toEqual({ passed: false, lines: 100, functions: 100, branches: 50 });
 });
 
+test('同一行漏掉语句即使行和函数全覆盖也不通过', () => {
+    const source = 'function pick() { return 1; const unused = 2; }';
+    const { entries, data } = execute(source, 'pick();');
+
+    const report = coverageReport(
+        data,
+        entries.map((entry) => entry.coverage),
+    );
+
+    expect({
+        passed: report.passed,
+        lines: report.summary.lines.pct,
+        functions: report.summary.functions.pct,
+        statements: report.summary.statements.pct,
+        branches: report.summary.branches.pct,
+    }).toEqual({ passed: false, lines: 100, functions: 100, statements: 50, branches: 100 });
+});
+
 test('删除关键测试会使函数和行覆盖率真实下降', () => {
     const full = execute(fixture, 'choose(true); choose(false); unused();');
     const reduced = execute(fixture, 'choose(true);');

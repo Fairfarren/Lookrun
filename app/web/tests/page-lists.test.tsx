@@ -273,7 +273,7 @@ test('历史记录无用量时显示横杠', async () => {
     }));
     await renderPage(<HistoryPage />, { path: '/history', url: '/history' });
 
-    expect(document.body.textContent).toContain('-');
+    expect(document.querySelector('tbody tr td:nth-child(7)')?.textContent).toBe('-');
 });
 
 test('历史记录请求失败提示错误并展示空列表', async () => {
