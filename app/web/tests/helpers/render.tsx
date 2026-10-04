@@ -24,6 +24,11 @@ export function latestNotice() {
 export function useDomTests() {
     beforeEach(() => {
         document.body.innerHTML = '';
+        Object.defineProperty(window, 'innerWidth', {
+            configurable: true,
+            writable: true,
+            value: 1280,
+        });
         testBrowser.localStorage.clear();
         testBrowser.localStorage.setItem('lookrun-language', 'zh-CN');
     });
