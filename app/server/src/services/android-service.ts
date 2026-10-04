@@ -18,19 +18,6 @@ interface AdbCommandInput {
     args: string[];
 }
 
-async function runAdbCommand(input: AdbCommandInput) {
-    const subprocess = Bun.spawn([requireAdbPath(), '-s', input.deviceId, ...input.args], {
-        stdout: 'pipe',
-        stderr: 'pipe',
-    });
-    const [exitCode, stdout, stderr] = await Promise.all([
-        subprocess.exited,
-        new Response(subprocess.stdout).text(),
-        new Response(subprocess.stderr).text(),
-    ]);
-    return assertAdbSuccess({ exitCode, stdout, stderr });
-}
-
 export function adbFailureMessage(stderr: string, stdout: string) {
     if (stderr.trim()) {
         return stderr.trim();
@@ -48,87 +35,125 @@ export function assertAdbSuccess(input: { exitCode: number; stdout: string; stde
     return input.stdout;
 }
 
-export function createDeviceAndroidAppLauncher(input: {
-    deviceId: string;
-    directLaunch: (target: string) => Promise<unknown>;
-}) {
-    let screenSize: ReturnType<typeof parseAndroidScreenSize> | null = null;
-    const run = (args: string[]) => runAdbCommand({ deviceId: input.deviceId, args });
-    const getScreenSize = async () => {
-        screenSize ??= parseAndroidScreenSize(await run(['shell', 'wm', 'size']));
-        return screenSize;
-    };
-    const swipeUp = async () => {
-        const { width, height } = await getScreenSize();
-        await run([
-            'shell',
-            'input',
-            'swipe',
-            String(Math.round(width / 2)),
-            String(Math.round(height * 0.85)),
-            String(Math.round(width / 2)),
-            String(Math.round(height * 0.25)),
-            '300',
+const androidIo = {
+    detectAdbPath,
+    getConnectedDevicesWithDetails,
+    spawn: Bun.spawn,
+    sleep: Bun.sleep,
+};
+
+export function createAndroidService(io: typeof androidIo) {
+    async function runAdbCommand(input: AdbCommandInput) {
+        const subprocess = io.spawn([requireAdbPath(), '-s', input.deviceId, ...input.args], {
+            stdout: 'pipe',
+            stderr: 'pipe',
+        });
+        const [exitCode, stdout, stderr] = await Promise.all([
+            subprocess.exited,
+            new Response(subprocess.stdout).text(),
+            new Response(subprocess.stderr).text(),
         ]);
-    };
-
-    return createAndroidAppLauncher({
-        directLaunch: input.directLaunch,
-        prepareAppList: async () => {
-            await run(['shell', 'input', 'keyevent', 'KEYCODE_HOME']);
-            await Bun.sleep(APP_LIST_OPEN_DELAY_MS);
-            await swipeUp();
-            await Bun.sleep(APP_LIST_OPEN_DELAY_MS);
-        },
-        readUi: async () => {
-            await run(['shell', 'uiautomator', 'dump', APP_LIST_UI_PATH]);
-            return run(['exec-out', 'cat', APP_LIST_UI_PATH]);
-        },
-        scrollAppList: async () => {
-            await swipeUp();
-            await Bun.sleep(APP_LIST_SCROLL_DELAY_MS);
-        },
-        tap: ({ x, y }) => run(['shell', 'input', 'tap', String(x), String(y)]),
-        waitAfterTap: () => Bun.sleep(APP_OPEN_DELAY_MS),
-    });
-}
-
-function requireAdbPath() {
-    const adbPath = detectAdbPath();
-    if (!adbPath) {
-        throw new Error('未找到 ADB，请使用包含 platform-tools 的完整程序包');
+        return assertAdbSuccess({ exitCode, stdout, stderr });
     }
-    return adbPath;
-}
 
-const listFromProvider = createAndroidDeviceLister(async () => {
-    return getConnectedDevicesWithDetails({ androidAdbPath: requireAdbPath() });
-});
+    function createDeviceAndroidAppLauncher(input: {
+        deviceId: string;
+        directLaunch: (target: string) => Promise<unknown>;
+    }) {
+        let screenSize: ReturnType<typeof parseAndroidScreenSize> | null = null;
+        const run = (args: string[]) => runAdbCommand({ deviceId: input.deviceId, args });
+        const getScreenSize = async () => {
+            screenSize ??= parseAndroidScreenSize(await run(['shell', 'wm', 'size']));
+            return screenSize;
+        };
+        const swipeUp = async () => {
+            const { width, height } = await getScreenSize();
+            await run([
+                'shell',
+                'input',
+                'swipe',
+                String(Math.round(width / 2)),
+                String(Math.round(height * 0.85)),
+                String(Math.round(width / 2)),
+                String(Math.round(height * 0.25)),
+                '300',
+            ]);
+        };
 
-export async function listAndroidDevices() {
-    return listFromProvider();
-}
+        return createAndroidAppLauncher({
+            directLaunch: input.directLaunch,
+            prepareAppList: async () => {
+                await run(['shell', 'input', 'keyevent', 'KEYCODE_HOME']);
+                await io.sleep(APP_LIST_OPEN_DELAY_MS);
+                await swipeUp();
+                await io.sleep(APP_LIST_OPEN_DELAY_MS);
+            },
+            readUi: async () => {
+                await run(['shell', 'uiautomator', 'dump', APP_LIST_UI_PATH]);
+                return run(['exec-out', 'cat', APP_LIST_UI_PATH]);
+            },
+            scrollAppList: async () => {
+                await swipeUp();
+                await io.sleep(APP_LIST_SCROLL_DELAY_MS);
+            },
+            tap: ({ x, y }) => run(['shell', 'input', 'tap', String(x), String(y)]),
+            waitAfterTap: () => io.sleep(APP_OPEN_DELAY_MS),
+        });
+    }
 
-export async function listAndroidApps(deviceId: string) {
-    const output = await runAdbCommand({
-        deviceId,
-        args: [
-            'shell',
-            'cmd',
-            'package',
-            'query-activities',
-            '--components',
-            '-a',
-            'android.intent.action.MAIN',
-            '-c',
-            'android.intent.category.LAUNCHER',
-        ],
+    function requireAdbPath() {
+        const adbPath = io.detectAdbPath();
+        if (!adbPath) {
+            throw new Error('未找到 ADB，请使用包含 platform-tools 的完整程序包');
+        }
+        return adbPath;
+    }
+
+    const listFromProvider = createAndroidDeviceLister(async () => {
+        return io.getConnectedDevicesWithDetails({ androidAdbPath: requireAdbPath() });
     });
-    return parseAndroidLauncherPackages(output);
+
+    async function listAndroidDevices() {
+        return listFromProvider();
+    }
+
+    async function listAndroidApps(deviceId: string) {
+        const output = await runAdbCommand({
+            deviceId,
+            args: [
+                'shell',
+                'cmd',
+                'package',
+                'query-activities',
+                '--components',
+                '-a',
+                'android.intent.action.MAIN',
+                '-c',
+                'android.intent.category.LAUNCHER',
+            ],
+        });
+        return parseAndroidLauncherPackages(output);
+    }
+
+    const checkAndroidDevice = createAndroidDeviceChecker(listAndroidDevices);
+
+    function androidAdbPath() {
+        return requireAdbPath();
+    }
+
+    return {
+        createDeviceAndroidAppLauncher,
+        listAndroidDevices,
+        listAndroidApps,
+        checkAndroidDevice,
+        androidAdbPath,
+    };
 }
 
-export const checkAndroidDevice = createAndroidDeviceChecker(listAndroidDevices);
-
-export function androidAdbPath() {
-    return requireAdbPath();
-}
+export const {
+    createDeviceAndroidAppLauncher,
+    listAndroidDevices,
+    listAndroidApps,
+    checkAndroidDevice,
+    androidAdbPath,
+} = createAndroidService(androidIo);

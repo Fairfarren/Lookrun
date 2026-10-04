@@ -125,3 +125,36 @@ describe('activatePageSession', () => {
         expect(next.key).toBe(first.key);
     });
 });
+
+test('没有当前页面且未指定URL时返回明确错误', async () => {
+    expect(
+        activatePageSession({
+            requestedUrl: undefined,
+            currentKey: null,
+            sessions: new Map(),
+            open: async () => ({}),
+        }),
+    ).rejects.toThrow('当前没有已打开的页面');
+});
+
+test('当前页面在会话表中丢失时返回明确错误', async () => {
+    expect(
+        activatePageSession({
+            requestedUrl: undefined,
+            currentKey: 'missing',
+            sessions: new Map(),
+            open: async () => ({}),
+        }),
+    ).rejects.toThrow('找不到已打开的页面：missing');
+});
+
+test('复用条目的会话已失效时拒绝返回无效页面', async () => {
+    expect(
+        activatePageSession({
+            requestedUrl: 'https://page.test',
+            currentKey: 'other',
+            sessions: new Map([['https://page.test', null]]),
+            open: async () => null,
+        }),
+    ).rejects.toThrow('找不到已打开的页面：https://page.test');
+});

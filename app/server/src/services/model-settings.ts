@@ -65,15 +65,28 @@ export function prepareModelSettings(value: unknown, previous: unknown) {
     }
     return config;
 }
-export function readModelSettings() {
+const modelSettingsIo = {
+    exists: existsSync,
+    read: readFileSync,
+    write: Bun.write,
+    chmod: chmodSync,
+    rename: renameSync,
+};
+
+export function readModelSettings(dependencies?: Partial<typeof modelSettingsIo>) {
+    const io = { ...modelSettingsIo, ...dependencies };
     const file = path.join(DATA_DIR, 'models.json');
-    return existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as unknown) : embeddedModels;
+    return io.exists(file) ? (JSON.parse(io.read(file, 'utf8')) as unknown) : embeddedModels;
 }
-export async function writeModelSettings(config: ReturnType<typeof prepareModelSettings>) {
+export async function writeModelSettings(
+    config: ReturnType<typeof prepareModelSettings>,
+    dependencies?: Partial<typeof modelSettingsIo>,
+) {
+    const io = { ...modelSettingsIo, ...dependencies };
     const file = path.join(DATA_DIR, 'models.json');
     const temporary = `${file}.${crypto.randomUUID()}.tmp`;
-    await Bun.write(temporary, JSON.stringify(config, null, 2), { mode: 0o600 });
-    chmodSync(temporary, 0o600);
+    await io.write(temporary, JSON.stringify(config, null, 2), { mode: 0o600 });
+    io.chmod(temporary, 0o600);
     // 原子替换，避免执行任务在保存期间读到半份配置。
-    renameSync(temporary, file);
+    io.rename(temporary, file);
 }

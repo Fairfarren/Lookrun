@@ -174,15 +174,19 @@ export function createLatestFramePump(input: LatestFramePumpInput) {
     };
 }
 
-export function startAndroidLivePreview(input: LatestFramePumpInput) {
+export function startAndroidLivePreview(
+    input: LatestFramePumpInput,
+    timers?: Pick<typeof globalThis, 'setInterval' | 'clearInterval'>,
+) {
+    const clock = timers ?? { setInterval, clearInterval };
     const pump = createLatestFramePump(input);
-    const timer = setInterval(() => {
+    const timer = clock.setInterval(() => {
         void pump.tick();
     }, ANDROID_PREVIEW_INTERVAL_MS);
     void pump.tick();
 
     return async () => {
-        clearInterval(timer);
+        clock.clearInterval(timer);
         await pump.stop();
     };
 }

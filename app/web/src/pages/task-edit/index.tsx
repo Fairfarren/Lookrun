@@ -237,13 +237,6 @@ function SortableStepRow({ id, index, children }: SortableStepRowProps) {
     );
 }
 
-function appsNotFoundContent(loadingApps: boolean) {
-    if (loadingApps) {
-        return '正在读取应用列表…';
-    }
-    return '没有匹配包名，可直接输入应用名称或包名';
-}
-
 function SelectStepField(input: {
     field: { key: string; options?: { label: string; value: string }[] };
     value: unknown;
@@ -278,7 +271,7 @@ function AndroidLaunchField(input: {
                 placeholder={launchFieldPlaceholder(
                     input.loadingApps,
                     fieldLabelText(input.field.placeholder, input.field.label),
-                    appsNotFoundContent(true),
+                    '正在读取应用列表…',
                 )}
                 onValueChange={input.onChange}
             />
@@ -596,6 +589,26 @@ function StepField(input: {
     return <StepFieldByKind {...input} kind={kind} />;
 }
 
+export function StepFields(
+    input: Omit<Parameters<typeof StepField>[0], 'field' | 'value' | 'onChange'> & {
+        onChange: (params: FormStep['params']) => void;
+    },
+) {
+    const option = ACTION_OPTIONS.find((item) => item.action === input.step.action);
+    if (!option) {
+        return null;
+    }
+    return option.fields.map((field) => (
+        <StepField
+            {...input}
+            key={field.key}
+            field={field}
+            value={input.step.params[field.key]}
+            onChange={(next) => input.onChange({ ...input.step.params, [field.key]: next })}
+        />
+    ));
+}
+
 export default function TaskEditPage() {
     const themeMode = useThemeMode();
     const { id } = useParams();
@@ -708,8 +721,8 @@ export default function TaskEditPage() {
                     setErrors(result.errors);
                     setValidated(true);
                 })
-                .catch(() => {
-                    setErrors([]);
+                .catch((error) => {
+                    setErrors([`脚本校验失败：${errorText(error)}`]);
                     setValidated(true);
                 });
         }, VALIDATE_DEBOUNCE_MS);
@@ -718,40 +731,20 @@ export default function TaskEditPage() {
 
     const switchMode = (next: string | number) => {
         const result = editorModeSwitch({ current: mode, next, form, yamlText });
-        applyEditorMode(result);
-    };
-
-    const applyEditorMode = (result: ReturnType<typeof editorModeSwitch>) => {
-        if (result.type === 'noop') {
-            return;
+        switch (result.type) {
+            case 'yaml':
+                setYamlText(result.yamlText);
+                setMode('yaml');
+                break;
+            case 'form':
+                setForm(result.form);
+                setMode('form');
+                setYamlLocked(false);
+                break;
+            case 'blocked':
+                notify.warning('当前 YAML 包含表单不支持的内容，无法切换；请先在 YAML 里修正');
+                break;
         }
-        applyEditorModeChange(result);
-    };
-
-    const applyEditorModeChange = (
-        result: Exclude<ReturnType<typeof editorModeSwitch>, { type: 'noop' }>,
-    ) => {
-        if (result.type === 'yaml') {
-            setYamlText(result.yamlText);
-            setMode('yaml');
-            return;
-        }
-        applyFormMode(result);
-    };
-
-    const applyFormMode = (
-        result: Extract<
-            ReturnType<typeof editorModeSwitch>,
-            { type: 'form' } | { type: 'blocked' }
-        >,
-    ) => {
-        if (result.type === 'blocked') {
-            notify.warning('当前 YAML 包含表单不支持的内容，无法切换；请先在 YAML 里修正');
-            return;
-        }
-        setForm(result.form);
-        setMode('form');
-        setYamlLocked(false);
     };
 
     const updateTask = (index: number, patch: Partial<FormTask>) => {
@@ -812,31 +805,6 @@ export default function TaskEditPage() {
         await persistTask();
     };
 
-    const renderStepFields = (taskIndex: number, stepIndex: number, step: FormStep) => {
-        const option = ACTION_OPTIONS.find((item) => item.action === step.action);
-        if (!option) {
-            return null;
-        }
-        return option.fields.map((field) => (
-            <StepField
-                key={field.key}
-                field={field}
-                step={step}
-                value={step.params[field.key]}
-                targetType={form.target.type}
-                androidApps={androidApps}
-                loadingApps={loadingApps}
-                deviceId={deviceId}
-                onChange={(next) =>
-                    updateStep(taskIndex, stepIndex, {
-                        params: { ...step.params, [field.key]: next },
-                    })
-                }
-                onReloadApps={() => void loadAndroidApps(deviceId)}
-            />
-        ));
-    };
-
     const showAndroidCheckMessage = (result: {
         ok: boolean;
         device?: { name: string };
@@ -860,11 +828,10 @@ export default function TaskEditPage() {
     };
 
     const checkSelectedAndroidDevice = async () => {
-        if (!canCheckAndroidDevice(form)) {
-            return;
+        if (canCheckAndroidDevice(form)) {
+            setCheckingDevice(true);
+            await reportAndroidDevice();
         }
-        setCheckingDevice(true);
-        await reportAndroidDevice();
     };
 
     const renderFormEditor = () => (
@@ -959,7 +926,17 @@ export default function TaskEditPage() {
                                                 });
                                             }}
                                         />
-                                        {renderStepFields(taskIndex, stepIndex, step)}
+                                        <StepFields
+                                            step={step}
+                                            targetType={form.target.type}
+                                            androidApps={androidApps}
+                                            loadingApps={loadingApps}
+                                            deviceId={deviceId}
+                                            onChange={(params) =>
+                                                updateStep(taskIndex, stepIndex, { params })
+                                            }
+                                            onReloadApps={() => void loadAndroidApps(deviceId)}
+                                        />
                                         <Input
                                             className='w-[110px]'
                                             placeholder='步骤名(可选)'

@@ -102,3 +102,12 @@ describe('formatCrapReport', () => {
         expect(report.failed).toEqual([]);
     });
 });
+
+test('覆盖率路径统一去掉工作目录与相对前缀', async () => {
+    const { normalizeSourcePath } = await import('../scripts/crap/lcov');
+
+    expect([
+        normalizeSourcePath(`${process.cwd()}/app/file.ts`),
+        normalizeSourcePath('./app/file.ts'),
+    ]).toEqual(['app/file.ts', 'app/file.ts']);
+});

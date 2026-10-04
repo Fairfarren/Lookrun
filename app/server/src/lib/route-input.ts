@@ -26,7 +26,7 @@ export function variablesBodyError(variables: unknown) {
     if (!variables) {
         return 'variables 必须是对象';
     }
-    if (typeof variables !== 'object') {
+    if (typeof variables !== 'object' || Array.isArray(variables)) {
         return 'variables 必须是对象';
     }
     return null;

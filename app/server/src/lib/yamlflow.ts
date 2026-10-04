@@ -247,23 +247,32 @@ function parseScriptTarget(doc: Record<string, unknown>, errors: string[]): Pars
     return parseWebTarget(doc, errors);
 }
 
+function parseViewport(doc: Record<string, unknown>, errors: string[]) {
+    const viewport: { viewportWidth?: number; viewportHeight?: number } = {};
+    for (const field of ['viewportWidth', 'viewportHeight'] as const) {
+        const value = doc[field];
+        if (value === undefined) continue;
+        if (typeof value !== 'number') {
+            errors.push(`${field} 必须是数字`);
+        } else {
+            viewport[field] = value;
+        }
+    }
+    return viewport;
+}
+
 function parseWebTarget(doc: Record<string, unknown>, errors: string[]): ParsedTarget {
     if (typeof doc.target !== 'string' || doc.target === '') {
         errors.push('缺少 target 字段（被测页面地址）');
     } else if (!/^https?:\/\//.test(doc.target)) {
         errors.push(`target 必须是 http(s) 地址，当前是：${doc.target}`);
     }
-    if (doc.viewportWidth !== undefined && typeof doc.viewportWidth !== 'number') {
-        errors.push('viewportWidth 必须是数字');
-    }
-    if (doc.viewportHeight !== undefined && typeof doc.viewportHeight !== 'number') {
-        errors.push('viewportHeight 必须是数字');
-    }
+    const viewport = parseViewport(doc, errors);
     return {
         type: 'web',
         url: String(doc.target ?? ''),
-        viewportWidth: typeof doc.viewportWidth === 'number' ? doc.viewportWidth : undefined,
-        viewportHeight: typeof doc.viewportHeight === 'number' ? doc.viewportHeight : undefined,
+        viewportWidth: viewport.viewportWidth,
+        viewportHeight: viewport.viewportHeight,
     };
 }
 

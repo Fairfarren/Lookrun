@@ -95,3 +95,14 @@ describe('markClickOnScreenshot', () => {
         expect(Array.from(borderPixel)).toEqual([255, 45, 45]);
     });
 });
+
+test.each([
+    { left: NaN, top: 0, width: 10, height: 10 },
+    { left: 0, top: Infinity, width: 10, height: 10 },
+    { left: 0, top: 0, width: 0, height: 10 },
+    { left: 0, top: 0, width: 10, height: -1 },
+])('无效矩形不会影响有效点击中心：%j', (rect) => {
+    expect(clickTargetForStep('aiTap', { element: { center: [10, 20], rect } })).toEqual({
+        center: [10, 20],
+    });
+});

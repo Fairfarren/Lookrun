@@ -115,3 +115,11 @@ describe('cancelQueueItem / requeueInterrupted', () => {
         expect(items[1].id).toBe(b.id);
     });
 });
+
+test('移动不存在的队列条目不会影响已有队列', () => {
+    const before = listQueue(db);
+
+    moveQueueItem(db, 99999, 'up');
+
+    expect(listQueue(db)).toEqual(before);
+});

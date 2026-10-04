@@ -98,23 +98,27 @@ async function writeExistingTask(c: Context, db: ReturnType<typeof createDb>, id
     return c.json(getTask(db, id));
 }
 
-function modelExists(id: string) {
-    const loaded = tryLoadModels();
+function modelExists(id: string, load: typeof tryLoadModels) {
+    const loaded = load();
     if (!loaded.ok) {
         return false;
     }
     return Boolean(getModelById(loaded.models, id));
 }
 
-function hasModel(id: string | undefined) {
+function hasModel(id: string | undefined, load: typeof tryLoadModels) {
     if (!id) {
         return false;
     }
-    return modelExists(id);
+    return modelExists(id, load);
 }
 
-function selectModel(c: Context, db: ReturnType<typeof createDb>, id: string | undefined) {
-    const error = modelSelectError(id, hasModel(id));
+function selectModel(
+    c: Context,
+    input: { db: ReturnType<typeof createDb>; id: string | undefined; load: typeof tryLoadModels },
+) {
+    const { db, id, load } = input;
+    const error = modelSelectError(id, hasModel(id, load));
     if (error) {
         return jsonError(c, error, 400);
     }
@@ -169,18 +173,39 @@ function startTaskRun(
     }
 }
 
-async function listAndroidAppsOrError(c: Context, deviceId: string) {
+async function listAndroidAppsOrError(
+    c: Context,
+    input: { deviceId: string; list: typeof listAndroidApps },
+) {
     try {
-        return c.json({ apps: await listAndroidApps(deviceId) });
+        return c.json({ apps: await input.list(input.deviceId) });
     } catch (error) {
         return jsonError(c, errorText(error), 500);
     }
 }
 
-export function registerRoutes(app: Hono) {
-    const db = createDb(DB_PATH);
+const routeDependencies = {
+    createDb,
+    Runner,
+    readModelSettings,
+    writeModelSettings,
+    tryLoadModels,
+    checkModelVision,
+    listAndroidDevices,
+    checkAndroidDevice,
+    listAndroidApps,
+    detectChrome,
+    detectAdbPath,
+    storageStats,
+    cleanupAllRuns,
+    broadcast,
+};
+
+export function registerRoutes(app: Hono, dependencies?: Partial<typeof routeDependencies>) {
+    const deps = { ...routeDependencies, ...dependencies };
+    const db = deps.createDb(DB_PATH);
     markStaleRunsStopped(db);
-    const runner = new Runner(db);
+    const runner = new deps.Runner(db);
     // 程序重启后恢复队列调度：上次中断的条目继续排队执行
     runner.resumeQueue();
 
@@ -227,14 +252,14 @@ export function registerRoutes(app: Hono) {
 
     // ---------- 模型 ----------
     registerModelSettingsRoutes(app, {
-        read: readModelSettings,
-        write: writeModelSettings,
+        read: deps.readModelSettings,
+        write: deps.writeModelSettings,
         getSelected: () => getSetting(db, SELECTED_MODEL_KEY),
         setSelected: (id) => setSetting(db, SELECTED_MODEL_KEY, id),
     });
 
     app.get('/api/models', (c) => {
-        const loaded = tryLoadModels();
+        const loaded = deps.tryLoadModels();
         if (!loaded.ok) {
             return jsonError(c, loaded.error, 500);
         }
@@ -248,16 +273,16 @@ export function registerRoutes(app: Hono) {
 
     app.put('/api/models/select', async (c) => {
         const body = await c.req.json<{ id?: string }>();
-        return selectModel(c, db, body.id);
+        return selectModel(c, { db, id: body.id, load: deps.tryLoadModels });
     });
 
     // 视觉自检：验证模型能否看图并返回元素坐标
     app.post('/api/models/:id/check', async (c) => {
-        const target = modelVisionCheckTarget(c.req.param('id'), tryLoadModels());
+        const target = modelVisionCheckTarget(c.req.param('id'), deps.tryLoadModels());
         if (!target.ok) {
             return jsonError(c, target.error, target.status);
         }
-        return c.json(await checkModelVision(target.model));
+        return c.json(await deps.checkModelVision(target.model));
     });
 
     // ---------- 变量 ----------
@@ -295,7 +320,7 @@ export function registerRoutes(app: Hono) {
         }
         moveQueueItem(db, Number(c.req.param('id')), body.direction!);
         const items = listQueue(db);
-        broadcast({ type: 'queue', items });
+        deps.broadcast({ type: 'queue', items });
         return c.json({ items });
     });
 
@@ -303,7 +328,7 @@ export function registerRoutes(app: Hono) {
     app.delete('/api/queue/:id', (c) => {
         cancelQueueItem(db, Number(c.req.param('id')));
         const items = listQueue(db);
-        broadcast({ type: 'queue', items });
+        deps.broadcast({ type: 'queue', items });
         return c.json({ items });
     });
 
@@ -405,7 +430,7 @@ export function registerRoutes(app: Hono) {
     // ---------- 系统信息 ----------
     app.get('/api/system/android-devices', async (c) => {
         try {
-            return c.json({ devices: await listAndroidDevices() });
+            return c.json({ devices: await deps.listAndroidDevices() });
         } catch (error) {
             return jsonError(c, errorText(error), 500);
         }
@@ -417,7 +442,7 @@ export function registerRoutes(app: Hono) {
         if (error) {
             return jsonError(c, error, 400);
         }
-        return c.json(await checkAndroidDevice(body.deviceId!.trim()));
+        return c.json(await deps.checkAndroidDevice(body.deviceId!.trim()));
     });
 
     app.get('/api/system/android-apps', async (c) => {
@@ -426,14 +451,14 @@ export function registerRoutes(app: Hono) {
         if (error) {
             return jsonError(c, error, 400);
         }
-        return listAndroidAppsOrError(c, deviceId!);
+        return listAndroidAppsOrError(c, { deviceId: deviceId!, list: deps.listAndroidApps });
     });
 
     app.get('/api/system', (c) => {
-        const chrome = detectChrome();
+        const chrome = deps.detectChrome();
         const info: SystemInfo = {
             chromePath: chrome.path,
-            adbPath: detectAdbPath(),
+            adbPath: deps.detectAdbPath(),
             chromeSource: chrome.source,
             dataDir: DB_PATH.replace(/\/app\.db$/, ''),
             version: pkg.version,
@@ -444,7 +469,7 @@ export function registerRoutes(app: Hono) {
     // 存储占用统计
     app.get('/api/system/storage', (c) => {
         return c.json(
-            storageStats(db, {
+            deps.storageStats(db, {
                 dbPath: DB_PATH,
                 screenshotDir: SCREENSHOT_DIR,
                 reportDir: REPORT_DIR,
@@ -454,7 +479,7 @@ export function registerRoutes(app: Hono) {
 
     // 清空全部历史运行（任务与变量不受影响）
     app.post('/api/system/storage/cleanup', (c) => {
-        const result = cleanupAllRuns(db, SCREENSHOT_DIR, REPORT_DIR);
+        const result = deps.cleanupAllRuns(db, SCREENSHOT_DIR, REPORT_DIR);
         return c.json(result);
     });
 }

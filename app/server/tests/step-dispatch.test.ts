@@ -179,3 +179,86 @@ describe('step-dispatch', () => {
         ).toEqual({ thought: 'MOCK：aiTap 执行成功', action: 'aiTap' });
     });
 });
+
+test.each(['aiHover', 'aiRightClick', 'aiKeyboardPress'] as const)(
+    '实时动作%s将文本交给设备并返回空结果',
+    async (action) => {
+        let effect = '';
+        const agent = agentStub({
+            [action]: async (value: string) => {
+                effect = value;
+            },
+        });
+
+        const result = await dispatchLiveStep({
+            agent,
+            step: { action, params: '目标' },
+            sleep: async () => {},
+        });
+
+        expect({ effect, result }).toEqual({ effect: '目标', result: null });
+    },
+);
+
+test('输入动作将数字转换为文本并保留定位目标', async () => {
+    let input: unknown;
+    const agent = agentStub({
+        aiInput: async (value, locate) => {
+            input = { value, locate };
+        },
+    });
+
+    await dispatchLiveStep({
+        agent,
+        step: { action: 'aiInput', params: { value: 42, locate: '输入框' } },
+        sleep: async () => {},
+    });
+
+    expect(input).toEqual({ value: '42', locate: '输入框' });
+});
+
+test('等待动作使用步骤指定的超时', async () => {
+    let input: unknown;
+    const agent = agentStub({
+        aiWaitFor: async (prompt, options) => {
+            input = { prompt, ...options };
+        },
+    });
+
+    await dispatchLiveStep({
+        agent,
+        step: { action: 'aiWaitFor', params: '加载完成', aux: { timeout: 500 } },
+        sleep: async () => {},
+    });
+
+    expect(input).toEqual({ prompt: '加载完成', timeoutMs: 500 });
+});
+
+test('查询动作返回可保存的数据', async () => {
+    const agent = agentStub({ aiQuery: async () => ({ count: 3 }) });
+
+    const result = await dispatchLiveStep({
+        agent,
+        step: { action: 'aiQuery', params: '统计条目' },
+        sleep: async () => {},
+    });
+
+    expect(result).toEqual({ data: { count: 3 } });
+});
+
+test('滚动动作默认只滚动一次并保留目标距离', async () => {
+    let input: unknown;
+    const agent = agentStub({
+        aiScroll: async (options, locate) => {
+            input = { ...options, locate };
+        },
+    });
+
+    await dispatchLiveStep({
+        agent,
+        step: { action: 'aiScroll', params: { direction: 'down', distance: 300, locate: '列表' } },
+        sleep: async () => {},
+    });
+
+    expect(input).toEqual({ direction: 'down', scrollType: 'once', distance: 300, locate: '列表' });
+});

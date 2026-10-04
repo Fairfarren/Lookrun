@@ -1,71 +1,92 @@
-# 只在指向 master 的 PR 上跑。没有 PR 的功能分支不触发。
-# pull_request 的 synchronize 覆盖「非 master 分支有更新且已开 PR」。
-name: PR 检查
+name: 质量与交付检查
 
 on:
   pull_request:
     branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
 
 concurrency:
-  group: pr-check-${{ github.event.pull_request.number }}
+  group: quality-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: 检查
-    runs-on: ubuntu-latest
+  quality:
+    name: 静态检查与全量测试
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
       - run: bun install --frozen-lockfile
       - run: cp resources/models.example.json resources/models.json
-      - run: bun test
+      - run: bun run check
+      - name: 每个测试执行一次并检查完整覆盖率与 CRAP
+        run: bun run test:quality
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 质量报告
+          path: |
+            coverage/sources.json
+            coverage/coverage-summary.json
+            coverage/coverage-final.json
+            coverage/lcov.info
+            coverage/crap.md
+          if-no-files-found: error
 
-  lint:
-    name: lint
-    runs-on: ubuntu-latest
+  build:
+    name: 构建与冒烟（${{ matrix.os }}）
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            output: dist-linux
+          - os: macos-14
+            output: dist-mac
+          - os: windows-2025
+            output: dist-win
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun run lint
-
-  format:
-    name: format
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun run format:check
-
-  tsc:
-    name: tsc
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
       - run: bun install --frozen-lockfile
       - run: cp resources/models.example.json resources/models.json
-      - run: bun run typecheck
-
-  crap:
-    name: CRAP
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: cp resources/models.example.json resources/models.json
-      - run: bun run crap
+      - name: 检查解压工具
+        run: command -v unzip
+      - run: bun run build:exe
+      - name: 在目标平台启动实际交付产物
+        run: bun scripts/build-smoke.ts ${{ matrix.output }}
+      - name: 本地网页完整运行链路
+        if: runner.os == 'Linux'
+        run: bun scripts/e2e-smoke.ts
 
   mutate:
     name: 变异测试
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
       - run: bun install --frozen-lockfile
       - run: cp resources/models.example.json resources/models.json
       - run: bun run mutate
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 变异测试报告
+          path: reports/mutation/

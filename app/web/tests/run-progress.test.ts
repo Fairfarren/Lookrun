@@ -10,8 +10,6 @@ describe('runProgressText', () => {
         });
 
         expect(text).toBe('MOCK 冒烟（准备中）');
-        expect(text).not.toContain('?');
-        expect(text).not.toContain('1/');
     });
 
     test('步序未开始时即使已有总数也显示准备中', () => {

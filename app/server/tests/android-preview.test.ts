@@ -176,3 +176,82 @@ describe('Android 实时预览', () => {
         });
     });
 });
+
+test('停止后的解码失败不再次上报', async () => {
+    const { applyPreviewDecodeError } = await import('../src/services/android-preview');
+    const errors: unknown[] = [];
+
+    applyPreviewDecodeError({
+        state: { stopped: true, inFlight: null, lastCapturedAt: null, errorReported: false },
+        error: new Error('延迟错误'),
+        onError: (error) => errors.push(error),
+    });
+
+    expect(errors).toEqual([]);
+});
+
+test('旧解码完成不能清除新的执行任务', async () => {
+    const { clearPreviewInFlight } = await import('../src/services/android-preview');
+    const previous = Promise.resolve();
+    const current = Promise.resolve();
+    const state = { stopped: false, inFlight: current, lastCapturedAt: null, errorReported: false };
+
+    clearPreviewInFlight(state, previous);
+
+    expect(state.inFlight).toBe(current);
+});
+
+test('没有可用帧时保持预览空闲', async () => {
+    const events: string[] = [];
+    const pump = createLatestFramePump({
+        source: { latest: () => null, decode: async () => [], stop: () => {} },
+        hasViewer: () => true,
+        publish: (data) => events.push(data),
+        onError: () => {},
+    });
+
+    await pump.tick();
+    await pump.stop();
+
+    expect(events).toEqual([]);
+});
+
+test('实时预览按虚拟时钟刷新且停止后清除定时任务', async () => {
+    const { startAndroidLivePreview } = await import('../src/services/android-preview');
+    const published: string[] = [];
+    let tick!: () => void;
+    let stopped = false;
+    let cleared = false;
+    const stop = startAndroidLivePreview(
+        {
+            source: {
+                latest: () => createFrame(1),
+                decode: async () => ['data:image/jpeg;base64,frame'],
+                stop: () => {
+                    stopped = true;
+                },
+            },
+            hasViewer: () => true,
+            publish: (data) => published.push(data),
+            onError: () => {},
+        },
+        {
+            setInterval: ((callback: () => void) => {
+                tick = callback;
+                return 1;
+            }) as unknown as typeof setInterval,
+            clearInterval: (() => {
+                cleared = true;
+            }) as typeof clearInterval,
+        },
+    );
+
+    tick();
+    await stop();
+
+    expect({ stopped, cleared, published }).toEqual({
+        stopped: true,
+        cleared: true,
+        published: [],
+    });
+});

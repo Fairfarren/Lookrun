@@ -12,8 +12,9 @@ data/
 .work-loop/
 midscene_run/
 resources/models.json
-.error
-coverage/
+.error/*
+!.error/FIX_HISTORY.md
+/coverage/
 reports/
 .stryker-tmp
 stryker.log

@@ -148,7 +148,7 @@ describe('createAndroidAppLauncher', () => {
             waitAfterTap: async () => {},
         });
 
-        expect(launchApp('不存在')).rejects.toThrow('没有找到名为「不存在」的 App');
+        await expect(launchApp('不存在')).rejects.toThrow('没有找到名为「不存在」的 App');
     });
 });
 
@@ -219,4 +219,34 @@ describe('resolveAdbPath', () => {
 
         expect(result).toBe('D:\\sdk\\adb.exe');
     });
+});
+
+test('开发模式从工作目录检测ADB且回退SDK根目录', async () => {
+    const { detectAdbPath } = await import('../src/services/android');
+
+    const result = detectAdbPath({
+        platform: 'darwin',
+        execPath: '/bin/bun',
+        cwd: () => '/workspace',
+        env: { ANDROID_SDK_ROOT: '/sdk' },
+        which: () => null,
+        exists: (file) => file === '/sdk/platform-tools/adb',
+    });
+
+    expect(result).toBe('/sdk/platform-tools/adb');
+});
+
+test('打包模式优先使用可执行文件旁的ADB', async () => {
+    const { detectAdbPath } = await import('../src/services/android');
+
+    const result = detectAdbPath({
+        platform: 'darwin',
+        execPath: '/app/lookrun',
+        cwd: () => '/workspace',
+        env: { ANDROID_HOME: '/sdk', MIDSCENE_ADB_PATH: '/custom/adb' },
+        which: () => '/usr/bin/adb',
+        exists: (file) => file === '/app/platform-tools/adb',
+    });
+
+    expect(result).toBe('/app/platform-tools/adb');
 });

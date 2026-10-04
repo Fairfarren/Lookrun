@@ -6,7 +6,7 @@ export default {
   testRunner: "command",
   commandRunner: {
     command:
-      "bun test app/server/tests/port.test.ts app/web/tests/theme.test.ts app/web/tests/sortable-items.test.ts app/web/tests/validation-errors.test.ts app/server/tests/ai-error.test.ts app/server/tests/ai-result.test.ts app/web/tests/android-app-options.test.ts app/server/tests/yamlflow.test.ts packages/shared/tests/yaml-form.test.ts app/server/tests/models.test.ts",
+      "bun test app/server/tests/port.test.ts app/server/tests/crap-helpers.test.ts app/web/tests/theme.test.ts app/web/tests/sortable-items.test.ts app/web/tests/validation-errors.test.ts app/server/tests/ai-error.test.ts app/server/tests/ai-result.test.ts app/web/tests/android-app-options.test.ts app/server/tests/yamlflow.test.ts packages/shared/tests/yaml-form.test.ts app/server/tests/models.test.ts",
   },
   mutate: [
     "app/server/src/lib/port.ts",
@@ -32,6 +32,6 @@ export default {
   thresholds: {
     high: 80,
     low: 60,
-    break: 50,
+    break: 70,
   },
 };

@@ -80,21 +80,28 @@ function parseModelEntry(item: unknown, index: number, json: Record<string, unkn
     };
 }
 
-function readOverrideModels(overridePath: string) {
+const modelFileIo = {
+    exists: existsSync,
+    read: readFileSync,
+    embedded: embeddedModelsJson as unknown,
+};
+
+function readOverrideModels(overridePath: string, io: typeof modelFileIo) {
     try {
-        return parseModelsConfig(JSON.parse(readFileSync(overridePath, 'utf8')));
+        return parseModelsConfig(JSON.parse(io.read(overridePath, 'utf8')));
     } catch (error) {
         throw new Error(`运行时模型配置 ${overridePath} 解析失败：${errorText(error)}`);
     }
 }
 
 // 加载模型列表：优先 data/models.json（运行时覆盖），否则用构建时内置的配置
-export function loadModels() {
+export function loadModels(dependencies?: Partial<typeof modelFileIo>) {
+    const io = { ...modelFileIo, ...dependencies };
     const overridePath = path.join(DATA_DIR, 'models.json');
-    if (existsSync(overridePath)) {
-        return readOverrideModels(overridePath);
+    if (io.exists(overridePath)) {
+        return readOverrideModels(overridePath, io);
     }
-    return parseModelsConfig(embeddedModelsJson);
+    return parseModelsConfig(io.embedded);
 }
 
 export function modelsFromLoad(load: () => ModelConfig[]) {
@@ -105,8 +112,8 @@ export function modelsFromLoad(load: () => ModelConfig[]) {
     }
 }
 
-export function tryLoadModels() {
-    return modelsFromLoad(loadModels);
+export function tryLoadModels(dependencies?: Partial<typeof modelFileIo>) {
+    return modelsFromLoad(() => loadModels(dependencies));
 }
 
 export function modelVisionCheckTarget(id: string, loaded: ReturnType<typeof tryLoadModels>) {
@@ -269,8 +276,10 @@ const VISION_CHECK_PROMPT =
     '这是一张网页截图，画面中央有一个写着「确定按钮」的蓝色按钮。请定位这个按钮，只回复 JSON，格式：{"bbox": [x1, y1, x2, y2]}，坐标为像素值。';
 const VISION_CHECK_TIMEOUT_MS = 60_000;
 
-async function loadVisionCheckImage() {
-    const buffer = await Bun.file(visionCheckPngPath).arrayBuffer();
+const visionIo = { fetch, file: Bun.file };
+
+async function loadVisionCheckImage(file: typeof Bun.file) {
+    const buffer = await file(visionCheckPngPath).arrayBuffer();
     return Buffer.from(buffer).toString('base64');
 }
 
@@ -334,9 +343,13 @@ function visionCheckBody(model: string, imageBase64: string) {
     });
 }
 
-async function runVisionCheck(model: ModelConfig, timeoutMs: number) {
-    const imageBase64 = await loadVisionCheckImage();
-    const response = await fetch(visionChatUrl(model.baseUrl), {
+async function runVisionCheck(
+    input: { model: ModelConfig; timeoutMs: number },
+    io: typeof visionIo,
+) {
+    const { model, timeoutMs } = input;
+    const imageBase64 = await loadVisionCheckImage(io.file);
+    const response = await io.fetch(visionChatUrl(model.baseUrl), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -356,9 +369,15 @@ async function runVisionCheck(model: ModelConfig, timeoutMs: number) {
 
 // 视觉自检：给模型发一张带按钮的测试图，验证它能否返回可解析的元素坐标
 // 这是模型能否用于 UI 自动化的分水岭：能看图不代表能返回坐标
-export async function checkModelVision(model: ModelConfig, options: { timeoutMs?: number } = {}) {
+export async function checkModelVision(
+    model: ModelConfig,
+    options?: { timeoutMs?: number; io?: Partial<typeof visionIo> },
+) {
     try {
-        return await runVisionCheck(model, visionTimeoutMs(options.timeoutMs));
+        return await runVisionCheck(
+            { model, timeoutMs: visionTimeoutMs(options?.timeoutMs) },
+            { ...visionIo, ...options?.io },
+        );
     } catch (error) {
         return visionRequestError(error);
     }

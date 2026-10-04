@@ -187,17 +187,25 @@ export function resolveAdbPath(input: ResolveAdbPathInput) {
     );
 }
 
-export function detectAdbPath() {
-    const execName = path.basename(process.execPath).toLowerCase();
-    const executableDir = execName.startsWith('bun')
-        ? process.cwd()
-        : path.dirname(process.execPath);
+const adbRuntime = {
+    platform: process.platform,
+    execPath: process.execPath,
+    cwd: process.cwd,
+    env: process.env,
+    which: Bun.which,
+    exists: existsSync,
+};
+
+export function detectAdbPath(runtime?: Partial<typeof adbRuntime>) {
+    const io = { ...adbRuntime, ...runtime };
+    const execName = path.basename(io.execPath).toLowerCase();
+    const executableDir = execName.startsWith('bun') ? io.cwd() : path.dirname(io.execPath);
     return resolveAdbPath({
-        platform: process.platform,
+        platform: io.platform,
         executableDir,
-        environmentPath: process.env.MIDSCENE_ADB_PATH,
-        sdkRoot: process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT,
-        pathAdb: Bun.which(process.platform === 'win32' ? 'adb.exe' : 'adb') ?? undefined,
-        exists: existsSync,
+        environmentPath: io.env.MIDSCENE_ADB_PATH,
+        sdkRoot: io.env.ANDROID_HOME ?? io.env.ANDROID_SDK_ROOT,
+        pathAdb: io.which(io.platform === 'win32' ? 'adb.exe' : 'adb') ?? undefined,
+        exists: io.exists,
     });
 }

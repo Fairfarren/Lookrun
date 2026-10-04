@@ -321,3 +321,111 @@ tasks:
         expect(yamlToForm('target: [unclosed').ok).toBe(false);
     });
 });
+
+test.each([
+    { action: 'aiHover', params: { locate: '菜单' }, yaml: 'aiHover: 菜单' },
+    { action: 'aiRightClick', params: { locate: '文件' }, yaml: 'aiRightClick: 文件' },
+    { action: 'aiKeyboardPress', params: { key: 'Tab' }, yaml: 'aiKeyboardPress: Tab' },
+    { action: 'aiQuery', params: { prompt: '标题' }, yaml: 'aiQuery: 标题' },
+    {
+        action: 'aiWaitFor',
+        params: { prompt: '完成', timeout: 500 },
+        yaml: 'aiWaitFor: 完成\n        timeout: 500',
+    },
+])('动作参数能够往返转换：$action', ({ action, params, yaml }) => {
+    const parsed = yamlToForm(
+        `target: https://page.test\ntasks:\n  - name: 流程\n    flow:\n      - ${yaml}`,
+    );
+
+    expect(parsed).toMatchObject({ ok: true, form: { tasks: [{ steps: [{ action, params }] }] } });
+});
+
+test('所有文本定位与按键构建器保留表单参数', () => {
+    const form: FormScript = {
+        target: { type: 'web', url: 'https://page.test' },
+        tasks: [
+            {
+                id: 'group',
+                name: '流程',
+                steps: [
+                    { id: '1', action: 'aiHover', params: { locate: '菜单' } },
+                    { id: '2', action: 'aiRightClick', params: { locate: '文件' } },
+                    { id: '3', action: 'aiKeyboardPress', params: { key: 'Escape' } },
+                    { id: '4', action: 'aiWaitFor', params: { prompt: '完成', timeout: 500 } },
+                ],
+            },
+        ],
+    };
+
+    const result = yamlToForm(formToYaml(form));
+
+    expect(result).toMatchObject({
+        ok: true,
+        form: {
+            tasks: [
+                {
+                    steps: [
+                        { action: 'aiHover', params: { locate: '菜单' } },
+                        { action: 'aiRightClick', params: { locate: '文件' } },
+                        { action: 'aiKeyboardPress', params: { key: 'Escape' } },
+                        { action: 'aiWaitFor', params: { prompt: '完成', timeout: 500 } },
+                    ],
+                },
+            ],
+        },
+    });
+});
+
+test.each([
+    'aiKeyboardPress: { key: Tab }',
+    'aiInput: { locate: 输入框, value: 42 }',
+    'aiScroll: { direction: down, distance: 300 }',
+])('支持复合参数：%s', (step) => {
+    const result = yamlToForm(
+        `target: https://page.test\ntasks:\n  - name: 流程\n    flow:\n      - ${step}`,
+    );
+
+    expect(result.ok).toBe(true);
+});
+
+test.each([
+    'aiKeyboardPress: 1',
+    'aiInput: missing',
+    'aiInput: {locate: input, value: null}',
+    'aiScroll: {direction: diagonal}',
+    'ai: 1',
+    'aiTap: 1',
+    'unknown: 1',
+    'launch: com.test.app',
+    'ai: task\n        aiTap: button',
+])('无法表示的网页步骤返回失败：%s', (step) => {
+    const result = yamlToForm(
+        `target: https://page.test\ntasks:\n  - name: 流程\n    flow:\n      - ${step}`,
+    );
+
+    expect(result).toEqual({ ok: false });
+});
+
+test.each([
+    'target: https://page.test\nandroid: {deviceId: dev}\ntasks: [{name: 流程, flow: []}]',
+    'android: {}\ntasks: [{name: 流程, flow: []}]',
+    'target: https://page.test\ntasks: [null]',
+    'target: https://page.test\ntasks: [{name: 流程, flow: [null]}]',
+    'android: {deviceId: dev}\ntasks: [{name: 流程, flow: [{launch: 1}]}]',
+])('无效目标或任务结构降级为YAML编辑：%s', (yaml) => {
+    expect(yamlToForm(yaml)).toEqual({ ok: false });
+});
+
+test.each(['valueOf', 'hasOwnProperty', 'toString', 'constructor', '__proto__'])(
+    '拒绝继承属性动作%s且不抛异常',
+    (action) => {
+        const result = yamlToForm(`target: https://page.test
+tasks:
+  - name: 测试
+    flow:
+      - ${action}: 1
+`);
+
+        expect(result.ok).toBe(false);
+    },
+);

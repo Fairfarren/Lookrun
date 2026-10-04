@@ -1,6 +1,9 @@
 // 启动前自动清理被占用的端口：找到占用进程并杀掉，避免上一次实例残留导致启动失败
 import { spawnSync } from 'node:child_process';
 
+const PORT_RELEASE_CHECKS = 30;
+const PORT_RELEASE_INTERVAL_MS = 100;
+
 // 解析 macOS/Linux 的 `lsof -ti :PORT` 输出，返回 PID 列表（每行一个数字）
 export function parseLsofPids(output: string): number[] {
     return output
@@ -50,36 +53,6 @@ function commandStdout(result: { stdout?: string | null }) {
     return result.stdout ?? '';
 }
 
-function readPortCommand(port: number) {
-    if (process.platform === 'win32') {
-        return commandStdout(spawnSync('netstat', ['-ano'], { encoding: 'utf8' }));
-    }
-    return commandStdout(spawnSync('lsof', ['-ti', `:${port}`], { encoding: 'utf8' }));
-}
-
-function findPortPids(port: number) {
-    return findPortPidsWith({
-        platform: process.platform,
-        selfPid: process.pid,
-        stdout: readPortCommand(port),
-        port,
-    });
-}
-
-// 杀掉指定 PID（跨平台）
-function killPid(pid: number) {
-    const cmd =
-        process.platform === 'win32'
-            ? ['taskkill', '/F', '/PID', String(pid)]
-            : ['kill', '-9', String(pid)];
-    spawnSync(cmd[0], cmd.slice(1), { stdio: 'ignore' });
-}
-
-// 检测端口是否已释放（用 lsof/netstat 再查一次）
-function isPortFree(port: number): boolean {
-    return findPortPids(port).length === 0;
-}
-
 export function ensurePortFreeWith(input: {
     port: number;
     pids: number[];
@@ -106,17 +79,63 @@ export function ensurePortFreeWith(input: {
     input.warn(`端口 ${input.port} 清理后仍被占用，继续尝试启动`);
 }
 
-export function ensurePortFree(port: number) {
-    ensurePortFreeWith({
-        port,
-        pids: findPortPids(port),
-        kill: killPid,
-        isFree: () => isPortFree(port),
-        wait: () => {
-            spawnSync('sleep', ['0.1'], { stdio: 'ignore' });
-        },
-        maxWaits: 30,
-        log: (message) => console.log(message),
-        warn: (message) => console.warn(message),
-    });
+type PortRuntime = {
+    platform: string;
+    selfPid: number;
+    spawn: (
+        command: string,
+        args: string[],
+        options: { encoding: 'utf8'; stdio: 'pipe' | 'ignore' },
+    ) => { stdout?: string | null };
+    wait: (milliseconds: number) => void;
+    log: (message: string) => void;
+    warn: (message: string) => void;
+};
+
+export function createPortCleaner(runtime: PortRuntime) {
+    function findPortPids(port: number) {
+        const command =
+            runtime.platform === 'win32' ? ['netstat', '-ano'] : ['lsof', '-ti', `:${port}`];
+        const result = runtime.spawn(command[0], command.slice(1), {
+            encoding: 'utf8',
+            stdio: 'pipe',
+        });
+        return findPortPidsWith({
+            platform: runtime.platform,
+            selfPid: runtime.selfPid,
+            stdout: commandStdout(result),
+            port,
+        });
+    }
+
+    function killPid(pid: number) {
+        const command =
+            runtime.platform === 'win32'
+                ? ['taskkill', '/F', '/PID', String(pid)]
+                : ['kill', '-9', String(pid)];
+        runtime.spawn(command[0], command.slice(1), { encoding: 'utf8', stdio: 'ignore' });
+    }
+
+    return function ensurePortFree(port: number) {
+        ensurePortFreeWith({
+            port,
+            pids: findPortPids(port),
+            kill: killPid,
+            isFree: () => findPortPids(port).length === 0,
+            wait: () => runtime.wait(PORT_RELEASE_INTERVAL_MS),
+            maxWaits: PORT_RELEASE_CHECKS,
+            log: runtime.log,
+            warn: runtime.warn,
+        });
+    };
 }
+
+export const ensurePortFree = createPortCleaner({
+    platform: process.platform,
+    selfPid: process.pid,
+    spawn: spawnSync,
+    // Bun 自带等待可用于 Windows，无需依赖系统的 sleep 命令。
+    wait: Bun.sleepSync,
+    log: console.log,
+    warn: console.warn,
+});

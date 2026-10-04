@@ -10,53 +10,71 @@ import { configureBundledRuntimeAssets } from './lib/runtime-assets';
 import { registerStatic } from './lib/static';
 import { addWsClient, removeWsClient } from './lib/ws';
 
-// API Key 无效时 Midscene/OpenAI 可能抛出未处理拒绝，Bun 默认会退出进程
-installProcessErrorHandlers(process);
+const serverIO = {
+    process,
+    createBunWebSocket,
+    installProcessErrorHandlers,
+    configureBundledRuntimeAssets,
+    registerRoutes,
+    registerStatic,
+    ensurePortFree,
+    serve: Bun.serve,
+    spawn: Bun.spawn,
+    log: console.log,
+};
 
-// 打包产物才加载编译期生成的内嵌资源；开发态由 Vite 提供前端页面
-function isPackaged() {
-    return !path.basename(process.execPath).toLowerCase().startsWith('bun');
+export async function startApplication(
+    input: {
+        main: boolean;
+        execPath: string;
+        platform: NodeJS.Platform;
+        port: number;
+        openBrowser?: boolean;
+    },
+    dependencies?: Partial<typeof serverIO>,
+) {
+    if (!input.main) return;
+    const io = { ...serverIO, ...dependencies };
+    io.installProcessErrorHandlers(io.process);
+    io.configureBundledRuntimeAssets();
+    const app = new Hono();
+    const { upgradeWebSocket, websocket } = io.createBunWebSocket();
+    app.get('/api/health', (c) => c.json({ ok: true }));
+    io.registerRoutes(app);
+    // WebSocket 路由先于静态通配路由，避免握手请求被页面资源处理。
+    app.get(
+        '/ws',
+        upgradeWebSocket(() => ({
+            onOpen(_event, ws) {
+                addWsClient(ws);
+            },
+            onClose(_event, ws) {
+                removeWsClient(ws);
+            },
+        })),
+    );
+    const packaged = !path.basename(input.execPath).toLowerCase().startsWith('bun');
+    const assets = packaged ? (await import('./gen/assets')).embeddedAssets : {};
+    io.registerStatic(app, assets);
+    // 端口零由操作系统分配，不查询或终止其它监听进程。
+    if (input.port !== 0) io.ensurePortFree(input.port);
+    const server = io.serve({ port: input.port, fetch: app.fetch, websocket });
+    const url = `http://localhost:${server.port}`;
+    io.log(`AI 自动化测试服务已启动：${url}`);
+    if (packaged && input.openBrowser !== false) {
+        io.spawn({
+            cmd: browserOpenCommand(input.platform, url),
+            stdout: 'ignore',
+            stderr: 'ignore',
+        });
+    }
+    return { app, server };
 }
 
-const app = new Hono();
-const { upgradeWebSocket, websocket } = createBunWebSocket();
-
-configureBundledRuntimeAssets();
-
-app.get('/api/health', (c) => c.json({ ok: true }));
-
-registerRoutes(app);
-
-// /ws 必须注册在静态资源的通配路由之前，否则会被 * 抢先匹配
-app.get(
-    '/ws',
-    upgradeWebSocket(() => ({
-        onOpen(_event, ws) {
-            addWsClient(ws);
-        },
-        onClose(_event, ws) {
-            removeWsClient(ws);
-        },
-    })),
-);
-
-const embeddedAssets = isPackaged() ? (await import('./gen/assets')).embeddedAssets : {};
-registerStatic(app, embeddedAssets);
-
-function openBrowser(url: string) {
-    Bun.spawn({
-        cmd: browserOpenCommand(process.platform, url),
-        stdout: 'ignore',
-        stderr: 'ignore',
-    });
-}
-
-// 启动前确保端口空闲：被占用则自动杀掉占用进程（通常是上次未退出的残留实例）
-ensurePortFree(SERVER_PORT);
-
-Bun.serve({ port: SERVER_PORT, fetch: app.fetch, websocket });
-console.log(`AI 自动化测试服务已启动：http://localhost:${SERVER_PORT}`);
-
-if (isPackaged()) {
-    openBrowser(`http://localhost:${SERVER_PORT}`);
-}
+await startApplication({
+    main: import.meta.main,
+    execPath: process.execPath,
+    platform: process.platform,
+    port: SERVER_PORT,
+    openBrowser: process.env.LOOKRUN_OPEN_BROWSER !== '0',
+});
