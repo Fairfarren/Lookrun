@@ -64,8 +64,6 @@ function StepFailedTag({ status }: { status: string }) {
 }
 
 function StepDuration({ item }: { item: LiveStep }) {
-    useLocale();
-
     if (!item.record) {
         return null;
     }
@@ -82,8 +80,6 @@ function StepError({ item }: { item: LiveStep }) {
 }
 
 function StepUrl({ item }: { item: LiveStep }) {
-    useLocale();
-
     if (!item.record?.url) {
         return null;
     }
@@ -91,8 +87,6 @@ function StepUrl({ item }: { item: LiveStep }) {
 }
 
 function StepLogItem({ item }: { item: LiveStep }) {
-    useLocale();
-
     return (
         <div className='border-b py-2.5'>
             <div className='flex flex-col gap-0.5'>
@@ -119,8 +113,6 @@ function FinishedBanner({
     finishedStatus: string | null;
     running: boolean;
 }) {
-    useLocale();
-
     if (running) {
         return null;
     }
@@ -152,8 +144,6 @@ function RunFrame({
     height: string;
     onStop: () => void;
 }) {
-    useLocale();
-
     if (running) {
         return <LiveFrame frame={frame} height={height} onStop={onStop} />;
     }

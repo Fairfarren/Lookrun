@@ -48,8 +48,6 @@ function CheckingHint({ checking }: { checking: boolean }) {
 }
 
 function CheckResultIcon({ ok }: { ok: boolean }) {
-    useLocale();
-
     if (ok) {
         return <CheckCircle2 className='size-4' />;
     }

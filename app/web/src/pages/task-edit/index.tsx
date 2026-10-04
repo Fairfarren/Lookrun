@@ -86,8 +86,6 @@ interface SortableListProps {
 }
 
 function SortableList({ ids, onReorder, children }: SortableListProps) {
-    useLocale();
-
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -352,8 +350,6 @@ function StepFieldByKind(input: {
     onChange: (next: string | number | undefined) => void;
     onReloadApps: () => void;
 }) {
-    useLocale();
-
     if (input.kind === 'select') {
         return (
             <SelectStepField field={input.field} value={input.value} onChange={input.onChange} />
@@ -372,8 +368,6 @@ function StepFieldRest(input: {
     onChange: (next: string | number | undefined) => void;
     onReloadApps: () => void;
 }) {
-    useLocale();
-
     if (input.kind === 'android-launch') {
         return <AndroidLaunchField {...input} />;
     }
@@ -386,8 +380,6 @@ function StepFieldInput(input: {
     value: unknown;
     onChange: (next: string | number | undefined) => void;
 }) {
-    useLocale();
-
     if (input.kind === 'number') {
         return <NumberStepField {...input} />;
     }
@@ -502,8 +494,6 @@ function TargetEditor(input: {
     onReloadDevices: () => void;
     onCheckDevice: () => void;
 }) {
-    useLocale();
-
     return (
         <>
             <WebTargetEditor form={input.form} onFormChange={input.onFormChange} />
@@ -528,8 +518,6 @@ function YamlLockedAlert({ yamlLocked }: { yamlLocked: boolean }) {
 }
 
 function ModeEditor(input: { mode: string; formEditor: ReactNode; yamlEditor: ReactNode }) {
-    useLocale();
-
     if (input.mode === 'form') {
         return input.formEditor;
     }
@@ -620,8 +608,6 @@ function StepField(input: {
     onChange: (next: string | number | undefined) => void;
     onReloadApps: () => void;
 }) {
-    useLocale();
-
     const kind = stepFieldKind(
         input.field.type,
         isAndroidLaunchField({
@@ -638,8 +624,6 @@ export function StepFields(
         onChange: (params: FormStep['params']) => void;
     },
 ) {
-    useLocale();
-
     const option = ACTION_OPTIONS.find((item) => item.action === input.step.action);
     if (!option) {
         return null;

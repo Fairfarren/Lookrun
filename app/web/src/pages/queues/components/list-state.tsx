@@ -4,8 +4,6 @@ import { EmptyState } from '../../../components/empty-state';
 import { LoadingBlock } from '../../../components/loading-block';
 
 export function QueuesLoading({ state }: { state: string }) {
-    useLocale();
-
     if (state !== 'loading') {
         return null;
     }
@@ -22,8 +20,6 @@ export function QueuesEmpty({ state }: { state: string }) {
 }
 
 export function QueuesReady({ state, children }: { state: string; children: ReactNode }) {
-    useLocale();
-
     if (state !== 'ready') {
         return null;
     }

@@ -123,12 +123,6 @@ export const englishMessages: Record<string, string> = {
     删除步骤: 'Delete step',
     添加步骤: 'Add step',
     添加步骤组: 'Add step group',
-    '支持动作：ai / aiTap / aiHover / aiRightClick / aiInput / aiAssert / aiWaitFor / aiQuery / aiKeyboardPress / aiScroll / sleep；步骤组可加':
-        'Supported actions: ai / aiTap / aiHover / aiRightClick / aiInput / aiAssert / aiWaitFor / aiQuery / aiKeyboardPress / aiScroll / sleep. Set',
-    '切换页面，相同地址会复用已打开的页面；变量用':
-        'to switch pages; matching URLs reuse a page. Reference variables with',
-    '{{变量名}}': '{{VARIABLE_NAME}}',
-    '引用，在「设置-变量」中配置。': 'and configure them in Settings → Variables.',
     表单编辑: 'Form',
     'YAML 编辑': 'YAML',
     任务名: 'Task name',
@@ -158,7 +152,6 @@ export const englishMessages: Record<string, string> = {
     'Midscene 报告': 'Midscene reports',
     数据库: 'Database',
     总计: 'Total',
-    '次运行）': 'runs)',
     已检测到: 'Detected',
     'Chrome 浏览器': 'Google Chrome',
     '未检测到系统 Chrome，请先安装 Google Chrome：https://www.google.com/chrome/':
@@ -183,9 +176,6 @@ export const englishMessages: Record<string, string> = {
     变量: 'Variables',
     添加变量: 'Add variable',
     保存变量: 'Save variables',
-    'YAML 脚本里用': 'Reference variables in YAML with',
-    '引用，例如账号密码（USERNAME / PASSWORD），避免明文写在任务里。':
-        'for values such as USERNAME and PASSWORD, instead of putting credentials directly in tasks.',
     '变量名，如 USERNAME': 'Variable name, e.g. USERNAME',
     变量值: 'Variable value',
     删除变量: 'Delete variable',
@@ -261,8 +251,6 @@ export const englishMessages: Record<string, string> = {
         'Alias for vlm-ui-tars-doubao-1.5, retained for existing configurations.',
     '模型系列（family，可选）': 'Model family (optional)',
     不设置: 'Not set',
-    '已有配置：': 'Existing value:',
-    '（当前版本未支持）': '(unsupported in this version)',
     '此值不在当前版本支持列表中，请重新选择对应系列。':
         'This value is not supported in the current version. Choose a supported family.',
     '可暂不设置；使用「自由指令」前必须选择实际模型所属系列。':

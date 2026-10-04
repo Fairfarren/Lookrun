@@ -17,8 +17,6 @@ import { TokenText } from './components/TokenText';
 import { hasTokenUsage } from './utils';
 
 export default function RunDetailPage() {
-    useLocale();
-
     const { id } = useParams();
     const [run, setRun] = useState<RunRecord | null>(null);
     const [steps, setSteps] = useState<RunStepRecord[]>([]);
@@ -76,8 +74,6 @@ function RunDetailBody({ run, steps }: { run: RunRecord | null; steps: RunStepRe
 }
 
 function Info({ label, children }: { label: string; children: ReactNode }) {
-    useLocale();
-
     return (
         <div className='flex flex-col gap-1'>
             <dt className='text-muted-foreground'>{label}</dt>
@@ -182,8 +178,6 @@ function StepHistoryCard({ step }: { step: RunStepRecord }) {
 }
 
 function ShotPreview({ src, alt, label }: { src: string; alt: string; label: string }) {
-    useLocale();
-
     const [open, setOpen] = useState(false);
     return (
         <div className='flex-1'>
