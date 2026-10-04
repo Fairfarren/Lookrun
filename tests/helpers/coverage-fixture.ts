@@ -1,7 +1,7 @@
 import { runInNewContext } from 'node:vm';
 import { createContext } from 'istanbul-lib-report';
 import { instrumentSources } from '../../scripts/coverage/instrument';
-import { writeCoverageReports } from '../../scripts/coverage/report';
+import { coverageReportWriter } from '../../scripts/coverage/report';
 import type { CoverageMapData } from 'istanbul-lib-coverage';
 import type { runQualityCommand } from '../../scripts/test-quality';
 
@@ -66,7 +66,7 @@ export function qualityFixture(options: {
             files.set(input.env.LOOKRUN_COVERAGE_OUTPUT, options.corrupt ? '{}' : data);
             return { exited: Promise.resolve(options.testFailure ? 1 : 0) };
         }) as unknown as IO['spawn'],
-        writeReports: (report) => writeCoverageReports(report, memoryReportContext(files)),
+        writeReports: coverageReportWriter(memoryReportContext(files)),
         log: () => {},
         process: exit as unknown as NodeJS.Process,
     };

@@ -205,6 +205,41 @@ describe('formToYaml', () => {
         expect(yaml).toContain('launch: com.come123.game');
         expect(yaml).not.toContain('target: https://');
     });
+
+    test('缺省参数写入 YAML 默认值', () => {
+        const yaml = formToYaml({
+            target: { type: 'web', url: 'https://page.test' },
+            tasks: [
+                {
+                    id: 't',
+                    name: '流程',
+                    steps: [
+                        { id: '1', action: 'aiScroll', params: {} },
+                        { id: '2', action: 'aiWaitFor', params: { timeout: '' } },
+                        { id: '3', action: 'aiInput', params: {} },
+                        { id: '4', action: 'aiHover', params: {} },
+                        { id: '5', action: 'aiRightClick', params: {} },
+                        { id: '6', action: 'aiKeyboardPress', params: {} },
+                        { id: '7', action: 'ai', params: {} },
+                    ],
+                },
+            ],
+        });
+
+        expect({
+            direction: yaml.includes('direction: down'),
+            timeout: yaml.includes('timeout:'),
+            hover: yaml.includes('aiHover:'),
+            key: yaml.includes('Enter'),
+            prompt: yaml.includes('ai:'),
+        }).toEqual({
+            direction: true,
+            timeout: false,
+            hover: true,
+            key: true,
+            prompt: true,
+        });
+    });
 });
 
 describe('yamlToForm', () => {
@@ -395,6 +430,7 @@ test.each([
     'aiScroll: {direction: diagonal}',
     'ai: 1',
     'aiTap: 1',
+    'sleep: wait',
     'unknown: 1',
     'launch: com.test.app',
     'ai: task\n        aiTap: button',

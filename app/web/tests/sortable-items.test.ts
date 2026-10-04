@@ -1,11 +1,35 @@
 import { describe, expect, test } from 'bun:test';
-import { reorderById } from '../src/utils/sortable-items';
+import { applyDroppedSort, dragOverId, reorderById } from '../src/utils/sortable-items';
 
 const items = [
     { id: 'a', taskId: 1 },
     { id: 'b', taskId: 2 },
     { id: 'c', taskId: 3 },
 ];
+
+test('没有放置目标时用拖拽项自身作为落点', () => {
+    expect(dragOverId(null, { id: 'a' })).toBe('a');
+});
+
+test('有放置目标时使用目标编号', () => {
+    expect(dragOverId({ id: 'b' }, { id: 'a' })).toBe('b');
+});
+
+test('没有放置目标时保持原顺序', () => {
+    const current = [{ id: 'a' }];
+
+    const result = applyDroppedSort(current, { over: null, active: { id: 'a' } });
+
+    expect(result).toBe(current);
+});
+
+test('有放置目标时按编号重排', () => {
+    const current = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+
+    const result = applyDroppedSort(current, { over: { id: 'c' }, active: { id: 'a' } });
+
+    expect(result.map((item) => item.id)).toEqual(['b', 'c', 'a']);
+});
 
 describe('任务拖拽排序', () => {
     test('将后面的任务拖到前面', () => {

@@ -11,6 +11,10 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+export function dismissIfClosed(open: boolean, close: (ok: boolean) => void) {
+    if (!open) close(false);
+}
+
 export function ConfirmHost() {
     const [request, setRequest] = useState<ConfirmRequest | null>(null);
     const resolveRef = useRef<((ok: boolean) => void) | null>(null);
@@ -32,14 +36,7 @@ export function ConfirmHost() {
     };
 
     return (
-        <AlertDialog
-            open={request !== null}
-            onOpenChange={(open) => {
-                if (!open) {
-                    close(false);
-                }
-            }}
-        >
+        <AlertDialog open={request !== null} onOpenChange={(open) => dismissIfClosed(open, close)}>
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>{request?.title}</AlertDialogTitle>

@@ -9,6 +9,11 @@ import { cn } from '@/lib/utils';
 
 const EMPTY = '__empty__';
 
+export function commitSelectValue(next: string, onValueChange: (value: string) => void) {
+    if (next === EMPTY) return;
+    onValueChange(next);
+}
+
 export function SelectField({
     value,
     onValueChange,
@@ -27,11 +32,7 @@ export function SelectField({
     return (
         <Select
             value={value || EMPTY}
-            onValueChange={(next) => {
-                if (next !== EMPTY) {
-                    onValueChange(next);
-                }
-            }}
+            onValueChange={(next) => commitSelectValue(next, onValueChange)}
             disabled={disabled}
         >
             <SelectTrigger className={cn('min-w-[8rem] max-w-full', className)}>

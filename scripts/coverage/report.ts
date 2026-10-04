@@ -3,7 +3,7 @@ import {
     type CoverageMapData,
     type FileCoverageData,
 } from 'istanbul-lib-coverage';
-import { createContext } from 'istanbul-lib-report';
+import type { createContext } from 'istanbul-lib-report';
 import { create } from 'istanbul-reports';
 
 function validateRecord(expected: FileCoverageData, actual: FileCoverageData) {
@@ -42,18 +42,20 @@ export function coverageReport(data: CoverageMapData, baseline: FileCoverageData
         ...map.fileCoverageFor(file).toSummary().data,
     }));
     const passed = files.every(
-        ({ lines, functions }) =>
-            lines.covered === lines.total && functions.covered === functions.total,
+        ({ lines, functions, statements, branches }) =>
+            lines.covered === lines.total &&
+            functions.covered === functions.total &&
+            statements.covered === statements.total &&
+            branches.covered === branches.total,
     );
     return { map, summary: summary.data, files, passed };
 }
 
-export function writeCoverageReports(
-    report: ReturnType<typeof coverageReport>,
-    contextFactory?: typeof createContext,
-) {
-    const context = (contextFactory ?? createContext)({ dir: 'coverage', coverageMap: report.map });
-    create('lcovonly').execute(context);
-    create('json-summary').execute(context);
-    create('text-summary').execute(context);
+export function coverageReportWriter(contextFactory: typeof createContext) {
+    return (report: ReturnType<typeof coverageReport>) => {
+        const context = contextFactory({ dir: 'coverage', coverageMap: report.map });
+        create('lcovonly').execute(context);
+        create('json-summary').execute(context);
+        create('text-summary').execute(context);
+    };
 }

@@ -42,7 +42,7 @@ import { CARD_ACTIONS_CLASS, CARD_HEADER_WRAP_CLASS } from '../../styles/layout'
 import { useThemeMode } from '../../theme/context';
 import { createAndroidAppOptions } from './android-app-options';
 import { api } from './api';
-import { reorderById } from '../../utils/sortable-items';
+import { dragOverId, reorderById } from '../../utils/sortable-items';
 import { draggingItemStyle } from '../../utils/sortable-style';
 import { errorText } from '../../utils/error-text';
 import { androidCheckError, fieldLabelText, launchFieldPlaceholder } from '../../utils/ui-class';
@@ -51,7 +51,6 @@ import { createValidationErrorKey } from './validation-errors';
 import {
     androidDeviceId,
     applyLoadedTaskYaml,
-    canCheckAndroidDevice,
     createEmptyForm,
     createEmptyStep,
     createEmptyTask,
@@ -95,7 +94,7 @@ function SortableList({ ids, onReorder, children }: SortableListProps) {
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragEnd={({ active, over }) => {
-                if (over) onReorder(String(active.id), String(over.id));
+                onReorder(String(active.id), dragOverId(over, active));
             }}
         >
             <SortableContext items={ids} strategy={verticalListSortingStrategy}>
@@ -247,7 +246,7 @@ function SelectStepField(input: {
             key={input.field.key}
             className='w-[110px]'
             value={fieldSelectValue(input.value)}
-            options={input.field.options ?? []}
+            options={input.field.options!}
             onValueChange={input.onChange}
         />
     );
@@ -299,7 +298,7 @@ function NumberStepField(input: {
             key={input.field.key}
             className='w-[130px]'
             min={1}
-            placeholder={input.field.placeholder ?? input.field.label}
+            placeholder={input.field.placeholder}
             value={fieldNumberValue(input.value)}
             onValueChange={input.onChange}
         />
@@ -315,7 +314,7 @@ function TextStepField(input: {
         <Input
             key={input.field.key}
             className='min-w-[140px] flex-1'
-            placeholder={input.field.placeholder ?? input.field.label}
+            placeholder={input.field.placeholder}
             value={fieldStringValue(input.value)}
             onChange={(event) => input.onChange(event.target.value)}
         />
@@ -828,10 +827,8 @@ export default function TaskEditPage() {
     };
 
     const checkSelectedAndroidDevice = async () => {
-        if (canCheckAndroidDevice(form)) {
-            setCheckingDevice(true);
-            await reportAndroidDevice();
-        }
+        setCheckingDevice(true);
+        await reportAndroidDevice();
     };
 
     const renderFormEditor = () => (

@@ -114,6 +114,17 @@ function sampleStep(status: RunStepRecord['status']): RunStepRecord {
     };
 }
 
+test('已选择 Android 设备时可以检查连接', () => {
+    const form = {
+        target: { type: 'android' as const, deviceId: 'dev' },
+        tasks: [],
+    };
+
+    const canCheck = canCheckAndroidDevice(form);
+
+    expect(canCheck).toBe(true);
+});
+
 describe('页面逻辑', () => {
     test('错误文案和字节', () => {
         expect(errorText(new Error('e'))).toBe('e');

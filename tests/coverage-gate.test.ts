@@ -1,7 +1,8 @@
 import { runInNewContext } from 'node:vm';
 import { expect, test } from 'bun:test';
 import { instrumentSources } from '../scripts/coverage/instrument';
-import { coverageReport } from '../scripts/coverage/report';
+import { coverageReport, coverageReportWriter } from '../scripts/coverage/report';
+import { memoryReportContext } from './helpers/coverage-fixture';
 import type { CoverageMapData } from 'istanbul-lib-coverage';
 
 function execute(source: string, calls: string) {
@@ -50,6 +51,42 @@ test('所有函数调用但漏掉可执行行仍不通过', () => {
         100,
         66.66,
     ]);
+});
+
+test('漏掉短路分支即使行和函数全覆盖也不通过', () => {
+    const source = `function pick(flag: boolean, fallback: number) {
+    return flag || fallback;
+}`;
+    const { entries, data } = execute(source, 'pick(true, 1);');
+    const report = coverageReport(
+        data,
+        entries.map((entry) => entry.coverage),
+    );
+
+    expect({
+        passed: report.passed,
+        lines: report.summary.lines.pct,
+        functions: report.summary.functions.pct,
+        branches: report.summary.branches.pct,
+    }).toEqual({ passed: false, lines: 100, functions: 100, branches: 50 });
+});
+
+test('同一行漏掉语句即使行和函数全覆盖也不通过', () => {
+    const source = 'function pick() { return 1; const unused = 2; }';
+    const { entries, data } = execute(source, 'pick();');
+
+    const report = coverageReport(
+        data,
+        entries.map((entry) => entry.coverage),
+    );
+
+    expect({
+        passed: report.passed,
+        lines: report.summary.lines.pct,
+        functions: report.summary.functions.pct,
+        statements: report.summary.statements.pct,
+        branches: report.summary.branches.pct,
+    }).toEqual({ passed: false, lines: 100, functions: 100, statements: 50, branches: 100 });
 });
 
 test('删除关键测试会使函数和行覆盖率真实下降', () => {
@@ -184,4 +221,18 @@ test('重复生成报告不会重复累计原始命中次数', () => {
     const second = coverageReport(data, baseline).map.toJSON();
 
     expect(second).toEqual(first);
+});
+
+test('报告写入器通过注入上下文生成 LCOV', () => {
+    const files = new Map<string, string>();
+    const writeReports = coverageReportWriter(memoryReportContext(files));
+    const { entries, data } = execute(fixture, 'choose(true); choose(false); unused();');
+    const report = coverageReport(
+        data,
+        entries.map((entry) => entry.coverage),
+    );
+
+    writeReports(report);
+
+    expect(files.get('coverage/lcov.info')).toContain('SF:fixture.ts');
 });

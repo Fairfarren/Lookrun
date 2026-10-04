@@ -254,6 +254,28 @@ test('历史记录展示运行结果，分页切换参数正确且可返回上�
     });
 });
 
+test('历史记录无用量时显示横杠', async () => {
+    useHttp(() => ({
+        list: [
+            {
+                id: 1,
+                taskName: '无用量任务',
+                status: 'success',
+                model: 'vision',
+                startedAt: '2026-01-01',
+                durationMs: 10,
+                tokenInput: 0,
+                tokenOutput: 0,
+                error: null,
+            },
+        ],
+        total: 1,
+    }));
+    await renderPage(<HistoryPage />, { path: '/history', url: '/history' });
+
+    expect(document.querySelector('tbody tr td:nth-child(7)')?.textContent).toBe('-');
+});
+
 test('历史记录请求失败提示错误并展示空列表', async () => {
     useHttp(() => Response.json({ error: '历史记录不可用' }, { status: 500 }));
 

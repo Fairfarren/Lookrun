@@ -58,6 +58,20 @@ describe('restrictDirectNavigate', () => {
         expect(opened).toEqual(['https://www.bing.com/search?q=baidu']);
     });
 
+    test('缺少跳转地址时按空地址拒绝', async () => {
+        const actions = [
+            {
+                name: DIRECT_NAVIGATE_ACTION,
+                call: async (_param: { url?: string }) => {},
+            },
+        ];
+        restrictDirectNavigate(actions, 'https://www.baidu.com/');
+
+        await expect(actions[0].call({})).rejects.toThrow(
+            offSiteNavigateError('https://www.baidu.com/', ''),
+        );
+    });
+
     test('跨站跳转直接失败，避免绕过已打开的页面', async () => {
         const actions = [
             {

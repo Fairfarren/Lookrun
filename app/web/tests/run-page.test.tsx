@@ -2,7 +2,7 @@ import './helpers/dom';
 import { expect, test } from 'bun:test';
 import { act } from 'react';
 import RunPage from '../src/pages/run';
-import { useWebSocket } from '../src/pages/run/hooks';
+import { useWebSocket, websocketUrl } from '../src/pages/run/hooks';
 import {
     latestNotice,
     button,
@@ -68,6 +68,18 @@ function queueItems() {
         },
     ];
 }
+test('模型列表没有默认项时回退到第一项', async () => {
+    stubWebSockets();
+    useHttp(({ path }) => {
+        if (path === '/api/models')
+            return { models: [{ id: 'm', name: '视觉模型', model: 'vision' }] };
+        return basicHttp(path);
+    });
+    await renderPage(<RunPage />, { path: '/run', url: '/run' });
+
+    expect(document.body.textContent).toContain('视觉模型');
+});
+
 function basicHttp(path: string) {
     if (path === '/api/runs/current') return { status: 'idle', run: null };
     if (path === '/api/queue') return { items: queueItems() };
@@ -312,4 +324,8 @@ test('更新已完成步骤不改变其他执行中步骤，忽略未知 WS 消�
     await flush(() => sockets[0]!.receive({ type: 'heartbeat' }));
 
     expect(document.body.textContent).toContain('第二步aiAssert执行中');
+});
+
+test('https 页面使用加密 WebSocket', () => {
+    expect(websocketUrl({ protocol: 'https:', host: 'app.test' })).toBe('wss://app.test/ws');
 });
