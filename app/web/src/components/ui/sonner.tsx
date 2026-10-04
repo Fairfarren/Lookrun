@@ -7,11 +7,14 @@ import {
 } from 'lucide-react';
 import { Toaster as Sonner, type ToasterProps } from 'sonner';
 import { useThemeMode } from '@/theme/context';
+import { t, useLocale } from '@/i18n';
 
 export function Toaster(props: ToasterProps) {
+    useLocale();
     const themeMode = useThemeMode();
     return (
         <Sonner
+            containerAriaLabel={t('通知')}
             theme={themeMode}
             className='toaster group'
             position='bottom-right'

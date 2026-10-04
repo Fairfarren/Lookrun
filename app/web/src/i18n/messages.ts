@@ -1,4 +1,5 @@
 export const englishMessages: Record<string, string> = {
+    通知: 'Notifications',
     '（{p0} 次运行）': '({p0} runs)',
     'YAML 脚本里用 {{变量名}} 引用，例如账号密码（USERNAME / PASSWORD），避免明文写在任务里。':
         'Reference variables in YAML with {{VARIABLE_NAME}}, for values such as USERNAME and PASSWORD, instead of putting credentials directly in tasks.',

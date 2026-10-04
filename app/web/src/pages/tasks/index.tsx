@@ -129,8 +129,7 @@ export default function TasksPage() {
                             <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
                                 <span className='font-medium'>{task.name}</span>
                                 <span className='text-sm text-muted-foreground'>
-                                    {t('更新于')}
-                                    {formatTime(task.updatedAt)}
+                                    {t('更新于')} {formatTime(task.updatedAt)}
                                 </span>
                             </div>
                             <div className='flex flex-wrap gap-2'>

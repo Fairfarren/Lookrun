@@ -55,6 +55,17 @@ test('test_用户内容_保持原样', () => {
     expect(message).toBe('用户自定义的步骤名称');
 });
 
+test.each(['constructor', 'toString', '__proto__'])(
+    'test_内置对象属性名_原样返回_%s',
+    (message) => {
+        setLocale('en');
+
+        const result = t(message);
+
+        expect(result).toBe(message);
+    },
+);
+
 test('test_文案插值_保留零值', () => {
     const message = t('{count} / {name}', { count: 0, name: '测试' });
 
@@ -90,6 +101,47 @@ test('test_本地存储禁用_仍可切换', () => {
         setLocale('zh-CN');
 
         expect(getLocale()).toBe('zh-CN');
+    } finally {
+        Object.defineProperty(window, 'localStorage', { configurable: true, value: storage });
+        setLocale('zh-CN');
+    }
+});
+
+test('test_本地存储只能读取_切换覆盖旧选择', () => {
+    const storage = window.localStorage;
+    Object.defineProperty(window, 'localStorage', {
+        configurable: true,
+        value: {
+            getItem() {
+                return 'zh-CN';
+            },
+            setItem() {
+                throw new Error('本地存储不可写');
+            },
+        },
+    });
+    try {
+        setLocale('en');
+
+        expect(getLocale()).toBe('en');
+    } finally {
+        Object.defineProperty(window, 'localStorage', { configurable: true, value: storage });
+        setLocale('zh-CN');
+    }
+});
+
+test('test_本地存储读取失败_默认英语', () => {
+    const storage = window.localStorage;
+    Object.defineProperty(window, 'localStorage', {
+        configurable: true,
+        get() {
+            throw new Error('本地存储不可读');
+        },
+    });
+    try {
+        const locale = getLocale();
+
+        expect(locale).toBe('en');
     } finally {
         Object.defineProperty(window, 'localStorage', { configurable: true, value: storage });
     }
