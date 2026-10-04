@@ -66,7 +66,7 @@ bun scripts/build-smoke.ts dist-mac  # 先构建；Windows/Linux 使用对应产
 
 变异测试针对 YAML 转换、模型规则、端口处理及前端纯逻辑等现有十个模块；失败门槛为 70%，本轮 1706 个变异的实测分数为 71.69%，60%/80% 仅用于报告颜色分级。它补充验证断言的有效性，不替代全量覆盖门禁。结果在 `reports/mutation/`。
 
-指向 `master` 的 PR 和 `master` 推送统一运行 CI，固定 Bun 1.3.14。Ubuntu、macOS、Windows 各自构建并实际启动产物；Ubuntu 另跑本地网页的成功、停止和失败场景。冒烟使用独立临时目录、临时端口和本地网页，不修改开发数据或打开桌面浏览器。Windows 构建使用 Git Bash 并检查 `unzip`。
+禁止直接向 `master` 提交或推送代码，修改必须通过 PR 合并。CI 仅在指向 `master` 的 PR 创建、更新提交或重新打开时运行，合并后不重复运行，固定 Bun 1.3.14。Ubuntu、macOS、Windows 各自构建并实际启动产物；Ubuntu 另跑本地网页的成功、停止和失败场景。冒烟使用独立临时目录、临时端口和本地网页，不修改开发数据或打开桌面浏览器。Windows 构建使用 Git Bash 并检查 `unzip`。
 
 ## 打包
 
