@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 export function isNewQueueRoute(id: string | undefined) {
     if (id === undefined) {
         return true;
@@ -7,7 +8,7 @@ export function isNewQueueRoute(id: string | undefined) {
 
 export function queueSaveNameError(name: string) {
     if (!name.trim()) {
-        return '请填写队列名';
+        return t('请填写队列名');
     }
     return null;
 }
@@ -20,14 +21,14 @@ export function validQueueItems<
 
 export function queueEditTitle(isNew: boolean) {
     if (isNew) {
-        return '新建队列';
+        return t('新建队列');
     }
-    return '编辑队列';
+    return t('编辑队列');
 }
 
 export function queueSaveItemsError(count: number) {
     if (count === 0) {
-        return '至少添加一个任务';
+        return t('至少添加一个任务');
     }
     return null;
 }

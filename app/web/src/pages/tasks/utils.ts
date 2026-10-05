@@ -1,6 +1,7 @@
+import { t } from '../../i18n';
 export function startTaskSuccess(queued: boolean) {
     if (queued) {
-        return { message: '已加入队列排队，可到「实时运行」页查看', stay: true };
+        return { message: t('已加入队列排队，可到「实时运行」页查看'), stay: true };
     }
     return { message: null, stay: false };
 }

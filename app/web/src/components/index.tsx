@@ -1,5 +1,6 @@
 import type { RunStatus } from '@lookrun/shared';
 import { Badge } from '@/components/ui/badge';
+import { getLocale, t, useLocale } from '../i18n';
 
 const STATUS_META: Record<
     RunStatus,
@@ -12,8 +13,9 @@ const STATUS_META: Record<
 };
 
 export function RunStatusTag({ status }: { status: RunStatus }) {
+    useLocale();
     const meta = STATUS_META[status] ?? { variant: 'outline' as const, text: status };
-    return <Badge variant={meta.variant}>{meta.text}</Badge>;
+    return <Badge variant={meta.variant}>{t(meta.text)}</Badge>;
 }
 
 export function formatDuration(ms: number | null) {
@@ -30,5 +32,5 @@ export function formatTime(iso: string | null) {
     if (!iso) {
         return '-';
     }
-    return new Date(iso).toLocaleString('zh-CN', { hour12: false });
+    return new Date(iso).toLocaleString(getLocale(), { hour12: false });
 }

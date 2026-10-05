@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+
 const MENU_PATHS = ['/tasks', '/queues', '/run', '/history', '/settings'];
 
 export function selectedMenuKey(pathname: string) {
@@ -10,9 +12,9 @@ export function selectedMenuKey(pathname: string) {
 
 export function themeSwitchTitle(themeMode: string) {
     if (themeMode === 'dark') {
-        return '切换到亮色模式';
+        return t('切换到亮色模式');
     }
-    return '切换到黑夜模式';
+    return t('切换到黑夜模式');
 }
 
 export function themeFromSwitch(checked: boolean) {

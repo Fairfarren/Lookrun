@@ -1,3 +1,5 @@
+import { t, useLocale } from '../../i18n';
+import { translateError } from '../../i18n/errors';
 import { yaml } from '@codemirror/lang-yaml';
 import {
     DndContext,
@@ -123,6 +125,8 @@ function SortableTaskCard({
     onDelete,
     children,
 }: SortableTaskCardProps) {
+    useLocale();
+
     const {
         attributes,
         listeners,
@@ -152,8 +156,8 @@ function SortableTaskCard({
                         type='button'
                         variant='ghost'
                         size='icon-sm'
-                        aria-label={`拖拽第 ${index + 1} 个步骤组进行排序`}
-                        title='拖拽排序'
+                        aria-label={t('拖拽第 {p0} 个步骤组进行排序', { p0: index + 1 })}
+                        title={t('拖拽排序')}
                         style={{
                             cursor: draggingItemStyle(isDragging).cursor,
                             touchAction: 'none',
@@ -166,7 +170,7 @@ function SortableTaskCard({
                     <span className='text-muted-foreground'>{`${index + 1}.`}</span>
                     <Input
                         className='max-w-[320px]'
-                        placeholder='步骤组名称，如：登录'
+                        placeholder={t('步骤组名称，如：登录')}
                         value={name}
                         onChange={(event) => onNameChange(event.target.value)}
                     />
@@ -176,7 +180,7 @@ function SortableTaskCard({
                         size='icon-sm'
                         variant='destructive'
                         disabled={!canDelete}
-                        aria-label='删除步骤组'
+                        aria-label={t('删除步骤组')}
                         onClick={onDelete}
                     >
                         <Trash2 />
@@ -195,6 +199,8 @@ interface SortableStepRowProps {
 }
 
 function SortableStepRow({ id, index, children }: SortableStepRowProps) {
+    useLocale();
+
     const {
         attributes,
         listeners,
@@ -222,8 +228,8 @@ function SortableStepRow({ id, index, children }: SortableStepRowProps) {
                 type='button'
                 variant='ghost'
                 size='icon-sm'
-                aria-label={`拖拽第 ${index + 1} 个步骤进行排序`}
-                title='拖拽排序'
+                aria-label={t('拖拽第 {p0} 个步骤进行排序', { p0: index + 1 })}
+                title={t('拖拽排序')}
                 style={{ cursor: draggingItemStyle(isDragging).cursor, touchAction: 'none' }}
                 {...attributes}
                 {...listeners}
@@ -241,12 +247,14 @@ function SelectStepField(input: {
     value: unknown;
     onChange: (next: string | number | undefined) => void;
 }) {
+    useLocale();
+
     return (
         <SelectField
             key={input.field.key}
             className='w-[110px]'
             value={fieldSelectValue(input.value)}
-            options={input.field.options!}
+            options={input.field.options!.map((option) => ({ ...option, label: t(option.label) }))}
             onValueChange={input.onChange}
         />
     );
@@ -261,6 +269,8 @@ function AndroidLaunchField(input: {
     onChange: (next: string | number | undefined) => void;
     onReloadApps: () => void;
 }) {
+    useLocale();
+
     return (
         <div key={input.field.key} className='flex min-w-[280px] flex-1 gap-2'>
             <SuggestInput
@@ -269,8 +279,8 @@ function AndroidLaunchField(input: {
                 options={createAndroidAppOptions(input.androidApps)}
                 placeholder={launchFieldPlaceholder(
                     input.loadingApps,
-                    fieldLabelText(input.field.placeholder, input.field.label),
-                    '正在读取应用列表…',
+                    t(fieldLabelText(input.field.placeholder, input.field.label)),
+                    t('正在读取应用列表…'),
                 )}
                 onValueChange={input.onChange}
             />
@@ -279,7 +289,7 @@ function AndroidLaunchField(input: {
                 size='icon'
                 busy={input.loadingApps}
                 disabled={!input.deviceId}
-                title='刷新应用列表'
+                title={t('刷新应用列表')}
                 onClick={input.onReloadApps}
             >
                 <RefreshCw />
@@ -293,12 +303,14 @@ function NumberStepField(input: {
     value: unknown;
     onChange: (next: string | number | undefined) => void;
 }) {
+    useLocale();
+
     return (
         <NumberInput
             key={input.field.key}
             className='w-[130px]'
             min={1}
-            placeholder={input.field.placeholder}
+            placeholder={input.field.placeholder && t(input.field.placeholder)}
             value={fieldNumberValue(input.value)}
             onValueChange={input.onChange}
         />
@@ -310,11 +322,13 @@ function TextStepField(input: {
     value: unknown;
     onChange: (next: string | number | undefined) => void;
 }) {
+    useLocale();
+
     return (
         <Input
             key={input.field.key}
             className='min-w-[140px] flex-1'
-            placeholder={input.field.placeholder}
+            placeholder={input.field.placeholder && t(input.field.placeholder)}
             value={fieldStringValue(input.value)}
             onChange={(event) => input.onChange(event.target.value)}
         />
@@ -373,6 +387,8 @@ function StepFieldInput(input: {
 }
 
 function WebTargetEditor(input: { form: FormScript; onFormChange: (form: FormScript) => void }) {
+    useLocale();
+
     if (input.form.target.type !== 'web') {
         return null;
     }
@@ -380,10 +396,10 @@ function WebTargetEditor(input: { form: FormScript; onFormChange: (form: FormScr
     return (
         <>
             <div className='flex flex-wrap items-center gap-3'>
-                <span className='font-medium'>起始页面</span>
+                <span className='font-medium'>{t('起始页面')}</span>
                 <Input
                     className='min-w-[260px] flex-1'
-                    placeholder='起始页面地址，如 https://h5.example.com'
+                    placeholder={t('起始页面地址，如 https://h5.example.com')}
                     value={target.url}
                     onChange={(event) =>
                         input.onFormChange(withWebUrl(input.form, event.target.value))
@@ -391,7 +407,7 @@ function WebTargetEditor(input: { form: FormScript; onFormChange: (form: FormScr
                 />
                 <NumberInput
                     className='w-[160px]'
-                    placeholder='视口宽(默认390)'
+                    placeholder={t('视口宽(默认390)')}
                     min={320}
                     value={target.viewportWidth}
                     onValueChange={(value) =>
@@ -400,7 +416,7 @@ function WebTargetEditor(input: { form: FormScript; onFormChange: (form: FormScr
                 />
                 <NumberInput
                     className='w-[160px]'
-                    placeholder='视口高(默认844)'
+                    placeholder={t('视口高(默认844)')}
                     min={320}
                     value={target.viewportHeight}
                     onValueChange={(value) =>
@@ -409,8 +425,9 @@ function WebTargetEditor(input: { form: FormScript; onFormChange: (form: FormScr
                 />
             </div>
             <p className='text-sm text-muted-foreground'>
-                每个步骤组可另填页面地址。相同地址会回到已打开的页面，不会新开，适合 H5
-                发验证码后再去后台接码。
+                {t(
+                    '每个步骤组可另填页面地址。相同地址会回到已打开的页面，不会新开，适合 H5 发验证码后再去后台接码。',
+                )}
             </p>
         </>
     );
@@ -425,15 +442,17 @@ function AndroidTargetEditor(input: {
     onReloadDevices: () => void;
     onCheckDevice: () => void;
 }) {
+    useLocale();
+
     if (input.form.target.type !== 'android') {
         return null;
     }
     return (
         <div className='flex flex-wrap items-center gap-3'>
-            <span className='font-medium'>设备号</span>
+            <span className='font-medium'>{t('设备号')}</span>
             <SelectField
                 className='min-w-[320px] flex-1'
-                placeholder='选择已连接并授权的 Android 设备'
+                placeholder={t('选择已连接并授权的 Android 设备')}
                 value={optionalDeviceId(input.form.target.deviceId)}
                 options={input.androidDevices.map((device) => ({
                     label: `${device.name}（${device.id}）`,
@@ -452,7 +471,7 @@ function AndroidTargetEditor(input: {
                 onClick={input.onReloadDevices}
             >
                 <RefreshCw />
-                刷新设备
+                {t('刷新设备')}
             </BusyButton>
             <BusyButton
                 variant='outline'
@@ -460,7 +479,7 @@ function AndroidTargetEditor(input: {
                 disabled={!input.form.target.deviceId}
                 onClick={input.onCheckDevice}
             >
-                检查连接
+                {t('检查连接')}
             </BusyButton>
         </div>
     );
@@ -484,13 +503,15 @@ function TargetEditor(input: {
 }
 
 function YamlLockedAlert({ yamlLocked }: { yamlLocked: boolean }) {
+    useLocale();
+
     if (!yamlLocked) {
         return null;
     }
     return (
         <Alert variant='warning' className='mb-3'>
             <AlertTitle>
-                此脚本包含表单编辑器不支持的内容（如高级参数），已用 YAML 模式编辑
+                {t('此脚本包含表单编辑器不支持的内容（如高级参数），已用 YAML 模式编辑')}
             </AlertTitle>
         </Alert>
     );
@@ -504,27 +525,33 @@ function ModeEditor(input: { mode: string; formEditor: ReactNode; yamlEditor: Re
 }
 
 function BannerPending({ banner }: { banner: string }) {
+    useLocale();
+
     if (banner !== 'pending') {
         return null;
     }
     return (
         <Alert data-testid='script-validation-banner' variant='info'>
-            <AlertTitle>正在校验</AlertTitle>
+            <AlertTitle>{t('正在校验')}</AlertTitle>
         </Alert>
     );
 }
 
 function BannerError({ banner, errors }: { banner: string; errors: string[] }) {
+    useLocale();
+
     if (banner !== 'error') {
         return null;
     }
     return (
         <Alert data-testid='script-validation-banner' variant='destructive'>
-            <AlertTitle>脚本存在问题</AlertTitle>
+            <AlertTitle>{t('脚本存在问题')}</AlertTitle>
             <AlertDescription>
                 <ul className='m-0 ps-5'>
                     {errors.map((error, errorIndex) => (
-                        <li key={createValidationErrorKey(error, errorIndex)}>{error}</li>
+                        <li key={createValidationErrorKey(error, errorIndex)}>
+                            {translateError(error)}
+                        </li>
                     ))}
                 </ul>
             </AlertDescription>
@@ -533,12 +560,14 @@ function BannerError({ banner, errors }: { banner: string; errors: string[] }) {
 }
 
 function BannerSuccess({ banner }: { banner: string }) {
+    useLocale();
+
     if (banner !== 'success') {
         return null;
     }
     return (
         <Alert data-testid='script-validation-banner' variant='success'>
-            <AlertTitle>校验通过</AlertTitle>
+            <AlertTitle>{t('校验通过')}</AlertTitle>
         </Alert>
     );
 }
@@ -548,12 +577,14 @@ function TaskGroupUrl(input: {
     url: string | undefined;
     onChange: (url: string) => void;
 }) {
+    useLocale();
+
     if (input.targetType !== 'web') {
         return null;
     }
     return (
         <Input
-            placeholder='本步骤组页面地址（可选，相同则复用）'
+            placeholder={t('本步骤组页面地址（可选，相同则复用）')}
             value={urlText(input.url)}
             onChange={(event) => input.onChange(event.target.value)}
         />
@@ -609,6 +640,8 @@ export function StepFields(
 }
 
 export default function TaskEditPage() {
+    useLocale();
+
     const themeMode = useThemeMode();
     const { id } = useParams();
     const isNew = isNewEditRoute(id);
@@ -721,7 +754,7 @@ export default function TaskEditPage() {
                     setValidated(true);
                 })
                 .catch((error) => {
-                    setErrors([`脚本校验失败：${errorText(error)}`]);
+                    setErrors([t('脚本校验失败：{p0}', { p0: errorText(error) })]);
                     setValidated(true);
                 });
         }, VALIDATE_DEBOUNCE_MS);
@@ -741,7 +774,7 @@ export default function TaskEditPage() {
                 setYamlLocked(false);
                 break;
             case 'blocked':
-                notify.warning('当前 YAML 包含表单不支持的内容，无法切换；请先在 YAML 里修正');
+                notify.warning(t('当前 YAML 包含表单不支持的内容，无法切换；请先在 YAML 里修正'));
                 break;
         }
     };
@@ -769,7 +802,7 @@ export default function TaskEditPage() {
             return;
         }
         await writeTask();
-        notify.success('已保存');
+        notify.success(t('已保存'));
         navigate('/tasks');
     };
 
@@ -810,7 +843,7 @@ export default function TaskEditPage() {
         message?: string;
     }) => {
         if (result.ok) {
-            notify.success(`设备 ${result.device?.name} 连接正常`);
+            notify.success(t('设备 {p0} 连接正常', { p0: result.device?.name ?? deviceId }));
             return;
         }
         notify.error(androidCheckError(result.message));
@@ -834,7 +867,7 @@ export default function TaskEditPage() {
     const renderFormEditor = () => (
         <div className='flex flex-col gap-4'>
             <div className='flex flex-wrap items-center gap-3'>
-                <span className='font-medium'>运行目标</span>
+                <span className='font-medium'>{t('运行目标')}</span>
                 <ToggleGroup
                     type='single'
                     variant='outline'
@@ -848,7 +881,7 @@ export default function TaskEditPage() {
                         );
                     }}
                 >
-                    <ToggleGroupItem value='web'>网页</ToggleGroupItem>
+                    <ToggleGroupItem value='web'>{t('网页')}</ToggleGroupItem>
                     <ToggleGroupItem value='android'>Android</ToggleGroupItem>
                 </ToggleGroup>
             </div>
@@ -910,7 +943,7 @@ export default function TaskEditPage() {
                                             value={step.action}
                                             options={actionOptionsForTarget(form.target.type).map(
                                                 (option) => ({
-                                                    label: option.label,
+                                                    label: t(option.label),
                                                     value: option.action,
                                                 }),
                                             )}
@@ -936,7 +969,7 @@ export default function TaskEditPage() {
                                         />
                                         <Input
                                             className='w-[110px]'
-                                            placeholder='步骤名(可选)'
+                                            placeholder={t('步骤名(可选)')}
                                             value={step.name ?? ''}
                                             onChange={(e) =>
                                                 updateStep(taskIndex, stepIndex, {
@@ -948,7 +981,7 @@ export default function TaskEditPage() {
                                             size='icon-sm'
                                             variant='destructive'
                                             disabled={task.steps.length === 1}
-                                            aria-label='删除步骤'
+                                            aria-label={t('删除步骤')}
                                             onClick={() =>
                                                 updateTask(taskIndex, {
                                                     steps: task.steps.filter(
@@ -972,7 +1005,7 @@ export default function TaskEditPage() {
                                 }
                             >
                                 <Plus />
-                                添加步骤
+                                {t('添加步骤')}
                             </Button>
                         </div>
                     </SortableTaskCard>
@@ -990,7 +1023,7 @@ export default function TaskEditPage() {
                 }
             >
                 <Plus />
-                添加步骤组
+                {t('添加步骤组')}
             </Button>
         </div>
     );
@@ -999,10 +1032,9 @@ export default function TaskEditPage() {
         <>
             <YamlLockedAlert yamlLocked={yamlLocked} />
             <p className='mb-3 text-sm text-muted-foreground'>
-                支持动作：ai / aiTap / aiHover / aiRightClick / aiInput / aiAssert / aiWaitFor /
-                aiQuery / aiKeyboardPress / aiScroll / sleep；步骤组可加 <code>url</code>{' '}
-                切换页面，相同地址会复用已打开的页面；变量用 {'{{变量名}}'}{' '}
-                引用，在「设置-变量」中配置。
+                {t(
+                    '支持动作：ai / aiTap / aiHover / aiRightClick / aiInput / aiAssert / aiWaitFor / aiQuery / aiKeyboardPress / aiScroll / sleep / launch。步骤组可用 url 切换页面，相同地址会复用已打开的页面。变量用 {{变量名}} 引用，在「设置 → 变量」中配置。',
+                )}
             </p>
             <CodeMirror
                 value={yamlText}
@@ -1036,24 +1068,24 @@ export default function TaskEditPage() {
                             }
                         }}
                     >
-                        <ToggleGroupItem value='form'>表单编辑</ToggleGroupItem>
-                        <ToggleGroupItem value='yaml'>YAML 编辑</ToggleGroupItem>
+                        <ToggleGroupItem value='form'>{t('表单编辑')}</ToggleGroupItem>
+                        <ToggleGroupItem value='yaml'>{t('YAML 编辑')}</ToggleGroupItem>
                     </ToggleGroup>
                     <Button variant='outline' onClick={() => navigate('/tasks')}>
-                        返回
+                        {t('返回')}
                     </Button>
                     <BusyButton busy={saving} onClick={() => void save()}>
-                        保存
+                        {t('保存')}
                     </BusyButton>
                 </div>
             }
         >
             <div className='flex flex-col gap-4'>
                 <div>
-                    <div className='font-medium'>任务名</div>
+                    <div className='font-medium'>{t('任务名')}</div>
                     <Input
                         className='mt-2'
-                        placeholder='例如：登录冒烟测试'
+                        placeholder={t('例如：登录冒烟测试')}
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                     />

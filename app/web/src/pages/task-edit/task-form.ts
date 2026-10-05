@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import {
     actionOptionsForTarget,
     createStepId,
@@ -29,16 +30,16 @@ export function createEmptyStep(action: string) {
 export function createEmptyTask(index: number): FormTask {
     return {
         id: createStepId(),
-        name: `步骤组 ${index}`,
+        name: t('步骤组 {p0}', { p0: index }),
         steps: [createEmptyStep('aiTap')],
     };
 }
 
 export function taskEditTitle(isNew: boolean) {
     if (isNew) {
-        return '新建任务';
+        return t('新建任务');
     }
-    return '编辑任务';
+    return t('编辑任务');
 }
 
 export function isNewEditRoute(id: string | undefined) {
@@ -73,14 +74,14 @@ export function editorModeSwitch(input: {
 
 export function taskNameError(name: string) {
     if (!name.trim()) {
-        return '请填写任务名';
+        return t('请填写任务名');
     }
     return null;
 }
 
 export function yamlValidateError(result: { ok: boolean }) {
     if (!result.ok) {
-        return '脚本校验未通过，请先修复错误';
+        return t('脚本校验未通过，请先修复错误');
     }
     return null;
 }

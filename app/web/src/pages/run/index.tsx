@@ -1,3 +1,5 @@
+import { t, useLocale } from '../../i18n';
+import { translateError } from '../../i18n/errors';
 import { ArrowDown, ArrowUp, Plus, Square, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { TaskRecord } from '@lookrun/shared';
@@ -35,24 +37,30 @@ const emptyView = (): RunViewState => ({
 });
 
 function StepRunningTag({ status }: { status: string }) {
+    useLocale();
+
     if (status !== 'running') {
         return null;
     }
-    return <Badge variant='running'>执行中</Badge>;
+    return <Badge variant='running'>{t('执行中')}</Badge>;
 }
 
 function StepSuccessTag({ status }: { status: string }) {
+    useLocale();
+
     if (status !== 'success') {
         return null;
     }
-    return <Badge variant='success'>成功</Badge>;
+    return <Badge variant='success'>{t('成功')}</Badge>;
 }
 
 function StepFailedTag({ status }: { status: string }) {
+    useLocale();
+
     if (status !== 'failed') {
         return null;
     }
-    return <Badge variant='destructive'>失败</Badge>;
+    return <Badge variant='destructive'>{t('失败')}</Badge>;
 }
 
 function StepDuration({ item }: { item: LiveStep }) {
@@ -63,10 +71,12 @@ function StepDuration({ item }: { item: LiveStep }) {
 }
 
 function StepError({ item }: { item: LiveStep }) {
+    useLocale();
+
     if (!item.record?.error) {
         return null;
     }
-    return <span className='text-destructive'>{item.record.error}</span>;
+    return <span className='text-destructive'>{translateError(item.record.error)}</span>;
 }
 
 function StepUrl({ item }: { item: LiveStep }) {
@@ -110,12 +120,14 @@ function FinishedBanner({
 }
 
 function FinishedBannerInner({ status }: { status: string | null }) {
+    useLocale();
+
     if (!status) {
         return null;
     }
     return (
         <div className='mt-3'>
-            上次运行结果：
+            {t('上次运行结果：')}
             <RunStatusTag status={status as never} />
         </div>
     );
@@ -147,13 +159,15 @@ function LiveFrame({
     height: string;
     onStop: () => void;
 }) {
+    useLocale();
+
     return (
         <PageCard
-            title='实时画面'
+            title={t('实时画面')}
             extra={
                 <Button variant='destructive' onClick={onStop}>
                     <Square />
-                    停止运行
+                    {t('停止运行')}
                 </Button>
             }
         >
@@ -163,28 +177,32 @@ function LiveFrame({
 }
 
 function IdleFrame({ frame, height }: { frame: string | null; height: string }) {
+    useLocale();
+
     if (frame) {
         return (
-            <PageCard title='实时画面'>
+            <PageCard title={t('实时画面')}>
                 <FrameBody frame={frame} height={height} />
             </PageCard>
         );
     }
     return (
-        <PageCard title='实时画面'>
-            <EmptyState text='当前没有运行中的任务，到「任务」页面发起一次运行' />
+        <PageCard title={t('实时画面')}>
+            <EmptyState text={t('当前没有运行中的任务，到「任务」页面发起一次运行')} />
         </PageCard>
     );
 }
 
 function FrameBody({ frame, height }: { frame: string | null; height: string }) {
+    useLocale();
+
     if (!frame) {
         return (
             <div
                 className='flex items-center justify-center overflow-hidden rounded-lg bg-black text-white'
                 style={{ height }}
             >
-                等待浏览器画面...
+                {t('等待浏览器画面...')}
             </div>
         );
     }
@@ -196,20 +214,24 @@ function FrameBody({ frame, height }: { frame: string | null; height: string }) 
             <img
                 src={`data:image/jpeg;base64,${frame}`}
                 className='block max-h-full max-w-full object-contain'
-                alt='实时画面'
+                alt={t('实时画面')}
             />
         </div>
     );
 }
 
 function EmptyQueueHint({ count }: { count: number }) {
+    useLocale();
+
     if (count > 0) {
         return null;
     }
-    return <p className='text-sm text-muted-foreground'>队列为空</p>;
+    return <p className='text-sm text-muted-foreground'>{t('队列为空')}</p>;
 }
 
 function EmptyStepHint({ count, running }: { count: number; running: boolean }) {
+    useLocale();
+
     if (count > 0) {
         return null;
     }
@@ -217,6 +239,8 @@ function EmptyStepHint({ count, running }: { count: number; running: boolean }) 
 }
 
 function RunProgress({ current }: { current: RunViewState['current'] }) {
+    useLocale();
+
     if (!current.run) {
         return null;
     }
@@ -232,6 +256,8 @@ function RunProgress({ current }: { current: RunViewState['current'] }) {
 }
 
 export default function RunPage() {
+    useLocale();
+
     const [view, setView] = useState(emptyView);
     const [loading, setLoading] = useState(true);
     const stepListRef = useRef<HTMLDivElement>(null);
@@ -275,7 +301,7 @@ export default function RunPage() {
     const stop = async () => {
         try {
             await api.stopRun();
-            notify.info('已发送停止指令');
+            notify.info(t('已发送停止指令'));
         } catch (error) {
             notify.error(errorText(error));
         }
@@ -295,7 +321,7 @@ export default function RunPage() {
 
     const addToQueue = async () => {
         if (queueAddMissing(addTaskId, addModelId)) {
-            notify.warning('请选择任务和模型');
+            notify.warning(t('请选择任务和模型'));
             return;
         }
         await submitQueueAdd();
@@ -360,7 +386,7 @@ export default function RunPage() {
                                             size='icon-xs'
                                             variant='ghost'
                                             disabled={index === 0}
-                                            aria-label='上移'
+                                            aria-label={t('上移')}
                                             onClick={() => void moveItem(item.id, 'up')}
                                         >
                                             <ArrowUp />
@@ -369,7 +395,7 @@ export default function RunPage() {
                                             size='icon-xs'
                                             variant='ghost'
                                             disabled={index === pendingItems.length - 1}
-                                            aria-label='下移'
+                                            aria-label={t('下移')}
                                             onClick={() => void moveItem(item.id, 'down')}
                                         >
                                             <ArrowDown />
@@ -377,7 +403,7 @@ export default function RunPage() {
                                         <Button
                                             size='icon-xs'
                                             variant='ghost'
-                                            aria-label='取消排队'
+                                            aria-label={t('取消排队')}
                                             onClick={() => void cancelItem(item.id)}
                                         >
                                             <Trash2 />
@@ -390,7 +416,7 @@ export default function RunPage() {
                     <div className='mt-2 flex flex-wrap items-center gap-2 border-t pt-2'>
                         <SelectField
                             className='min-w-[160px] flex-1'
-                            placeholder='选择任务'
+                            placeholder={t('选择任务')}
                             value={optionalIdString(addTaskId)}
                             onValueChange={(value) => setAddTaskId(Number(value))}
                             options={tasks.map((task) => ({
@@ -400,7 +426,7 @@ export default function RunPage() {
                         />
                         <SelectField
                             className='min-w-[160px]'
-                            placeholder='选择模型'
+                            placeholder={t('选择模型')}
                             value={addModelId}
                             onValueChange={setAddModelId}
                             options={models.map((model) => ({
@@ -410,14 +436,14 @@ export default function RunPage() {
                         />
                         <Button onClick={() => void addToQueue()}>
                             <Plus />
-                            添加
+                            {t('添加')}
                         </Button>
                     </div>
                 </PageCard>
                 <PageCard
                     title={
                         <span className='inline-flex items-center gap-2'>
-                            步骤日志
+                            {t('步骤日志')}
                             <RunProgress current={view.current} />
                         </span>
                     }

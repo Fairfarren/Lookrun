@@ -1,3 +1,5 @@
+import { getLocale, t } from '../i18n';
+import { translateError } from '../i18n/errors';
 export function jsonRequestHeaders(hasBody: boolean) {
     if (!hasBody) {
         return undefined;
@@ -7,12 +9,12 @@ export function jsonRequestHeaders(hasBody: boolean) {
 
 export function requestErrorText(body: { error?: string; errors?: string[] }, status: number) {
     if (body.errors && body.errors.length > 0) {
-        return body.errors.join('；');
+        return body.errors.map(translateError).join(getLocale() === 'zh-CN' ? '；' : '; ');
     }
     if (body.error) {
-        return body.error;
+        return translateError(body.error);
     }
-    return `请求失败（${status}）`;
+    return t('请求失败（{p0}）', { p0: status });
 }
 
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {

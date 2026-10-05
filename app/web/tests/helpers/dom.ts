@@ -1,6 +1,8 @@
 import { Window } from 'happy-dom';
 
 const browser = new Window({ url: 'http://localhost:3000/' });
+// 现有用例明确使用中文；默认英语和切换行为由多语言用例单独验证。
+browser.localStorage.setItem('lookrun-language', 'zh-CN');
 const browserGlobals = [
     'window',
     'document',

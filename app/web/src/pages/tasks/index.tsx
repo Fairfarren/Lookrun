@@ -1,3 +1,4 @@
+import { t, useLocale } from '../../i18n';
 import { Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -27,6 +28,8 @@ import { stayOnTasks } from '../../utils/ui-class';
 import { canStartTask, startTaskSuccess } from './utils';
 
 export default function TasksPage() {
+    useLocale();
+
     const navigate = useNavigate();
     const [tasks, setTasks] = useState<TaskRecord[]>([]);
     const [loading, setLoading] = useState(true);
@@ -86,9 +89,9 @@ export default function TasksPage() {
 
     const confirmDelete = async (task: TaskRecord) => {
         const ok = await confirmAction({
-            title: `删除任务「${task.name}」？`,
-            description: '删除后不可恢复，历史运行记录会保留。',
-            confirmLabel: '删除',
+            title: t('删除任务「{p0}」？', { p0: task.name }),
+            description: t('删除后不可恢复，历史运行记录会保留。'),
+            confirmLabel: t('删除'),
             destructive: true,
         });
         await runConfirmedDelete({
@@ -97,7 +100,7 @@ export default function TasksPage() {
                 await api.deleteTask(task.id);
             },
             onSuccess: () => {
-                notify.success('已删除');
+                notify.success(t('已删除'));
                 loadTasks();
             },
             onError: (message) => notify.error(message),
@@ -106,11 +109,11 @@ export default function TasksPage() {
 
     return (
         <PageCard
-            title='任务列表'
+            title={t('任务列表')}
             extra={
                 <Button onClick={() => navigate('/tasks/new')}>
                     <Plus />
-                    新建任务
+                    {t('新建任务')}
                 </Button>
             }
         >
@@ -126,25 +129,25 @@ export default function TasksPage() {
                             <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
                                 <span className='font-medium'>{task.name}</span>
                                 <span className='text-sm text-muted-foreground'>
-                                    更新于 {formatTime(task.updatedAt)}
+                                    {t('更新于')} {formatTime(task.updatedAt)}
                                 </span>
                             </div>
                             <div className='flex flex-wrap gap-2'>
                                 <Button variant='outline' onClick={() => openRunModal(task)}>
                                     <Play />
-                                    运行
+                                    {t('运行')}
                                 </Button>
                                 <Button
                                     variant='outline'
                                     onClick={() => navigate(`/tasks/${task.id}`)}
                                 >
                                     <Pencil />
-                                    编辑
+                                    {t('编辑')}
                                 </Button>
                                 <Button
                                     variant='destructive'
                                     size='icon'
-                                    aria-label='删除任务'
+                                    aria-label={t('删除任务')}
                                     onClick={() => void confirmDelete(task)}
                                 >
                                     <Trash2 />
@@ -158,8 +161,10 @@ export default function TasksPage() {
             <Dialog open={runTask !== null} onOpenChange={(open) => !open && setRunTask(null)}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>{`运行任务「${runTask?.name}」`}</DialogTitle>
-                        <DialogDescription>选择本次运行使用的 AI 模型：</DialogDescription>
+                        <DialogTitle>
+                            {t('运行任务「{p0}」', { p0: runTask?.name ?? '' })}
+                        </DialogTitle>
+                        <DialogDescription>{t('选择本次运行使用的 AI 模型：')}</DialogDescription>
                     </DialogHeader>
                     <SelectField
                         className='w-full'
@@ -171,14 +176,14 @@ export default function TasksPage() {
                         }))}
                     />
                     <p className='text-sm text-muted-foreground'>
-                        运行过程中可在「实时运行」页面查看画面与步骤日志。
+                        {t('运行过程中可在「实时运行」页面查看画面与步骤日志。')}
                     </p>
                     <DialogFooter>
                         <Button variant='outline' onClick={() => setRunTask(null)}>
-                            取消
+                            {t('取消')}
                         </Button>
                         <BusyButton busy={starting} onClick={() => void startRun()}>
-                            开始运行
+                            {t('开始运行')}
                         </BusyButton>
                     </DialogFooter>
                 </DialogContent>

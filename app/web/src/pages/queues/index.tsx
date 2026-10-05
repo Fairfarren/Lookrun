@@ -1,7 +1,9 @@
+import { t, useLocale } from '../../i18n';
 import { Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { confirmAction } from '../../components/confirm';
+import { formatTime } from '../../components';
 import { runConfirmedDelete } from '../../utils/confirmed-delete';
 import { BusyButton } from '../../components/busy-button';
 import { notify } from '../../components/notify';
@@ -14,6 +16,8 @@ import { QueuesEmpty, QueuesLoading, QueuesReady } from './components/list-state
 import { startQueueFeedback } from './utils';
 
 export default function QueuesPage() {
+    useLocale();
+
     const navigate = useNavigate();
     const [queues, setQueues] = useState<QueueDef[]>([]);
     const [loading, setLoading] = useState(true);
@@ -65,9 +69,9 @@ export default function QueuesPage() {
 
     const confirmDelete = async (queue: QueueDef) => {
         const ok = await confirmAction({
-            title: `删除队列「${queue.name}」？`,
-            description: '只删除队列定义，不影响里面的任务。',
-            confirmLabel: '删除',
+            title: t('删除队列「{p0}」？', { p0: queue.name }),
+            description: t('只删除队列定义，不影响里面的任务。'),
+            confirmLabel: t('删除'),
             destructive: true,
         });
         await runConfirmedDelete({
@@ -76,7 +80,7 @@ export default function QueuesPage() {
                 await api.deleteQueue(queue.id);
             },
             onSuccess: () => {
-                notify.success('已删除');
+                notify.success(t('已删除'));
                 load();
             },
             onError: (message) => notify.error(message),
@@ -85,11 +89,11 @@ export default function QueuesPage() {
 
     return (
         <PageCard
-            title='队列列表'
+            title={t('队列列表')}
             extra={
                 <Button onClick={() => navigate('/queues/new')}>
                     <Plus />
-                    新建队列
+                    {t('新建队列')}
                 </Button>
             }
         >
@@ -105,10 +109,7 @@ export default function QueuesPage() {
                             <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
                                 <span className='font-medium'>{queue.name}</span>
                                 <span className='text-sm text-muted-foreground'>
-                                    更新于{' '}
-                                    {new Date(queue.updatedAt).toLocaleString('zh-CN', {
-                                        hour12: false,
-                                    })}
+                                    {t('更新于')} {formatTime(queue.updatedAt)}
                                 </span>
                             </div>
                             <div className='flex flex-wrap gap-2'>
@@ -118,19 +119,19 @@ export default function QueuesPage() {
                                     onClick={() => void startQueue(queue)}
                                 >
                                     <Play />
-                                    开始
+                                    {t('开始')}
                                 </BusyButton>
                                 <Button
                                     variant='outline'
                                     onClick={() => navigate(`/queues/${queue.id}`)}
                                 >
                                     <Pencil />
-                                    编辑
+                                    {t('编辑')}
                                 </Button>
                                 <Button
                                     variant='destructive'
                                     size='icon'
-                                    aria-label='删除队列'
+                                    aria-label={t('删除队列')}
                                     onClick={() => void confirmDelete(queue)}
                                 >
                                     <Trash2 />

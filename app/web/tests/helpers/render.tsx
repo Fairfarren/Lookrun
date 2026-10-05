@@ -24,7 +24,13 @@ export function latestNotice() {
 export function useDomTests() {
     beforeEach(() => {
         document.body.innerHTML = '';
+        Object.defineProperty(window, 'innerWidth', {
+            configurable: true,
+            writable: true,
+            value: 1280,
+        });
         testBrowser.localStorage.clear();
+        testBrowser.localStorage.setItem('lookrun-language', 'zh-CN');
     });
     afterEach(async () => {
         await act(async () => {
@@ -36,6 +42,7 @@ export function useDomTests() {
         globalThis.WebSocket = originalWebSocket;
         for (const cleanup of cleanupCallbacks.splice(0)) cleanup();
         await testBrowser.happyDOM.abort();
+        testBrowser.localStorage.setItem('lookrun-language', 'zh-CN');
     });
 }
 

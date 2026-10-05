@@ -1,3 +1,5 @@
+import { t, useLocale } from '../../i18n';
+import { translateError } from '../../i18n/errors';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import type { RunRecord, RunStepRecord } from '@lookrun/shared';
@@ -37,27 +39,31 @@ export default function RunDetailPage() {
 }
 
 function RunDetailBody({ run, steps }: { run: RunRecord | null; steps: RunStepRecord[] }) {
+    useLocale();
+
     if (!run) {
-        return <PageCard>运行记录不存在</PageCard>;
+        return <PageCard>{t('运行记录不存在')}</PageCard>;
     }
 
     return (
         <div className='flex flex-col gap-4'>
-            <PageCard title={`运行详情 #${run.id} · ${run.taskName}`}>
+            <PageCard title={t('运行详情 #{p0} · {p1}', { p0: run.id, p1: run.taskName })}>
                 <dl className='grid grid-cols-2 gap-x-6 gap-y-3 text-sm md:grid-cols-4'>
-                    <Info label='状态'>
+                    <Info label={t('状态')}>
                         <RunStatusTag status={run.status} />
                     </Info>
-                    <Info label='模型'>{run.model}</Info>
-                    <Info label='开始时间'>{formatTime(run.startedAt)}</Info>
-                    <Info label='耗时'>{formatDuration(run.durationMs)}</Info>
-                    <Info label='Token（输入/输出）'>
+                    <Info label={t('模型')}>{run.model}</Info>
+                    <Info label={t('开始时间')}>{formatTime(run.startedAt)}</Info>
+                    <Info label={t('耗时')}>{formatDuration(run.durationMs)}</Info>
+                    <Info label={t('Token（输入/输出）')}>
                         <TokenText input={run.tokenInput} output={run.tokenOutput} />
                     </Info>
-                    <Info label='结束时间'>{formatTime(run.finishedAt)}</Info>
+                    <Info label={t('结束时间')}>{formatTime(run.finishedAt)}</Info>
                 </dl>
                 <OptionalBlock show={Boolean(run.error)}>
-                    <p className='mt-3 mb-0 text-destructive'>{run.error}</p>
+                    <p className='mt-3 mb-0 text-destructive'>
+                        {run.error && translateError(run.error)}
+                    </p>
                 </OptionalBlock>
             </PageCard>
             {steps.map((step) => (
@@ -98,6 +104,8 @@ function aiResultText(raw: string | null) {
 }
 
 function StepHistoryCard({ step }: { step: RunStepRecord }) {
+    useLocale();
+
     return (
         <PageCard
             title={
@@ -121,19 +129,19 @@ function StepHistoryCard({ step }: { step: RunStepRecord }) {
                 <div className='flex flex-col gap-2'>
                     <OptionalBlock show={Boolean(step.url)}>
                         <div>
-                            <span className='font-medium'>当时 URL：</span>
+                            <span className='font-medium'>{t('当时 URL：')}</span>
                             <CopyText text={copyableText(step.url) ?? ''}>{step.url}</CopyText>
                         </div>
                     </OptionalBlock>
                     <OptionalBlock show={Boolean(step.prompt)}>
                         <div>
-                            <span className='font-medium'>目标：</span>
+                            <span className='font-medium'>{t('目标：')}</span>
                             <span>{step.prompt}</span>
                         </div>
                     </OptionalBlock>
                     <OptionalBlock show={Boolean(step.aiResult)}>
                         <div>
-                            <span className='font-medium'>AI 识别：</span>
+                            <span className='font-medium'>{t('AI 识别：')}</span>
                             <pre className='my-1 rounded-md bg-muted p-2 whitespace-pre-wrap'>
                                 {formatAiResult(aiResultText(step.aiResult))}
                             </pre>
@@ -141,8 +149,10 @@ function StepHistoryCard({ step }: { step: RunStepRecord }) {
                     </OptionalBlock>
                     <OptionalBlock show={Boolean(step.error)}>
                         <div>
-                            <span className='font-medium'>失败原因：</span>
-                            <span className='text-destructive'>{step.error}</span>
+                            <span className='font-medium'>{t('失败原因：')}</span>
+                            <span className='text-destructive'>
+                                {step.error && translateError(step.error)}
+                            </span>
                         </div>
                     </OptionalBlock>
                 </div>
@@ -150,15 +160,15 @@ function StepHistoryCard({ step }: { step: RunStepRecord }) {
                     <OptionalBlock show={Boolean(step.shotBefore)}>
                         <ShotPreview
                             src={screenshotSrc(step.shotBefore)}
-                            alt='执行前截图'
-                            label='执行前'
+                            alt={t('执行前截图')}
+                            label={t('执行前')}
                         />
                     </OptionalBlock>
                     <OptionalBlock show={Boolean(step.shotAfter)}>
                         <ShotPreview
                             src={screenshotSrc(step.shotAfter)}
-                            alt='执行后截图'
-                            label='执行后'
+                            alt={t('执行后截图')}
+                            label={t('执行后')}
                         />
                     </OptionalBlock>
                 </div>

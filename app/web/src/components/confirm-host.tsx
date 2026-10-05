@@ -1,3 +1,4 @@
+import { t, useLocale } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { setConfirmHandler, type ConfirmRequest } from './confirm';
 import {
@@ -16,6 +17,8 @@ export function dismissIfClosed(open: boolean, close: (ok: boolean) => void) {
 }
 
 export function ConfirmHost() {
+    useLocale();
+
     const [request, setRequest] = useState<ConfirmRequest | null>(null);
     const resolveRef = useRef<((ok: boolean) => void) | null>(null);
 
@@ -43,7 +46,7 @@ export function ConfirmHost() {
                     <AlertDialogDescription>{request?.description}</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel>取消</AlertDialogCancel>
+                    <AlertDialogCancel>{t('取消')}</AlertDialogCancel>
                     <AlertDialogAction
                         variant={request?.destructive ? 'destructive' : 'default'}
                         onClick={() => close(true)}

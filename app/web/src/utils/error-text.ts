@@ -1,6 +1,8 @@
+import { translateError } from '../i18n/errors';
+
 export function errorText(error: unknown) {
     if (error instanceof Error) {
-        return error.message;
+        return translateError(error.message);
     }
-    return String(error);
+    return translateError(String(error));
 }

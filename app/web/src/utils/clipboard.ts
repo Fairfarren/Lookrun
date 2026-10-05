@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { errorText } from './error-text';
 
 export async function copyWithNotify(input: {
@@ -8,7 +9,7 @@ export async function copyWithNotify(input: {
 }) {
     try {
         await input.writeText(input.text);
-        input.onSuccess('已复制');
+        input.onSuccess(t('已复制'));
     } catch (error) {
         input.onError(errorText(error));
     }
