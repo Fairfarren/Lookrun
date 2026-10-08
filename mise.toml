@@ -1,0 +1,5 @@
+# 工具链版本固定在 mise 配置里，不再使用 package.json 的 packageManager 字段。
+# 首次使用：mise install（或 mise trust && mise install）。
+# CI 通过 oven-sh/setup-bun 安装同一版本，见 .github/workflows/pr-check.yml。
+[tools]
+bun = "1.3.14"

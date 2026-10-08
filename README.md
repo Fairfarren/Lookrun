@@ -35,7 +35,7 @@ Tasks, history, screenshots and model settings live in the executable's adjacent
 
 ## Run from source
 
-Use [Bun 1.3.14](https://bun.sh), the version pinned for this workspace and CI. Run commands from the repository root.
+Use [Bun 1.3.14](https://bun.sh), the version pinned in `mise.toml` and used by CI. Install it with `mise install`, or install that Bun version yourself. Run commands from the repository root.
 
 ```bash
 bun install

@@ -35,7 +35,7 @@
 
 ## 从源码运行
 
-使用仓库与 CI 固定的 [Bun 1.3.14](https://bun.sh)。以下命令均在仓库根目录执行。
+使用 [Bun 1.3.14](https://bun.sh)，版本固定在 `mise.toml`，执行 `mise install` 安装，CI 使用同一版本。以下命令均在仓库根目录执行。
 
 ```bash
 bun install
