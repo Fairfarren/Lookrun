@@ -8,7 +8,7 @@ alwaysApply: false
 
 - 禁止直接向 `master` 提交或推送代码。
 - 修改必须在独立分支提交，通过指向 `master` 的 PR 合并。
-- CI 仅监听指向 `master` 的 `pull_request`，合并后不重复运行。
+- 质量 CI 仅监听指向 `master` 的 `pull_request`，合并后不重复运行；发布工作流在推送 tag 时打包并上传 Release，修改发布工作流的 PR 只验证打包。
 
 默认使用 Bun，不要使用 Node.js。
 
