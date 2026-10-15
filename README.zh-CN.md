@@ -20,7 +20,7 @@
 
 ## 开始使用
 
-拿到 Windows 或 macOS 程序包后，无需安装开发环境：
+从 [GitHub Releases](https://github.com/Fairfarren/Lookrun/releases) 下载 Windows x64 或 macOS ARM64（Apple Silicon）程序包后，无需安装开发环境：
 
 1. 解压并保留**整个程序包目录**，打开其中的可执行文件。控制台会自动打开，地址为 `http://localhost:3877`。
 2. 在**设置 → AI 模型**填写服务地址、API Key 和模型名称，保存后选择默认模型，再运行**视觉自检**。使用**自由指令**前，还要选择实际模型所属的 **family**。
@@ -123,6 +123,24 @@ bun run build:exe:mac
 第一条命令构建本机平台，另外两条分别构建 Windows x64、macOS ARM64。产物目录为 `dist-win/`、`dist-mac/` 或 `dist-linux/`，可执行文件目前叫 `test-web-use-ai`。
 
 分发时必须带上**整个产物目录**，包括 `node_modules/@img/`、`runtime-tools/` 和 Android Platform Tools。模型配置在构建时嵌入，运行后可在设置中修改，无需重新打包；运行时配置保存在 `data/models.json`。
+
+### 自动发布
+
+把 tag 推送到 GitHub 后，发布工作流会分别在 Windows、macOS 上构建，压缩完整产物目录，再解压检查依赖并启动程序。两个平台都通过后，自动创建对应的 GitHub Release、生成更新说明，并上传两个附件：
+
+- `Lookrun-windows-x64.zip`
+- `Lookrun-macos-arm64.tar.gz`（Apple Silicon，不含 Intel Mac 版本）
+
+程序包包含 ADB（Windows 同时包含所需 DLL）、FFmpeg、scrcpy-server 和 sharp 原生依赖。macOS 使用 `tar.gz` 保留执行权限。构建使用公开的模型示例配置，下载后在设置中填写自己的模型和 API Key。
+
+发布工作流合并到 `master` 后，在准备发布的提交上执行，例如：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+所有 tag 都会触发发布；只在本地打 tag 不会触发。发布使用自动提供的 `GITHUB_TOKEN`，无需额外配置密钥。首次上传失败时 Release 保持草稿，可在 Actions 重跑；已有 Release 重跑时会替换同名附件。修改发布工作流的 PR 也会检查这两个程序包，但不会创建 Release。
 
 ## 开发检查
 
